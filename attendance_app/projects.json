@@ -1,0 +1,216 @@
+﻿{
+  "status": "success",
+  "result": [
+    {
+      "projectId": "aakrithi-2k24",
+      "projectNumber": "577131594529",
+      "displayName": "Aakrithi 2k24",
+      "name": "projects/aakrithi-2k24",
+      "resources": {
+        "hostingSite": "aakrithi-2k24",
+        "locationId": "asia-east2"
+      },
+      "state": "ACTIVE",
+      "etag": "1_5b6d4716-01fd-4f7e-9c46-1e75f6ea8c52"
+    },
+    {
+      "projectId": "abhayam-iej12s",
+      "projectNumber": "704124013106",
+      "displayName": "Abhayam",
+      "name": "projects/abhayam-iej12s",
+      "resources": {
+        "hostingSite": "abhayam-iej12s",
+        "realtimeDatabaseInstance": "abhayam-iej12s-default-rtdb",
+        "locationId": "asia-south1"
+      },
+      "state": "ACTIVE",
+      "etag": "1_f4a30688-87d4-45e7-a33e-d00c058d6f68"
+    },
+    {
+      "projectId": "aetherial-c1202",
+      "projectNumber": "12383017568",
+      "displayName": "Aetherial",
+      "name": "projects/aetherial-c1202",
+      "resources": {
+        "hostingSite": "aetherial-c1202",
+        "realtimeDatabaseInstance": "aetherial-c1202-default-rtdb",
+        "locationId": "asia-southeast1"
+      },
+      "state": "ACTIVE",
+      "etag": "1_7df03a9d-021c-4b38-bd5c-bdb0e574aaa4"
+    },
+    {
+      "projectId": "attendance-73316",
+      "projectNumber": "583986310533",
+      "displayName": "Attendance",
+      "name": "projects/attendance-73316",
+      "resources": {
+        "hostingSite": "attendance-73316",
+        "realtimeDatabaseInstance": "attendance-73316-default-rtdb",
+        "locationId": "us-central"
+      },
+      "state": "ACTIVE",
+      "etag": "1_4ab43401-651a-4c44-a1ae-d2c7ffadb066"
+    },
+    {
+      "projectId": "chat-app-fb705",
+      "projectNumber": "935675693806",
+      "displayName": "chat-app",
+      "name": "projects/chat-app-fb705",
+      "resources": {
+        "hostingSite": "chat-app-fb705",
+        "realtimeDatabaseInstance": "chat-app-fb705-default-rtdb"
+      },
+      "state": "ACTIVE",
+      "etag": "1_5216546b-5e86-4cf7-8cc8-32fdf635deb8"
+    },
+    {
+      "projectId": "chatapp-834ea",
+      "projectNumber": "662432351858",
+      "displayName": "ChatApp",
+      "name": "projects/chatapp-834ea",
+      "resources": {
+        "hostingSite": "chatapp-834ea"
+      },
+      "state": "ACTIVE",
+      "etag": "1_f221af73-701c-410f-97c6-e2bbb1853d2a"
+    },
+    {
+      "projectId": "drug-drug",
+      "projectNumber": "1024164971268",
+      "displayName": "drug-drug",
+      "name": "projects/drug-drug",
+      "resources": {
+        "hostingSite": "drug-drug"
+      },
+      "state": "ACTIVE",
+      "etag": "1_e0455ead-d585-4fae-92cb-b3deeee6553d"
+    },
+    {
+      "projectId": "edu-ai-7c33a",
+      "projectNumber": "582095117064",
+      "displayName": "Edu Ai",
+      "name": "projects/edu-ai-7c33a",
+      "resources": {
+        "hostingSite": "edu-ai-7c33a"
+      },
+      "state": "ACTIVE",
+      "etag": "1_f3e391fc-5473-4815-a3ce-2d75ed7952ad"
+    },
+    {
+      "projectId": "edulink-afb64",
+      "projectNumber": "260570123699",
+      "displayName": "EduLink",
+      "name": "projects/edulink-afb64",
+      "resources": {
+        "hostingSite": "edulink-afb64",
+        "realtimeDatabaseInstance": "edulink-afb64-default-rtdb",
+        "locationId": "us-central"
+      },
+      "state": "ACTIVE",
+      "etag": "1_4ef4e58c-9976-4961-8616-7b866a5abd33"
+    },
+    {
+      "projectId": "judica-cc7c2",
+      "projectNumber": "636016915209",
+      "displayName": "Judica",
+      "name": "projects/judica-cc7c2",
+      "resources": {
+        "hostingSite": "judica-cc7c2"
+      },
+      "state": "ACTIVE",
+      "etag": "1_2cb1f788-c0ef-44a6-aeea-60262ff2e07d"
+    },
+    {
+      "projectId": "krishnasworld-477a5",
+      "projectNumber": "642342118393",
+      "displayName": "KrishnasWorld",
+      "name": "projects/krishnasworld-477a5",
+      "resources": {
+        "hostingSite": "krishnasworld-477a5"
+      },
+      "state": "ACTIVE",
+      "etag": "1_eba49185-77ab-4db5-a393-274fe7aa7613"
+    },
+    {
+      "projectId": "mindcare-6eea7",
+      "projectNumber": "1006028968052",
+      "displayName": "MindCare",
+      "name": "projects/mindcare-6eea7",
+      "resources": {
+        "hostingSite": "mindcare-6eea7"
+      },
+      "state": "ACTIVE",
+      "etag": "1_d1a9d93a-2059-4d7d-860c-31d631f80de9"
+    },
+    {
+      "projectId": "read-8298a",
+      "projectNumber": "705717466954",
+      "displayName": "read",
+      "name": "projects/read-8298a",
+      "resources": {
+        "hostingSite": "read-8298a",
+        "realtimeDatabaseInstance": "read-8298a-default-rtdb"
+      },
+      "state": "ACTIVE",
+      "etag": "1_8b170666-df03-4f25-a047-8510363c9f9c"
+    },
+    {
+      "projectId": "sentionet",
+      "projectNumber": "133620509973",
+      "displayName": "SentioNet",
+      "name": "projects/sentionet",
+      "resources": {
+        "hostingSite": "sentionet"
+      },
+      "state": "ACTIVE",
+      "etag": "1_6dc27592-f6ce-417d-8582-496e745793fb"
+    },
+    {
+      "projectId": "service-app-9fc1e",
+      "projectNumber": "892932890509",
+      "displayName": "Service-App",
+      "name": "projects/service-app-9fc1e",
+      "resources": {
+        "hostingSite": "service-app-9fc1e",
+        "realtimeDatabaseInstance": "service-app-9fc1e-default-rtdb"
+      },
+      "state": "ACTIVE",
+      "etag": "1_f9e88a1d-fc26-43c8-91da-ff11e4b5b1b1"
+    },
+    {
+      "projectId": "trackin-df4d8",
+      "projectNumber": "46917976454",
+      "displayName": "TrackIn",
+      "name": "projects/trackin-df4d8",
+      "resources": {
+        "hostingSite": "trackin-df4d8"
+      },
+      "state": "ACTIVE",
+      "etag": "1_f3b1a94b-ed5d-4343-b635-6a0ef2101bc2"
+    },
+    {
+      "projectId": "udal-d56e9",
+      "projectNumber": "499868520702",
+      "displayName": "UDAL",
+      "name": "projects/udal-d56e9",
+      "resources": {
+        "hostingSite": "udal-d56e9",
+        "realtimeDatabaseInstance": "udal-d56e9-default-rtdb"
+      },
+      "state": "ACTIVE",
+      "etag": "1_c9f06038-f883-4de5-9717-82d4d58caffd"
+    },
+    {
+      "projectId": "wasteroutego",
+      "projectNumber": "909583965722",
+      "displayName": "WasteRouteGo",
+      "name": "projects/wasteroutego",
+      "resources": {
+        "hostingSite": "wasteroutego"
+      },
+      "state": "ACTIVE",
+      "etag": "1_87511754-d963-4843-8c20-0f555d8d525e"
+    }
+  ]
+}

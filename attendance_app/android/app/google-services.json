@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "46917976454",
+    "project_id": "trackin-df4d8",
+    "storage_bucket": "trackin-df4d8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:46917976454:android:4c0ad328c379dde1146c07",
+        "android_client_info": {
+          "package_name": "com.example.attendance_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "46917976454-09sa19cb2gtrb4urr8f4r8lo50r4asll.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJX9V5mTobnLzHNtuX56YOLLstx1NV4z0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "46917976454-09sa19cb2gtrb4urr8f4r8lo50r4asll.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "46917976454-3mp5oprvq3krk97v5udodkoqpe557ccc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.trackin"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:46917976454:android:811802672af31706146c07",
+        "android_client_info": {
+          "package_name": "com.example.trackin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "46917976454-5mlkv53bocsgr3sfe8fmhlob7j1tcb2d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.trackin",
+            "certificate_hash": "bd65714600ceee36e31c6ba97e6769579284b808"
+          }
+        },
+        {
+          "client_id": "46917976454-09sa19cb2gtrb4urr8f4r8lo50r4asll.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJX9V5mTobnLzHNtuX56YOLLstx1NV4z0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "46917976454-09sa19cb2gtrb4urr8f4r8lo50r4asll.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "46917976454-3mp5oprvq3krk97v5udodkoqpe557ccc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.trackin"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
