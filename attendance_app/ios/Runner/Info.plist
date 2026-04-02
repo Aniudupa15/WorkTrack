@@ -47,6 +47,19 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>PunchIn needs your location to verify you are at the work site when marking attendance.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>PunchIn needs your location to verify work site proximity.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>PunchIn uses the camera to capture a selfie during check-in for verification.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>PunchIn needs photo library access to upload a profile picture.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

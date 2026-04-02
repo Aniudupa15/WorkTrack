@@ -1,257 +1,176 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../models/user_model.dart';
 import '../../utils/user_provider.dart';
-import '../../services/auth_service.dart';
-import '../../services/location_service.dart';
+import '../../services/database_service.dart';
+import 'add_edit_employee.dart';
 
-class EmployeeManagement extends StatefulWidget {
+class EmployeeManagement extends StatelessWidget {
   const EmployeeManagement({super.key});
 
   @override
-  State<EmployeeManagement> createState() => _EmployeeManagementState();
-}
-
-class _EmployeeManagementState extends State<EmployeeManagement> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _latController = TextEditingController();
-  final _lngController = TextEditingController();
-  final _radiusController = TextEditingController(text: '100');
-  final _startTimeController = TextEditingController(text: '09:00');
-  final _endTimeController = TextEditingController(text: '18:00');
-
-  bool _isLoading = false;
-  final _auth = AuthService();
-  final _locationService = LocationService();
-
-  void _addEmployee() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-    try {
-      final employee = UserModel(
-        id: '', // Will be set by Firebase Auth
-        name: _nameController.text,
-        email: _emailController.text,
-        role: 'employee',
-        assignedLocation: {
-          'lat': double.parse(_latController.text),
-          'lng': double.parse(_lngController.text),
-        },
-        radius: double.parse(_radiusController.text),
-        shiftStart: _startTimeController.text,
-        shiftEnd: _endTimeController.text,
-      );
-
-      final result = await _auth.registerEmployee(
-        employee,
-        _passwordController.text,
-        Provider.of<UserProvider>(context, listen: false).user?.companyId ?? '',
-      );
-      if (result != null) {
-        _showSuccessDialog(employee, _passwordController.text);
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _getCurrentLocation() async {
-    try {
-      final pos = await _locationService.getCurrentLocation();
-      if (pos != null) {
-        _latController.text = pos.latitude.toString();
-        _lngController.text = pos.longitude.toString();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error getting location: $e')),
-        );
-      }
-    }
-  }
-
-  void _showSuccessDialog(UserModel employee, String password) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Column(
-          children: [
-            Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 64),
-            SizedBox(height: 16),
-            Text('Employee Created!', style: TextStyle(color: Colors.white)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'User account for ${employee.name} has been set up successfully.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[400]),
-            ),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  _buildDetailRow('Email', employee.email),
-                  const SizedBox(height: 8),
-                  _buildDetailRow('Password', password),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Go back to dashboard
-            },
-            child: Text('DONE', style: TextStyle(color: Colors.grey[400])),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              final message = '''
-👋 Welcome to ${Provider.of<UserProvider>(context, listen: false).company?.name}!
-            
-Your attendance tracking account is ready:
-📧 Email: ${employee.email}
-🔑 Password: $password
-
-Download the app to start checking in.
-''';
-              Share.share(message);
-            },
-            icon: const Icon(Icons.share_rounded),
-            label: const Text('SHARE DETAILS'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6366F1),
-              minimumSize: const Size(120, 44),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-      ],
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final prov = Provider.of<UserProvider>(context);
+    final companyId = prov.company?.id ?? '';
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text('Add New Employee'),
+        title: const Text('Employees'),
+        backgroundColor: const Color(0xFF1E293B),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSectionTitle('Personal Details'),
-              const SizedBox(height: 16),
-              _buildTextField(_nameController, 'Full Name', Icons.person_rounded),
-              const SizedBox(height: 16),
-              _buildTextField(_emailController, 'Email Address', Icons.email_rounded, keyboardType: TextInputType.emailAddress),
-              const SizedBox(height: 16),
-              _buildTextField(_passwordController, 'Temporary Password', Icons.lock_rounded, obscure: true),
-              const SizedBox(height: 40),
-              _buildSectionTitle('Work Location'),
-              const SizedBox(height: 16),
-              Row(
+      body: StreamBuilder<List<UserModel>>(
+        stream: DatabaseService().getAllEmployees(companyId),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator(color: Color(0xFF6366F1)));
+          }
+          final employees = snap.data ?? [];
+          if (employees.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(child: _buildTextField(_latController, 'Latitude', Icons.location_on_rounded, keyboardType: TextInputType.number)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _buildTextField(_lngController, 'Longitude', Icons.location_on_rounded, keyboardType: TextInputType.number)),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    onPressed: _getCurrentLocation,
-                    icon: const Icon(Icons.my_location_rounded),
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFF6366F1).withOpacity(0.1),
-                      foregroundColor: const Color(0xFF6366F1),
-                    ),
-                  ),
+                  Icon(Icons.people_outline, size: 64, color: Colors.grey[700]),
+                  const SizedBox(height: 16),
+                  Text('No employees yet',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                  const SizedBox(height: 8),
+                  Text('Tap + to add your first employee',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                 ],
               ),
-              const SizedBox(height: 16),
-              _buildTextField(_radiusController, 'Allowed Radius (meters)', Icons.radar_rounded, keyboardType: TextInputType.number),
-              const SizedBox(height: 40),
-              _buildSectionTitle('Shift Schedule'),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(child: _buildTextField(_startTimeController, 'Start Time', Icons.login_rounded)),
-                  const SizedBox(width: 16),
-                  Expanded(child: _buildTextField(_endTimeController, 'End Time', Icons.logout_rounded)),
-                ],
-              ),
-              const SizedBox(height: 48),
-              _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)))
-                  : ElevatedButton(
-                      onPressed: _addEmployee,
-                      child: const Text('CREATE EMPLOYEE ACCOUNT'),
-                    ),
-              const SizedBox(height: 24),
-            ],
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: employees.length,
+            itemBuilder: (ctx, i) => _EmployeeCard(
+              employee: employees[i],
+              companyId: companyId,
+              company: prov.company,
+            ),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AddEditEmployee(
+              companyId: companyId,
+              defaultRadius: prov.company?.defaultRadius ?? 100,
+              defaultShiftStart: prov.company?.defaultShiftStart ?? '09:00',
+              defaultShiftEnd: prov.company?.defaultShiftEnd ?? '18:00',
+            ),
           ),
         ),
+        backgroundColor: const Color(0xFF6366F1),
+        child: const Icon(Icons.person_add, color: Colors.white),
       ),
     );
   }
+}
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title.toUpperCase(),
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.bold,
-        color: Colors.grey[500],
-        letterSpacing: 1.2,
-      ),
-    );
-  }
+class _EmployeeCard extends StatelessWidget {
+  final UserModel employee;
+  final String companyId;
+  final dynamic company;
 
-  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {bool obscure = false, TextInputType? keyboardType}) {
-    return TextFormField(
-      controller: controller,
-      obscureText: obscure,
-      keyboardType: keyboardType,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, size: 20),
+  const _EmployeeCard({
+    required this.employee,
+    required this.companyId,
+    this.company,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AddEditEmployee(
+              employee: employee,
+              companyId: companyId,
+              defaultRadius: company?.defaultRadius ?? 100,
+              defaultShiftStart: company?.defaultShiftStart ?? '09:00',
+              defaultShiftEnd: company?.defaultShiftEnd ?? '18:00',
+            ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(children: [
+            CircleAvatar(
+              backgroundColor: const Color(0xFF6366F1).withAlpha(30),
+              radius: 24,
+              child: Text(
+                employee.name.isNotEmpty ? employee.name[0].toUpperCase() : '?',
+                style: const TextStyle(
+                    color: Color(0xFF6366F1),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(employee.name,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+                  const SizedBox(height: 4),
+                  Text(employee.email,
+                      style:
+                          const TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+                  if (employee.department != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                        '${employee.department}${employee.position != null ? " - ${employee.position}" : ""}',
+                        style: const TextStyle(
+                            color: Color(0xFF64748B), fontSize: 12)),
+                  ],
+                ],
+              ),
+            ),
+            Column(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: employee.status == 'active'
+                        ? const Color(0xFF10B981).withAlpha(25)
+                        : const Color(0xFFEF4444).withAlpha(25),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    employee.status.toUpperCase(),
+                    style: TextStyle(
+                      color: employee.status == 'active'
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFEF4444),
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text('${employee.shiftStart} - ${employee.shiftEnd}',
+                    style: const TextStyle(
+                        color: Color(0xFF64748B), fontSize: 11)),
+              ],
+            ),
+          ]),
+        ),
       ),
-      validator: (v) => v!.isEmpty ? 'Required' : null,
     );
   }
 }

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../utils/user_provider.dart';
 import '../../services/database_service.dart';
 import '../../models/attendance_model.dart';
 import '../../models/user_model.dart';
 import 'employee_management.dart';
 import 'attendance_logs.dart';
-import 'package:intl/intl.dart';
+import 'leave_management.dart';
+import 'admin_analytics.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key});
@@ -57,13 +59,13 @@ class AdminDashboard extends StatelessWidget {
               final allLogs = attendanceSnapshot.data ?? [];
               final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
               final todayLogs = allLogs
-                  .where((log) => DateFormat('yyyy-MM-dd').format(log.date) == today)
+                  .where((log) => log.date == today)
                   .toList();
 
               int totalEmployees = employees.length;
-              int presentToday = todayLogs.length;
+              int presentToday = todayLogs.where((l) => l.status == 'present' || l.status == 'late').length;
               int absentToday = totalEmployees - presentToday;
-              int lateCheckins = todayLogs.where((log) => log.status == 'Late').length;
+              int lateCheckins = todayLogs.where((log) => log.status == 'late' || log.isLate).length;
 
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(24.0),
@@ -95,6 +97,24 @@ class AdminDashboard extends StatelessWidget {
                       Icons.history_edu_rounded,
                       const Color(0xFFFB7185),
                       const AttendanceLogsScreen(),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildActionButton(
+                      context,
+                      'Leave Requests',
+                      'Review and approve employee leaves',
+                      Icons.event_busy_rounded,
+                      const Color(0xFFF59E0B),
+                      const LeaveManagement(),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildActionButton(
+                      context,
+                      'Analytics',
+                      'Attendance charts and statistics',
+                      Icons.bar_chart_rounded,
+                      const Color(0xFF10B981),
+                      const AdminAnalytics(),
                     ),
                     const SizedBox(height: 40),
                     _buildSectionHeader('Recent Activity', Icons.bolt_rounded),
@@ -212,12 +232,12 @@ class AdminDashboard extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: log.status == 'On-time' ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                backgroundColor: log.isLate ? Colors.orange.withAlpha(25) : Colors.green.withAlpha(25),
                 radius: 18,
                 child: Icon(
-                  log.status == 'On-time' ? Icons.check_rounded : Icons.access_time_rounded,
+                  log.isLate ? Icons.access_time_rounded : Icons.check_rounded,
                   size: 16,
-                  color: log.status == 'On-time' ? Colors.green : Colors.orange,
+                  color: log.isLate ? Colors.orange : Colors.green,
                 ),
               ),
               const SizedBox(width: 16),
@@ -225,15 +245,16 @@ class AdminDashboard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('User ${log.userId.substring(0, 5)}...', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text(DateFormat('hh:mm a').format(log.checkInTime!), style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                    Text(log.employeeName.isNotEmpty ? log.employeeName : log.employeeId.substring(0, 8), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    if (log.checkIn != null)
+                      Text(DateFormat('hh:mm a').format(log.checkIn!), style: TextStyle(fontSize: 12, color: Colors.grey[400])),
                   ],
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: log.status == 'On-time' ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                  color: log.isLate ? Colors.orange.withAlpha(25) : Colors.green.withAlpha(25),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -241,7 +262,7 @@ class AdminDashboard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: log.status == 'On-time' ? Colors.green : Colors.orange,
+                    color: log.isLate ? Colors.orange : Colors.green,
                   ),
                 ),
               ),
