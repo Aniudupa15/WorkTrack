@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../models/user_model.dart';
 import '../models/company_model.dart';
 import 'database_service.dart';
@@ -7,86 +8,85 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseService _db = DatabaseService();
 
-  // Get current user stream
   Stream<User?> get user => _auth.authStateChanges();
+  User? get currentUser => _auth.currentUser;
 
-  // Sign in with email/password
   Future<UserCredential?> signIn(String email, String password) async {
+    return await _auth.signInWithEmailAndPassword(
+        email: email, password: password);
+  }
+
+  Future<void> signOut() async => await _auth.signOut();
+
+  /// Register a new admin + create their company document.
+  Future<UserModel?> signUpAdmin(
+      String name, String email, String password, String companyName) async {
+    final result = await _auth.createUserWithEmailAndPassword(
+        email: email, password: password);
+    final uid = result.user!.uid;
+
+    // Use companyId == admin uid for simplicity
+    final companyId = uid;
+
+    final company = CompanyModel(
+      id: companyId,
+      companyName: companyName,
+      adminId: uid,
+      adminName: name,
+      adminEmail: email,
+    );
+    await _db.saveCompany(company);
+
+    final adminUser = UserModel(
+      id: uid,
+      name: name,
+      email: email,
+      role: 'admin',
+      companyId: companyId,
+    );
+    // Write minimal role doc so Security Rules can resolve role
+    await _db.saveRoleDoc(adminUser);
+    return adminUser;
+  }
+
+  /// Add an employee via the onEmployeeCreated Cloud Function.
+  /// The function creates the Firebase Auth account, sends welcome email,
+  /// and writes the employee doc — so the admin stays logged in.
+  Future<String?> addEmployeeViaFunction({
+    required String companyId,
+    required String name,
+    required String email,
+    required String? phone,
+    required String? department,
+    required String? position,
+    required Map<String, dynamic>? workLocation,
+    required Map<String, String>? shift,
+  }) async {
     try {
-      return await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final callable =
+          FirebaseFunctions.instance.httpsCallable('onEmployeeCreated');
+      final result = await callable.call({
+        'companyId': companyId,
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'department': department,
+        'position': position,
+        'workLocation': workLocation,
+        'shift': shift,
+      });
+      return result.data['uid'] as String?;
     } catch (e) {
-      print('DEBUG: signIn failed: ${e.toString()}');
       rethrow;
     }
   }
 
-  // Sign out
-  Future<void> signOut() async {
-    await _auth.signOut();
-  }
-
-  // Register admin and create company
-  Future<UserModel?> signUpAdmin(String name, String email, String password, String companyName) async {
-    try {
-      print('DEBUG: Starting signUpAdmin for $email');
-      UserCredential result = await _auth.createUserWithEmailAndPassword(email: email, password: password);
-      User? user = result.user;
-      if (user != null) {
-        print('DEBUG: User created in Auth: ${user.uid}');
-        String companyId = _db.generateId('companies');
-        CompanyModel company = CompanyModel(
-          id: companyId,
-          name: companyName,
-          adminId: user.uid,
-        );
-        print('DEBUG: Saving company data...');
-        await _db.saveCompany(company);
-
-        UserModel newUser = UserModel(
-          id: user.uid,
-          name: name,
-          email: email,
-          role: 'admin',
-          companyId: companyId,
-        );
-        print('DEBUG: Saving user data to Firestore...');
-        await _db.saveUser(newUser);
-        print('DEBUG: signUpAdmin completed successfully');
-        return newUser;
-      }
-    } catch (e) {
-      print('DEBUG: signUpAdmin failed: ${e.toString()}');
-      rethrow; // Rethrow to let the UI handle it
-    }
-    return null;
-  }
-
-  // Register employee (for Admin)
-  Future<UserModel?> registerEmployee(UserModel employee, String password, String companyId) async {
-    try {
-      // Note: This logic still has the "sign out admin" issue if run client-side.
-      // But for this task, we'll keep it simple or suggest Cloud Functions.
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
-          email: employee.email, password: password);
-      User? user = result.user;
-      if (user != null) {
-        UserModel newUser = UserModel(
-          id: user.uid,
-          name: employee.name,
-          email: employee.email,
-          role: 'employee',
-          companyId: companyId,
-          assignedLocation: employee.assignedLocation,
-          radius: employee.radius,
-          shiftStart: employee.shiftStart,
-          shiftEnd: employee.shiftEnd,
-        );
-        await _db.saveUser(newUser);
-        return newUser;
-      }
-    } catch (e) {
-      print(e.toString());
-    }
-    return null;
+  /// Fallback: save employee directly to Firestore (no Auth account created).
+  /// Use this only when Cloud Functions aren't deployed yet.
+  Future<void> addEmployeeDirectly(
+      String companyId, UserModel employee) async {
+    await _db.saveEmployee(companyId, employee);
+    await _db.saveRoleDoc(employee.copyWith());
+    await _db.incrementEmployeeCount(companyId, 1);
   }
 }
