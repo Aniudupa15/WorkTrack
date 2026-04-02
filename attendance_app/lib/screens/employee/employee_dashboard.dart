@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../utils/user_provider.dart';
 import '../../services/database_service.dart';
 import '../../models/attendance_model.dart';
 import 'mark_attendance.dart';
 import 'my_attendance.dart';
-import 'package:intl/intl.dart';
+import 'my_leaves.dart';
 
 class EmployeeDashboard extends StatelessWidget {
   const EmployeeDashboard({super.key});
@@ -53,6 +54,15 @@ class EmployeeDashboard extends StatelessWidget {
               Icons.history_rounded,
               const Color(0xFF818CF8),
               const MyAttendanceScreen(),
+            ),
+            const SizedBox(height: 16),
+            _buildActionCard(
+              context,
+              'My Leaves',
+              'Request and track leave applications',
+              Icons.event_busy_rounded,
+              const Color(0xFFF59E0B),
+              const MyLeaves(),
             ),
           ],
         ),
@@ -132,7 +142,8 @@ class EmployeeDashboard extends StatelessWidget {
         _buildSectionHeader("Today's Journey", Icons.today_rounded),
         const SizedBox(height: 16),
         FutureBuilder<AttendanceModel?>(
-          future: db.getTodayAttendance(userProvider.user?.id ?? ''),
+          future: db.getTodayAttendance(
+              userProvider.company?.id ?? '', userProvider.user?.id ?? ''),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator(color: Color(0xFF6366F1)));
@@ -140,7 +151,7 @@ class EmployeeDashboard extends StatelessWidget {
 
             final attendance = snapshot.data;
             final isCheckedIn = attendance != null;
-            final isCheckedOut = attendance?.checkOutTime != null;
+            final isCheckedOut = attendance?.checkOut != null;
 
             return Container(
               padding: const EdgeInsets.all(24),
@@ -151,7 +162,7 @@ class EmployeeDashboard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  _buildStatusItem('Check In', isCheckedIn, attendance?.checkInTime, const Color(0xFF10B981)),
+                  _buildStatusItem('Check In', isCheckedIn, attendance?.checkIn, const Color(0xFF10B981)),
                   Expanded(
                     child: Container(
                       height: 2,
@@ -166,7 +177,7 @@ class EmployeeDashboard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _buildStatusItem('Check Out', isCheckedOut, attendance?.checkOutTime, const Color(0xFFF43F5E)),
+                  _buildStatusItem('Check Out', isCheckedOut, attendance?.checkOut, const Color(0xFFF43F5E)),
                 ],
               ),
             );
