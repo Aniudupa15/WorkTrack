@@ -12,7 +12,6 @@ enum _Filter { all, onTime, late }
 
 class AttendanceLogsScreen extends StatefulWidget {
   const AttendanceLogsScreen({super.key});
-
   @override
   State<AttendanceLogsScreen> createState() =>
       _AttendanceLogsScreenState();

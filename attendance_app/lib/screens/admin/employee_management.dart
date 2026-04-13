@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../models/user_model.dart';
 import '../../utils/color_schema.dart';
 import '../../utils/user_provider.dart';
@@ -9,7 +8,7 @@ import '../../services/auth_service.dart';
 import '../../services/location_service.dart';
 import '../../widgets/neumorpic_button.dart';
 
-class EmployeeManagement extends StatefulWidget {
+class EmployeeManagement extends StatelessWidget {
   const EmployeeManagement({super.key});
 
   @override
@@ -344,10 +343,13 @@ class _EmployeeManagementState extends State<EmployeeManagement>
               color:      AppColors.textPrimary,
             ),
           ),
-        ],
+        ),
+        backgroundColor: const Color(0xFF6366F1),
+        child: const Icon(Icons.person_add, color: Colors.white),
       ),
     );
   }
+}
 
   Widget _dividerLine() => const Divider(
     height: 1,
