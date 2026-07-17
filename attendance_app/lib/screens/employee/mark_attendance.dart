@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../utils/user_provider.dart';
 import '../../services/location_service.dart';
 import '../../services/database_service.dart';
 import '../../services/storage_service.dart';
+import '../../services/attendance_service.dart';
 import '../../models/attendance_model.dart';
 
 class MarkAttendanceScreen extends StatefulWidget {
@@ -110,42 +110,14 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         // Camera not available or user cancelled — proceed without selfie
       }
 
-      // Calculate late status
-      final now = DateTime.now();
-      bool isLate = false;
-      String status = 'present';
-      try {
-        final parts = user.shiftStart.split(':');
-        final shiftStart = DateTime(now.year, now.month, now.day,
-            int.parse(parts[0]), int.parse(parts[1]));
-        if (now.isAfter(shiftStart.add(const Duration(minutes: 15)))) {
-          isLate = true;
-          status = 'late';
-        }
-      } catch (_) {}
-
-      final dateStr = DateFormat('yyyy-MM-dd').format(now);
-      final docId = '${user.id}_$dateStr';
-      final record = AttendanceModel(
-        id: docId,
-        employeeId: user.id,
+      await AttendanceService().checkIn(
         companyId: company.id,
-        employeeName: user.name,
-        date: dateStr,
-        checkIn: now,
-        status: status,
-        isLate: isLate,
-        checkInLocation: {
-          'latitude': _currentLocation!.latitude,
-          'longitude': _currentLocation!.longitude,
-        },
+        location: {'latitude': _currentLocation!.latitude, 'longitude': _currentLocation!.longitude},
         selfieStoragePath: selfiePath,
       );
-
-      await _db.checkIn(company.id, record);
-      setState(() => _todayAttendance = record);
-      _showSuccessDialog(
-          'Checked In', 'You have successfully checked in as $status.');
+      _todayAttendance = await _db.getTodayAttendance(company.id, user.id);
+      if (mounted) setState(() {});
+      _showSuccessDialog('Checked In', 'Your attendance has been recorded.');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -166,15 +138,14 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
 
     setState(() => _actionLoading = true);
     try {
-      Map<String, dynamic>? location;
-      if (_currentLocation != null) {
-        location = {
-          'latitude': _currentLocation!.latitude,
-          'longitude': _currentLocation!.longitude,
-        };
+      if (_currentLocation == null) {
+        await _updateCurrentLocation();
+        if (_currentLocation == null) throw StateError('Current location is required to check out.');
       }
-      await _db.checkOut(company.id, _todayAttendance!.id, DateTime.now(),
-          location: location);
+      await AttendanceService().checkOut(
+        companyId: company.id,
+        location: {'latitude': _currentLocation!.latitude, 'longitude': _currentLocation!.longitude},
+      );
       _todayAttendance =
           await _db.getTodayAttendance(company.id, user.id);
       setState(() {});

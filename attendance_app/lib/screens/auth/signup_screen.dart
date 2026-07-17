@@ -18,6 +18,15 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _companyController.dispose();
+    super.dispose();
+  }
+
   void _signup() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);

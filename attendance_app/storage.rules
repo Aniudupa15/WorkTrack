@@ -1,0 +1,20 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function userDoc() { return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)); }
+    function isAdmin(companyId) { return signedIn() && userDoc().data.role == 'admin' && userDoc().data.companyId == companyId; }
+    function isEmployee(companyId, employeeId) { return signedIn() && request.auth.uid == employeeId && userDoc().data.role == 'employee' && userDoc().data.companyId == companyId; }
+    function validImage() { return request.resource.size < 5 * 1024 * 1024 && request.resource.contentType.matches('image/.*'); }
+
+    match /selfies/{companyId}/{employeeId}/{fileName} {
+      allow read: if isAdmin(companyId) || isEmployee(companyId, employeeId);
+      allow create: if isEmployee(companyId, employeeId) && validImage();
+      allow delete: if isAdmin(companyId);
+    }
+    match /avatars/{companyId}/{employeeId}/{fileName} {
+      allow read: if isAdmin(companyId) || isEmployee(companyId, employeeId);
+      allow write: if isAdmin(companyId) && validImage();
+    }
+  }
+}

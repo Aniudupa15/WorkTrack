@@ -4,6 +4,7 @@ import '../models/user_model.dart';
 import '../models/company_model.dart';
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
+import '../services/notification_service.dart';
 
 class UserProvider with ChangeNotifier {
   UserModel? _user;
@@ -12,6 +13,9 @@ class UserProvider with ChangeNotifier {
 
   final AuthService _auth = AuthService();
   final DatabaseService _db = DatabaseService();
+  final NotificationService _notifications = NotificationService();
+  StreamSubscription<User?>? _authSubscription;
+  int _authChangeVersion = 0;
 
   UserModel? get user => _user;
   CompanyModel? get company => _company;
@@ -20,16 +24,31 @@ class UserProvider with ChangeNotifier {
   bool get isEmployee => _user?.role == 'employee';
 
   UserProvider() {
-    _auth.user.listen(_onAuthChange);
+    _authSubscription = _auth.user.listen(_onAuthChange);
   }
 
   Future<void> _onAuthChange(User? firebaseUser) async {
+    final version = ++_authChangeVersion;
     _loading = true;
     notifyListeners();
     if (firebaseUser != null) {
-      _user = await _db.getUser(firebaseUser.uid);
-      if (_user?.companyId != null) {
-        _company = await _db.getCompany(_user!.companyId!);
+      try {
+        final user = await _db.getUser(firebaseUser.uid);
+        final company = user?.companyId == null
+            ? null
+            : await _db.getCompany(user!.companyId!);
+        if (version != _authChangeVersion) return;
+        _user = user;
+        _company = company;
+        if (user?.role == 'employee' && user?.companyId != null) {
+          await _notifications.initialize(
+            onToken: (token) => _db.saveEmployeeFcmToken(user!.companyId!, user.id, token),
+          );
+        }
+      } catch (_) {
+        if (version != _authChangeVersion) return;
+        _user = null;
+        _company = null;
       }
     } else {
       _user = null;
@@ -46,12 +65,13 @@ class UserProvider with ChangeNotifier {
 
   Future<void> signUpAdmin(
       String name, String email, String password, String companyName) async {
-    _user = await _auth.signUpAdmin(name, email, password, companyName);
-    if (_user?.companyId != null) {
-      _company = await _db.getCompany(_user!.companyId!);
-    }
-    _loading = false;
-    notifyListeners();
+    await _auth.signUpAdmin(
+      name: name,
+      email: email,
+      password: password,
+      companyName: companyName,
+    );
+    await refreshUser();
   }
 
   Future<void> refreshUser() async {
@@ -65,9 +85,22 @@ class UserProvider with ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    final user = _user;
+    if (user?.role == 'employee' && user?.companyId != null) {
+      await _db.saveEmployeeFcmToken(user!.companyId!, user.id, '');
+    }
     await _auth.signOut();
+    await _notifications.reset();
     _user = null;
     _company = null;
     notifyListeners();
   }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    _notifications.dispose();
+    super.dispose();
+  }
 }
+import 'dart:async';

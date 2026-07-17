@@ -1,61 +1,29 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function role() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function isAdmin(companyId) { return signedIn() && role().data.role == 'admin' && role().data.companyId == companyId; }
+    function isEmployee(companyId, employeeId) { return signedIn() && request.auth.uid == employeeId && role().data.role == 'employee' && role().data.companyId == companyId; }
+    function onlyTokenChanged() { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']); }
 
-    // ── Helper Functions ─────────────────────────
-    function isAuth() { return request.auth != null; }
-    function uid()    { return request.auth.uid; }
-    function isAdmin(compId) {
-      return isAuth() &&
-        get(/databases/$(database)/documents/users/$(uid()))
-          .data.role == 'admin' &&
-        get(/databases/$(database)/documents/users/$(uid()))
-          .data.companyId == compId;
-    }
-    function isEmployee(compId, empId) {
-      return isAuth() && uid() == empId &&
-        get(/databases/$(database)/documents/users/$(uid()))
-          .data.companyId == compId;
-    }
-
-    // ── Users (role doc) ────────────────────────
-    match /users/{userId} {
-      allow read:  if isAuth() && uid() == userId;
-      allow write: if isAuth() && uid() == userId;
-    }
-
-    // ── Companies ───────────────────────────────
+    // Identity, role, company, attendance, and employee lifecycle writes are server-owned.
+    match /users/{userId} { allow read: if signedIn() && request.auth.uid == userId; }
     match /companies/{companyId} {
-      allow read, write: if isAdmin(companyId);
-
-      // ── Employees ─────────────────────────────
-      match /employees/{empId} {
-        allow read:  if isAdmin(companyId) || isEmployee(companyId, empId);
-        allow write: if isAdmin(companyId);
+      allow read: if isAdmin(companyId);
+      match /employees/{employeeId} {
+        allow read: if isAdmin(companyId) || isEmployee(companyId, employeeId);
+        allow update: if isEmployee(companyId, employeeId) && onlyTokenChanged();
       }
-
-      // ── Attendance ────────────────────────────
-      match /attendance/{docId} {
-        allow read:   if isAdmin(companyId) ||
-                         isEmployee(companyId, resource.data.employeeId);
-        allow create: if isEmployee(companyId, request.resource.data.employeeId);
-        allow update: if isAdmin(companyId) ||
-                         isEmployee(companyId, resource.data.employeeId);
-        allow delete: if isAdmin(companyId);
+      match /attendance/{attendanceId} {
+        allow read: if isAdmin(companyId) || (signedIn() && resource.data.employeeId == request.auth.uid && isEmployee(companyId, request.auth.uid));
       }
-
-      // ── Leaves ────────────────────────────────
-      match /leaves/{docId} {
-        allow read:   if isAdmin(companyId) ||
-                         isEmployee(companyId, resource.data.employeeId);
-        allow create: if isEmployee(companyId, request.resource.data.employeeId);
+      match /leaves/{leaveId} {
+        allow read: if isAdmin(companyId) || (signedIn() && resource.data.employeeId == request.auth.uid && isEmployee(companyId, request.auth.uid));
+        allow create: if isEmployee(companyId, request.resource.data.employeeId) && request.resource.data.companyId == companyId && request.resource.data.status == 'pending' && request.resource.data.keys().hasOnly(['employeeId', 'companyId', 'employeeName', 'type', 'startDate', 'endDate', 'reason', 'status', 'createdAt', 'updatedAt', 'adminNote', 'id']);
         allow update: if isAdmin(companyId);
       }
     }
-
-    // ── Notifications ───────────────────────────
-    match /notifications/{docId} {
-      allow read: if isAuth();
-    }
+    match /notifications/{notificationId} { allow read: if signedIn() && (isAdmin(resource.data.companyId) || resource.data.employeeId == request.auth.uid); }
   }
 }
