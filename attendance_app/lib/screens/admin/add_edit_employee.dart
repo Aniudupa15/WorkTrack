@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
-import '../../services/database_service.dart';
 import 'work_location_picker.dart';
 
 class AddEditEmployee extends StatefulWidget {
@@ -112,49 +110,27 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
       final shift = {'start': _shiftStart, 'end': _shiftEnd};
 
       if (_isEdit) {
-        await DatabaseService()
-            .updateEmployee(widget.companyId, widget.employee!.id, {
-          'name': _nameCtrl.text.trim(),
-          'phone': _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-          'department':
-              _deptCtrl.text.trim().isEmpty ? null : _deptCtrl.text.trim(),
-          'position':
-              _posCtrl.text.trim().isEmpty ? null : _posCtrl.text.trim(),
-          'shift': shift,
-          'workLocation': _workLocation,
-        });
-      } else {
-        final uid = const Uuid().v4();
-        final employee = UserModel(
-          id: uid,
-          name: _nameCtrl.text.trim(),
-          email: _emailCtrl.text.trim(),
-          role: 'employee',
-          phone:
-              _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-          department:
-              _deptCtrl.text.trim().isEmpty ? null : _deptCtrl.text.trim(),
-          position:
-              _posCtrl.text.trim().isEmpty ? null : _posCtrl.text.trim(),
+        await AuthService().updateEmployee(
+          companyId: widget.companyId,
+          employeeId: widget.employee!.id,
+          name: _nameCtrl.text,
+          phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+          department: _deptCtrl.text.trim().isEmpty ? null : _deptCtrl.text.trim(),
+          position: _posCtrl.text.trim().isEmpty ? null : _posCtrl.text.trim(),
           workLocation: _workLocation,
           shift: shift,
-          companyId: widget.companyId,
         );
-        try {
-          await AuthService().addEmployeeViaFunction(
-            companyId: widget.companyId,
-            name: employee.name,
-            email: employee.email,
-            phone: employee.phone,
-            department: employee.department,
-            position: employee.position,
-            workLocation: _workLocation,
-            shift: shift,
-          );
-        } catch (_) {
-          // Fallback if Cloud Functions not deployed
-          await AuthService().addEmployeeDirectly(widget.companyId, employee);
-        }
+      } else {
+        await AuthService().addEmployee(
+          companyId: widget.companyId,
+          name: _nameCtrl.text,
+          email: _emailCtrl.text,
+          phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+          department: _deptCtrl.text.trim().isEmpty ? null : _deptCtrl.text.trim(),
+          position: _posCtrl.text.trim().isEmpty ? null : _posCtrl.text.trim(),
+          workLocation: _workLocation,
+          shift: shift,
+        );
       }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
