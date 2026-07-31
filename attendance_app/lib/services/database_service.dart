@@ -141,7 +141,7 @@ class DatabaseService {
       {Map<String, dynamic>? location}) async {
     await _attendance(companyId).doc(docId).update({
       'checkOut': Timestamp.fromDate(checkOutTime),
-      if (location != null) 'checkOutLocation': location,
+      'checkOutLocation': ?location,
       'status': 'present',
     });
   }
@@ -203,6 +203,7 @@ class DatabaseService {
     final docRef = _leaves(companyId).doc();
     final data = leave.toMap();
     data['id'] = docRef.id;
+    data['createdAt'] = FieldValue.serverTimestamp();
     await docRef.set(data);
     return docRef.id;
   }

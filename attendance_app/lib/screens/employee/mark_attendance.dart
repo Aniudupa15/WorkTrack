@@ -60,7 +60,9 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     final user = Provider.of<UserProvider>(context, listen: false).user;
     if (_currentLocation == null ||
         user?.workLatitude == null ||
-        user?.workLongitude == null) return false;
+        user?.workLongitude == null) {
+      return false;
+    }
     return _locationService.isWithinRadius(
       _currentLocation!,
       LatLng(user!.workLatitude!, user.workLongitude!),

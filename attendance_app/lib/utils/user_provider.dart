@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
@@ -41,9 +43,14 @@ class UserProvider with ChangeNotifier {
         _user = user;
         _company = company;
         if (user?.role == 'employee' && user?.companyId != null) {
-          await _notifications.initialize(
-            onToken: (token) => _db.saveEmployeeFcmToken(user!.companyId!, user.id, token),
-          );
+          try {
+            await _notifications.initialize(
+              onToken: (token) =>
+                  _db.saveEmployeeFcmToken(user!.companyId!, user.id, token),
+            );
+          } catch (_) {
+            // Notification setup must never prevent a valid authenticated session.
+          }
         }
       } catch (_) {
         if (version != _authChangeVersion) return;
@@ -87,7 +94,11 @@ class UserProvider with ChangeNotifier {
   Future<void> signOut() async {
     final user = _user;
     if (user?.role == 'employee' && user?.companyId != null) {
-      await _db.saveEmployeeFcmToken(user!.companyId!, user.id, '');
+      try {
+        await _db.saveEmployeeFcmToken(user!.companyId!, user.id, '');
+      } catch (_) {
+        // Signing out locally is more important than clearing a stale token.
+      }
     }
     await _auth.signOut();
     await _notifications.reset();
@@ -103,4 +114,3 @@ class UserProvider with ChangeNotifier {
     super.dispose();
   }
 }
-import 'dart:async';
