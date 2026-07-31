@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
 import 'package:attendance_app/core/di/injection.dart';
+import 'package:attendance_app/core/theme/app_colors.dart';
+import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/core/widgets/empty_state.dart';
+import 'package:attendance_app/core/widgets/status_badge.dart';
+import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
-import 'package:attendance_app/data/models/attendance_model.dart';
 
 class MyAttendanceScreen extends StatelessWidget {
   const MyAttendanceScreen({super.key});
@@ -14,103 +20,69 @@ class MyAttendanceScreen extends StatelessWidget {
     final prov = Provider.of<UserProvider>(context);
     final companyId = prov.company?.id ?? '';
     final uid = prov.user?.id ?? '';
+    final colors = context.colors;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
-        title: const Text('My Attendance'),
-        backgroundColor: const Color(0xFF1E293B),
-      ),
+      appBar: AppBar(title: const Text('My Attendance')),
       body: StreamBuilder<List<AttendanceModel>>(
         stream: sl<AttendanceRepository>().watchEmployeeHistory(companyId, uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF6366F1)),
-            );
+            return const AppLoader();
           }
 
           final logs = snapshot.data ?? [];
-
           if (logs.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.event_note_rounded,
-                    size: 72,
-                    color: Colors.grey[800],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No attendance history yet.',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 16),
-                  ),
-                ],
-              ),
+            return const EmptyState(
+              icon: Icons.event_note_rounded,
+              title: 'No attendance history yet',
+              subtitle: 'Your check-in records will appear here.',
             );
           }
 
-          final now = DateTime.now();
-          final currentMonth = DateFormat('yyyy-MM').format(now);
-          final monthLogs = logs
-              .where((l) => l.date.startsWith(currentMonth))
-              .toList();
+          final currentMonth = DateFormat('yyyy-MM').format(DateTime.now());
+          final monthLogs =
+              logs.where((l) => l.date.startsWith(currentMonth)).toList();
           final present = monthLogs
               .where((l) => l.status == 'present' || l.status == 'late')
               .length;
-          final late_ = monthLogs.where((l) => l.isLate).length;
+          final late = monthLogs.where((l) => l.isLate).length;
           final absent = monthLogs.where((l) => l.status == 'absent').length;
 
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                child: Row(
-                  children: [
-                    _summaryCard(
-                      'Present',
-                      '$present',
-                      const Color(0xFF10B981),
-                    ),
-                    const SizedBox(width: 10),
-                    _summaryCard('Late', '$late_', const Color(0xFFF59E0B)),
-                    const SizedBox(width: 10),
-                    _summaryCard('Absent', '$absent', const Color(0xFFEF4444)),
-                  ],
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xl,
+                  AppSpacing.xl,
+                  AppSpacing.xl,
+                  AppSpacing.sm,
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.history_rounded,
-                      size: 16,
-                      color: Color(0xFF6366F1),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'RECENT RECORDS',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF94A3B8),
-                        letterSpacing: 1.2,
-                      ),
-                    ),
+                    _SummaryCard(
+                        label: 'Present',
+                        value: '$present',
+                        color: colors.success),
+                    const SizedBox(width: AppSpacing.md),
+                    _SummaryCard(
+                        label: 'Late', value: '$late', color: colors.warning),
+                    const SizedBox(width: AppSpacing.md),
+                    _SummaryCard(
+                        label: 'Absent',
+                        value: '$absent',
+                        color: colors.danger),
                   ],
                 ),
               ),
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 8,
+                    horizontal: AppSpacing.xl,
+                    vertical: AppSpacing.sm,
                   ),
                   itemCount: logs.length,
-                  itemBuilder: (context, i) => _logItem(logs[i]),
+                  itemBuilder: (context, i) => _LogItem(log: logs[i]),
                 ),
               ),
             ],
@@ -119,15 +91,31 @@ class MyAttendanceScreen extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _summaryCard(String label, String value, Color color) {
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.lg,
+          horizontal: AppSpacing.md,
+        ),
         decoration: BoxDecoration(
-          color: color.withAlpha(20),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withAlpha(50)),
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Column(
           children: [
@@ -139,60 +127,51 @@ class MyAttendanceScreen extends StatelessWidget {
                 color: color,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _logItem(AttendanceModel log) {
-    Color statusColor;
-    switch (log.status) {
-      case 'present':
-        statusColor = const Color(0xFF10B981);
-        break;
-      case 'late':
-        statusColor = const Color(0xFFF59E0B);
-        break;
-      case 'absent':
-        statusColor = const Color(0xFFEF4444);
-        break;
-      default:
-        statusColor = const Color(0xFF3B82F6);
-    }
+class _LogItem extends StatelessWidget {
+  const _LogItem({required this.log});
 
+  final AttendanceModel log;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final statusColor = colors.statusColor(log.status);
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withAlpha(12)),
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: colors.border),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: statusColor.withAlpha(25),
+              color: statusColor.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(
               log.status == 'absent'
                   ? Icons.person_off
                   : log.isLate
-                  ? Icons.history_toggle_off_rounded
-                  : Icons.how_to_reg_rounded,
+                      ? Icons.history_toggle_off_rounded
+                      : Icons.how_to_reg_rounded,
               color: statusColor,
               size: 20,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: AppSpacing.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,51 +181,35 @@ class MyAttendanceScreen extends StatelessWidget {
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpacing.xs),
                 Row(
                   children: [
-                    const Icon(
-                      Icons.login_rounded,
-                      size: 12,
-                      color: Color(0xFF64748B),
-                    ),
-                    const SizedBox(width: 4),
+                    Icon(Icons.login_rounded,
+                        size: 12, color: colors.textTertiary),
+                    const SizedBox(width: AppSpacing.xs),
                     Text(
                       log.checkIn != null
                           ? DateFormat('hh:mm a').format(log.checkIn!)
                           : '--:--',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF64748B),
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    const SizedBox(width: 16),
-                    const Icon(
-                      Icons.logout_rounded,
-                      size: 12,
-                      color: Color(0xFF64748B),
-                    ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: AppSpacing.lg),
+                    Icon(Icons.logout_rounded,
+                        size: 12, color: colors.textTertiary),
+                    const SizedBox(width: AppSpacing.xs),
                     Text(
                       log.checkOut != null
                           ? DateFormat('hh:mm a').format(log.checkOut!)
                           : '--:--',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF64748B),
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                     if (log.workDuration != null) ...[
                       const Spacer(),
                       Text(
                         log.workDurationFormatted,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF94A3B8),
-                        ),
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
                   ],
@@ -254,22 +217,8 @@ class MyAttendanceScreen extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: statusColor.withAlpha(25),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              log.status.toUpperCase(),
-              style: TextStyle(
-                color: statusColor,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          const SizedBox(width: AppSpacing.sm),
+          StatusBadge(status: log.status),
         ],
       ),
     );
