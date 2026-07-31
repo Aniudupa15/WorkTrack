@@ -1,14 +1,20 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
 import 'package:attendance_app/core/di/injection.dart';
-import 'package:attendance_app/domain/repositories/attendance_repository.dart';
+import 'package:attendance_app/core/theme/app_colors.dart';
+import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
+import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 class AdminAnalytics extends StatefulWidget {
   const AdminAnalytics({super.key});
+
   @override
   State<AdminAnalytics> createState() => _AdminAnalyticsState();
 }
@@ -31,99 +37,78 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
         Provider.of<UserProvider>(context, listen: false).company?.id ?? '';
     final ym = DateFormat('yyyy-MM').format(_selectedMonth);
     _records = await _attendance.getAttendanceForMonth(companyId, ym);
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
   }
 
   void _changeMonth(int delta) {
     setState(() {
-      _selectedMonth = DateTime(
-        _selectedMonth.year,
-        _selectedMonth.month + delta,
-      );
+      _selectedMonth =
+          DateTime(_selectedMonth.year, _selectedMonth.month + delta);
     });
     _loadData();
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final present = _records.where((r) => r.status == 'present').length;
     final late = _records.where((r) => r.status == 'late').length;
     final absent = _records.where((r) => r.status == 'absent').length;
     final halfDay = _records.where((r) => r.status == 'half_day').length;
     final total = _records.length;
 
+    final segments = <_Segment>[
+      _Segment('Present', present, colors.success),
+      _Segment('Late', late, colors.warning),
+      _Segment('Absent', absent, colors.danger),
+      _Segment('Half Day', halfDay, colors.info),
+    ];
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
-        title: const Text('Analytics'),
-        backgroundColor: const Color(0xFF1E293B),
-      ),
+      appBar: AppBar(title: const Text('Analytics')),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF6366F1)),
-            )
+          ? const AppLoader()
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 children: [
-                  // Month selector
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       IconButton(
                         onPressed: () => _changeMonth(-1),
-                        icon: const Icon(
-                          Icons.chevron_left,
-                          color: Colors.white,
-                        ),
+                        icon: const Icon(Icons.chevron_left),
                       ),
                       Text(
                         DateFormat('MMMM yyyy').format(_selectedMonth),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                       IconButton(
                         onPressed: () => _changeMonth(1),
-                        icon: const Icon(
-                          Icons.chevron_right,
-                          color: Colors.white,
-                        ),
+                        icon: const Icon(Icons.chevron_right),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-
-                  // Summary cards
+                  const SizedBox(height: AppSpacing.xl),
                   Row(
                     children: [
-                      _statCard('Present', present, const Color(0xFF10B981)),
-                      const SizedBox(width: 8),
-                      _statCard('Late', late, const Color(0xFFF59E0B)),
-                      const SizedBox(width: 8),
-                      _statCard('Absent', absent, const Color(0xFFEF4444)),
-                      const SizedBox(width: 8),
-                      _statCard('Half Day', halfDay, const Color(0xFF3B82F6)),
+                      for (final s in segments) ...[
+                        _statCard(s),
+                        if (s != segments.last)
+                          const SizedBox(width: AppSpacing.sm),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 24),
-
-                  // Pie chart
+                  const SizedBox(height: AppSpacing.xxl),
                   if (total > 0) ...[
-                    const Align(
+                    Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Attendance Distribution',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpacing.lg),
                     SizedBox(
                       height: 200,
                       child: PieChart(
@@ -131,79 +116,33 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
                           sectionsSpace: 2,
                           centerSpaceRadius: 40,
                           sections: [
-                            if (present > 0)
-                              PieChartSectionData(
-                                value: present.toDouble(),
-                                title: '$present',
-                                color: const Color(0xFF10B981),
-                                radius: 50,
-                                titleStyle: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
+                            for (final s in segments)
+                              if (s.count > 0)
+                                PieChartSectionData(
+                                  value: s.count.toDouble(),
+                                  title: '${s.count}',
+                                  color: s.color,
+                                  radius: 50,
+                                  titleStyle: TextStyle(
+                                    color: colors.onBrand,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                            if (late > 0)
-                              PieChartSectionData(
-                                value: late.toDouble(),
-                                title: '$late',
-                                color: const Color(0xFFF59E0B),
-                                radius: 50,
-                                titleStyle: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            if (absent > 0)
-                              PieChartSectionData(
-                                value: absent.toDouble(),
-                                title: '$absent',
-                                color: const Color(0xFFEF4444),
-                                radius: 50,
-                                titleStyle: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            if (halfDay > 0)
-                              PieChartSectionData(
-                                value: halfDay.toDouble(),
-                                title: '$halfDay',
-                                color: const Color(0xFF3B82F6),
-                                radius: 50,
-                                titleStyle: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    // Legend
+                    const SizedBox(height: AppSpacing.xl),
                     Wrap(
-                      spacing: 16,
-                      runSpacing: 8,
-                      children: [
-                        _legend('Present', const Color(0xFF10B981)),
-                        _legend('Late', const Color(0xFFF59E0B)),
-                        _legend('Absent', const Color(0xFFEF4444)),
-                        _legend('Half Day', const Color(0xFF3B82F6)),
-                      ],
+                      spacing: AppSpacing.lg,
+                      runSpacing: AppSpacing.sm,
+                      children: [for (final s in segments) _legend(s)],
                     ),
                   ] else
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(40),
-                        child: Text(
-                          'No data for this month',
-                          style: TextStyle(color: Color(0xFF94A3B8)),
-                        ),
-                      ),
+                    const EmptyState(
+                      icon: Icons.bar_chart_rounded,
+                      title: 'No data for this month',
                     ),
                 ],
               ),
@@ -211,29 +150,31 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
     );
   }
 
-  Widget _statCard(String label, int count, Color color) {
+  Widget _statCard(_Segment s) {
+    final colors = context.colors;
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withAlpha(50)),
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: s.color.withValues(alpha: 0.4)),
         ),
         child: Column(
           children: [
             Text(
-              '$count',
+              '${s.count}',
               style: TextStyle(
-                color: color,
+                color: s.color,
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpacing.xs),
             Text(
-              label,
-              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+              s.label,
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -241,21 +182,26 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
     );
   }
 
-  Widget _legend(String label, Color color) {
+  Widget _legend(_Segment s) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 12,
           height: 12,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          decoration: BoxDecoration(color: s.color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
-        ),
+        const SizedBox(width: AppSpacing.xs),
+        Text(s.label, style: Theme.of(context).textTheme.bodySmall),
       ],
     );
   }
+}
+
+class _Segment {
+  const _Segment(this.label, this.count, this.color);
+
+  final String label;
+  final int count;
+  final Color color;
 }
