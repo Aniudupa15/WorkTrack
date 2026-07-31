@@ -1,7 +1,8 @@
-import 'package:attendance_app/models/attendance_model.dart';
+import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-AttendanceModel record({DateTime? checkIn, DateTime? checkOut}) => AttendanceModel(
+AttendanceModel record({DateTime? checkIn, DateTime? checkOut}) =>
+    AttendanceModel(
       id: 'employee_2026-07-17',
       employeeId: 'employee',
       companyId: 'company',
