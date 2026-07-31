@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import 'package:attendance_app/core/error/app_exception.dart';
+import 'package:attendance_app/core/theme/app_colors.dart';
+import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -27,7 +31,7 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  void _signup() async {
+  Future<void> _signup() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     try {
@@ -40,16 +44,11 @@ class _SignupScreenState extends State<SignupScreen> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
+        final message = e is AppException ? e.message : 'Registration failed.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(child: Text('Registration failed: ${e.toString()}')),
-              ],
-            ),
-            backgroundColor: const Color(0xFFDC2626),
+            content: Text(message),
+            backgroundColor: context.colors.danger,
           ),
         );
       }
@@ -60,8 +59,9 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = Theme.of(context).textTheme;
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
         title: const Text('Register Company'),
         leading: IconButton(
@@ -71,49 +71,39 @@ class _SignupScreenState extends State<SignupScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(AppSpacing.xxl),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
+                  color: colors.brandSoft,
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(AppSpacing.sm + 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF6366F1),
-                        borderRadius: BorderRadius.circular(12),
+                        color: colors.brand,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.business_center_rounded,
-                        color: Colors.white,
+                        color: colors.onBrand,
                         size: 24,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: AppSpacing.lg),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'New Company',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
+                          Text('New Company', style: text.titleMedium),
                           Text(
                             'Create your admin account',
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                            ),
+                            style: text.bodySmall,
                           ),
                         ],
                       ),
@@ -121,58 +111,58 @@ class _SignupScreenState extends State<SignupScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: AppSpacing.xxxl),
               Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSectionLabel('Company Information'),
-                    const SizedBox(height: 12),
-                    _buildField(
+                    _sectionLabel('Company Information', colors),
+                    const SizedBox(height: AppSpacing.md),
+                    _field(
                       _companyController,
                       'Company Name',
                       Icons.business_rounded,
                       hint: 'e.g. Acme Corp',
                     ),
-                    const SizedBox(height: 28),
-                    _buildSectionLabel('Administrator Details'),
-                    const SizedBox(height: 12),
-                    _buildField(
+                    const SizedBox(height: AppSpacing.xxl),
+                    _sectionLabel('Administrator Details', colors),
+                    const SizedBox(height: AppSpacing.md),
+                    _field(
                       _nameController,
                       'Your Full Name',
                       Icons.person_rounded,
                       hint: 'e.g. John Doe',
                     ),
-                    const SizedBox(height: 16),
-                    _buildField(
+                    const SizedBox(height: AppSpacing.lg),
+                    _field(
                       _emailController,
                       'Work Email',
                       Icons.alternate_email_rounded,
                       hint: 'you@company.com',
                       keyboard: TextInputType.emailAddress,
                     ),
-                    const SizedBox(height: 16),
-                    _buildPasswordField(),
-                    const SizedBox(height: 36),
-                    _isLoading
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              color: Color(0xFF6366F1),
-                            ),
-                          )
-                        : ElevatedButton(
-                            onPressed: _signup,
-                            child: const Text('CREATE COMPANY ACCOUNT'),
-                          ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpacing.lg),
+                    _passwordField(),
+                    const SizedBox(height: AppSpacing.xxxl),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _signup,
+                      child: _isLoading
+                          ? SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: colors.onBrand,
+                              ),
+                            )
+                          : const Text('CREATE COMPANY ACCOUNT'),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
                     Center(
                       child: TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text(
-                          'Already have an account? Sign In',
-                          style: TextStyle(color: Color(0xFF6366F1)),
-                        ),
+                        child: const Text('Already have an account? Sign In'),
                       ),
                     ),
                   ],
@@ -185,35 +175,31 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  Widget _buildSectionLabel(String label) {
+  Widget _sectionLabel(String label, AppColors colors) {
     return Text(
       label.toUpperCase(),
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.bold,
-        color: Color(0xFF94A3B8),
+        color: colors.textSecondary,
         letterSpacing: 1.2,
       ),
     );
   }
 
-  Widget _buildField(
+  Widget _field(
     TextEditingController controller,
     String label,
     IconData icon, {
     String? hint,
-    bool obscure = false,
     TextInputType? keyboard,
   }) {
     return TextFormField(
       controller: controller,
-      obscureText: obscure,
       keyboardType: keyboard,
-      style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFF475569)),
         prefixIcon: Icon(icon, size: 20),
       ),
       validator: (v) =>
@@ -221,15 +207,13 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  Widget _buildPasswordField() {
+  Widget _passwordField() {
     return TextFormField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: 'Password',
         hintText: 'At least 8 characters',
-        hintStyle: const TextStyle(color: Color(0xFF475569)),
         prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
         suffixIcon: IconButton(
           icon: Icon(
