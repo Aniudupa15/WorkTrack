@@ -82,7 +82,7 @@ class EmployeeDashboard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6366F1).withOpacity(0.3),
+            color: const Color(0xFF6366F1).withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -93,7 +93,7 @@ class EmployeeDashboard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: const CircleAvatar(
@@ -113,13 +113,13 @@ class EmployeeDashboard extends StatelessWidget {
                 ),
                 Text(
                   provider.user?.email ?? '',
-                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
                 ),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -158,7 +158,7 @@ class EmployeeDashboard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF1E293B),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white.withOpacity(0.05)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
               ),
               child: Row(
                 children: [
@@ -206,7 +206,7 @@ class EmployeeDashboard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: active ? color.withOpacity(0.1) : Colors.white.withOpacity(0.05),
+            color: active ? color.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.05),
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -234,14 +234,14 @@ class EmployeeDashboard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Icon(icon, color: color, size: 28),
@@ -261,24 +261,6 @@ class EmployeeDashboard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildStatusIndicator(String label, bool completed, DateTime? time) {
-    return Column(
-      children: [
-        Icon(
-          completed ? Icons.check_circle : Icons.radio_button_unchecked,
-          color: completed ? Colors.green : Colors.grey,
-          size: 32,
-        ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-        Text(
-          time != null ? DateFormat('HH:mm').format(time) : '--:--',
-          style: TextStyle(color: Colors.grey[600]),
-        ),
-      ],
     );
   }
 }

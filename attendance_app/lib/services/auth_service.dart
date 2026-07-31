@@ -36,7 +36,11 @@ class AuthService {
       });
     } catch (_) {
       // A partially provisioned account must not remain usable.
-      await credential.user?.delete().catchError((_) {});
+      try {
+        await credential.user?.delete();
+      } catch (_) {
+        // The original provisioning error remains the user-visible failure.
+      }
       rethrow;
     }
   }
