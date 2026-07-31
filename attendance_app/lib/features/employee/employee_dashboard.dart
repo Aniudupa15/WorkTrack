@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
 import 'package:attendance_app/core/di/injection.dart';
-import 'package:attendance_app/domain/repositories/attendance_repository.dart';
-import 'package:attendance_app/features/shared/user_provider.dart';
+import 'package:attendance_app/core/theme/app_colors.dart';
+import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/core/widgets/section_header.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
+import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/features/employee/mark_attendance.dart';
 import 'package:attendance_app/features/employee/my_attendance.dart';
 import 'package:attendance_app/features/employee/my_leaves.dart';
+import 'package:attendance_app/features/shared/user_provider.dart';
 
 class EmployeeDashboard extends StatelessWidget {
   const EmployeeDashboard({super.key});
@@ -16,74 +21,89 @@ class EmployeeDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
     final attendanceRepo = sl<AttendanceRepository>();
+    final colors = context.colors;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
         title: const Text('My Workspace'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout_rounded, color: Color(0xFFF87171)),
+            icon: Icon(Icons.logout_rounded, color: colors.danger),
             onPressed: () => userProvider.signOut(),
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(AppSpacing.xxl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildProfileHeader(userProvider),
-            const SizedBox(height: 32),
-            _buildTodayStatus(attendanceRepo, userProvider),
+            _ProfileHeader(provider: userProvider),
+            const SizedBox(height: AppSpacing.xxxl),
+            const SectionHeader(
+              title: "Today's Journey",
+              icon: Icons.today_rounded,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _TodayStatus(repo: attendanceRepo, provider: userProvider),
             const SizedBox(height: 40),
-            _buildSectionHeader('Quick Actions', Icons.bolt_rounded),
-            const SizedBox(height: 16),
-            _buildActionCard(
-              context,
-              'Mark Attendance',
-              'Check-in or Check-out for today',
-              Icons.location_on_rounded,
-              const Color(0xFF6366F1),
-              const MarkAttendanceScreen(),
+            const SectionHeader(
+              title: 'Quick Actions',
+              icon: Icons.bolt_rounded,
             ),
-            const SizedBox(height: 16),
-            _buildActionCard(
-              context,
-              'Attendance History',
-              'View your past check-in records',
-              Icons.history_rounded,
-              const Color(0xFF818CF8),
-              const MyAttendanceScreen(),
+            const SizedBox(height: AppSpacing.lg),
+            _ActionCard(
+              title: 'Mark Attendance',
+              subtitle: 'Check-in or Check-out for today',
+              icon: Icons.location_on_rounded,
+              color: colors.brand,
+              builder: () => const MarkAttendanceScreen(),
             ),
-            const SizedBox(height: 16),
-            _buildActionCard(
-              context,
-              'My Leaves',
-              'Request and track leave applications',
-              Icons.event_busy_rounded,
-              const Color(0xFFF59E0B),
-              const MyLeaves(),
+            const SizedBox(height: AppSpacing.lg),
+            _ActionCard(
+              title: 'Attendance History',
+              subtitle: 'View your past check-in records',
+              icon: Icons.history_rounded,
+              color: colors.info,
+              builder: () => const MyAttendanceScreen(),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            _ActionCard(
+              title: 'My Leaves',
+              subtitle: 'Request and track leave applications',
+              icon: Icons.event_busy_rounded,
+              color: colors.warning,
+              builder: () => const MyLeaves(),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildProfileHeader(UserProvider provider) {
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({required this.provider});
+
+  final UserProvider provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final name = provider.user?.name ?? '';
+    final firstName = name.isNotEmpty ? name.split(' ').first : 'there';
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(AppSpacing.xxl),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [const Color(0xFF6366F1), const Color(0xFF4F46E5)],
+          colors: [colors.brand, const Color(0xFF4F46E5)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+            color: colors.brand.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -92,55 +112,51 @@ class EmployeeDashboard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.all(AppSpacing.xs),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: colors.onBrand.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
-            child: const CircleAvatar(
+            child: CircleAvatar(
               radius: 32,
-              backgroundColor: Colors.white,
-              child: Icon(
-                Icons.person_rounded,
-                size: 40,
-                color: Color(0xFF6366F1),
-              ),
+              backgroundColor: colors.onBrand,
+              child: Icon(Icons.person_rounded, size: 40, color: colors.brand),
             ),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: AppSpacing.xl),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Hello, ${provider.user?.name.split(' ')[0]} 👋',
-                  style: const TextStyle(
+                  'Hello, $firstName 👋',
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: colors.onBrand,
                   ),
                 ),
                 Text(
                   provider.user?.email ?? '',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
+                    color: colors.onBrand.withValues(alpha: 0.85),
                     fontSize: 13,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.xs,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
+                    color: colors.onBrand.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Text(
                     'Shift: ${provider.user?.shiftStart} - ${provider.user?.shiftEnd}',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: colors.onBrand,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
@@ -153,164 +169,163 @@ class EmployeeDashboard extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildTodayStatus(
-    AttendanceRepository attendanceRepo,
-    UserProvider userProvider,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader("Today's Journey", Icons.today_rounded),
-        const SizedBox(height: 16),
-        FutureBuilder<AttendanceModel?>(
-          future: attendanceRepo.getTodayAttendance(
-            userProvider.company?.id ?? '',
-            userProvider.user?.id ?? '',
+class _TodayStatus extends StatelessWidget {
+  const _TodayStatus({required this.repo, required this.provider});
+
+  final AttendanceRepository repo;
+  final UserProvider provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return FutureBuilder<AttendanceModel?>(
+      future: repo.getTodayAttendance(
+        provider.company?.id ?? '',
+        provider.user?.id ?? '',
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(height: 120, child: AppLoader());
+        }
+        final attendance = snapshot.data;
+        final isCheckedIn = attendance != null;
+        final isCheckedOut = attendance?.checkOut != null;
+
+        return Container(
+          padding: const EdgeInsets.all(AppSpacing.xxl),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.xxl),
+            border: Border.all(color: colors.border),
           ),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(color: Color(0xFF6366F1)),
-              );
-            }
-
-            final attendance = snapshot.data;
-            final isCheckedIn = attendance != null;
-            final isCheckedOut = attendance?.checkOut != null;
-
-            return Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          child: Row(
+            children: [
+              _StatusItem(
+                label: 'Check In',
+                active: isCheckedIn,
+                time: attendance?.checkIn,
+                color: colors.success,
               ),
-              child: Row(
-                children: [
-                  _buildStatusItem(
-                    'Check In',
-                    isCheckedIn,
-                    attendance?.checkIn,
-                    const Color(0xFF10B981),
-                  ),
-                  Expanded(
-                    child: Container(
-                      height: 2,
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            isCheckedIn
-                                ? const Color(0xFF10B981)
-                                : Colors.grey[800]!,
-                            isCheckedOut
-                                ? const Color(0xFF10B981)
-                                : Colors.grey[800]!,
-                          ],
-                        ),
-                      ),
+              Expanded(
+                child: Container(
+                  height: 2,
+                  margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        isCheckedIn ? colors.success : colors.border,
+                        isCheckedOut ? colors.success : colors.border,
+                      ],
                     ),
                   ),
-                  _buildStatusItem(
-                    'Check Out',
-                    isCheckedOut,
-                    attendance?.checkOut,
-                    const Color(0xFFF43F5E),
-                  ),
-                ],
+                ),
               ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSectionHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: const Color(0xFF6366F1)),
-        const SizedBox(width: 12),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
+              _StatusItem(
+                label: 'Check Out',
+                active: isCheckedOut,
+                time: attendance?.checkOut,
+                color: colors.danger,
+              ),
+            ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
+}
 
-  Widget _buildStatusItem(
-    String label,
-    bool active,
-    DateTime? time,
-    Color color,
-  ) {
+class _StatusItem extends StatelessWidget {
+  const _StatusItem({
+    required this.label,
+    required this.active,
+    required this.time,
+    required this.color,
+  });
+
+  final String label;
+  final bool active;
+  final DateTime? time;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             color: active
-                ? color.withValues(alpha: 0.1)
-                : Colors.white.withValues(alpha: 0.05),
+                ? color.withValues(alpha: 0.12)
+                : colors.surfaceMuted,
             shape: BoxShape.circle,
           ),
           child: Icon(
             active
                 ? Icons.check_circle_rounded
                 : Icons.radio_button_off_rounded,
-            color: active ? color : Colors.grey[600],
+            color: active ? color : colors.textTertiary,
             size: 28,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpacing.md),
         Text(
           label,
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         ),
         Text(
-          time != null ? DateFormat('hh:mm a').format(time) : '--:--',
-          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+          time != null ? DateFormat('hh:mm a').format(time!) : '--:--',
+          style: TextStyle(fontSize: 12, color: colors.textTertiary),
         ),
       ],
     );
   }
+}
 
-  Widget _buildActionCard(
-    BuildContext context,
-    String title,
-    String subtitle,
-    IconData icon,
-    Color color,
-    Widget screen,
-  ) {
+class _ActionCard extends StatelessWidget {
+  const _ActionCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.builder,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final Widget Function() builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
     return InkWell(
-      onTap: () =>
-          Navigator.push(context, MaterialPageRoute(builder: (_) => screen)),
-      borderRadius: BorderRadius.circular(20),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => builder()),
+      ),
+      borderRadius: BorderRadius.circular(AppRadius.xl),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(color: colors.border),
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(15),
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Icon(icon, color: color, size: 28),
             ),
-            const SizedBox(width: 20),
+            const SizedBox(width: AppSpacing.xl),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,18 +337,15 @@ class EmployeeDashboard extends StatelessWidget {
                       fontSize: 16,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 13),
-                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios_rounded,
               size: 16,
-              color: Color(0xFF475569),
+              color: colors.textTertiary,
             ),
           ],
         ),

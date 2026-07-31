@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:attendance_app/features/shared/user_provider.dart';
+
+import 'package:attendance_app/core/error/app_exception.dart';
+import 'package:attendance_app/core/theme/app_colors.dart';
+import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/features/auth/signup_screen.dart';
+import 'package:attendance_app/features/shared/user_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,7 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _login() async {
+  Future<void> _login() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter your email and password.')),
@@ -32,22 +36,15 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     setState(() => _isLoading = true);
     try {
-      await Provider.of<UserProvider>(
-        context,
-        listen: false,
-      ).signIn(_emailController.text.trim(), _passwordController.text);
+      await Provider.of<UserProvider>(context, listen: false)
+          .signIn(_emailController.text.trim(), _passwordController.text);
     } catch (e) {
       if (mounted) {
+        final message = e is AppException ? e.message : 'Login failed.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(child: Text('Login failed: ${e.toString()}')),
-              ],
-            ),
-            backgroundColor: const Color(0xFFDC2626),
+            content: Text(message),
+            backgroundColor: context.colors.danger,
           ),
         );
       }
@@ -58,72 +55,36 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = Theme.of(context).textTheme;
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
       body: SafeArea(
         child: SingleChildScrollView(
-          child: SizedBox(
-            height:
-                MediaQuery.of(context).size.height -
-                MediaQuery.of(context).padding.top,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).padding.vertical,
+            ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28.0),
+              padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Column(
                 children: [
                   const Spacer(flex: 2),
-                  // Logo area
-                  Container(
-                    padding: const EdgeInsets.all(22),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(
-                            0xFF6366F1,
-                          ).withValues(alpha: 0.35),
-                          blurRadius: 24,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.fingerprint_rounded,
-                      size: 56,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  const Text(
-                    'TrackIn',
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
+                  _Logo(colors: colors),
+                  const SizedBox(height: AppSpacing.xxl),
                   Text(
-                    'Smart Workplace Attendance',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                    'PunchIn',
+                    style: text.displaySmall?.copyWith(letterSpacing: 1.5),
                   ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text('Smart Workplace Attendance', style: text.bodyMedium),
                   const Spacer(flex: 2),
-                  // Form area
-                  _buildFormCard(),
-                  const Spacer(flex: 1),
-                  // Register link
+                  _buildFormCard(colors, text),
+                  const Spacer(),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        "Don't have an account?",
-                        style: TextStyle(color: Colors.grey[500]),
-                      ),
+                      Text("Don't have an account?", style: text.bodyMedium),
                       TextButton(
                         onPressed: () => Navigator.push(
                           context,
@@ -131,17 +92,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             builder: (_) => const SignupScreen(),
                           ),
                         ),
-                        child: const Text(
-                          'Register Company',
-                          style: TextStyle(
-                            color: Color(0xFF6366F1),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        child: const Text('Register Company'),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.lg),
                 ],
               ),
             ),
@@ -151,84 +106,94 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildFormCard() {
+  Widget _buildFormCard(AppColors colors, TextTheme text) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(AppSpacing.xxl),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+        border: Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'Welcome back',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+          Text('Welcome back', style: text.titleLarge),
+          const SizedBox(height: AppSpacing.xs),
+          Text('Sign in to your workspace', style: text.bodyMedium),
+          const SizedBox(height: AppSpacing.xxl),
+          TextFormField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Email address',
+              prefixIcon: Icon(Icons.alternate_email_rounded, size: 20),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Sign in to your workspace',
-            style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+          const SizedBox(height: AppSpacing.lg),
+          TextFormField(
+            controller: _passwordController,
+            obscureText: _obscurePassword,
+            decoration: InputDecoration(
+              labelText: 'Password',
+              prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscurePassword
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
+                  size: 20,
+                ),
+                onPressed: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
+              ),
+            ),
           ),
-          const SizedBox(height: 28),
-          _buildTextField(
-            _emailController,
-            'Email address',
-            Icons.alternate_email_rounded,
+          const SizedBox(height: AppSpacing.xxl),
+          ElevatedButton(
+            onPressed: _isLoading ? null : _login,
+            child: _isLoading
+                ? SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: colors.onBrand,
+                    ),
+                  )
+                : const Text('SIGN IN'),
           ),
-          const SizedBox(height: 16),
-          _buildPasswordField(),
-          const SizedBox(height: 28),
-          _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF6366F1)),
-                )
-              : ElevatedButton(onPressed: _login, child: const Text('SIGN IN')),
         ],
       ),
     );
   }
+}
 
-  Widget _buildTextField(
-    TextEditingController controller,
-    String label,
-    IconData icon,
-  ) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: TextInputType.emailAddress,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, size: 20),
-      ),
-    );
-  }
+class _Logo extends StatelessWidget {
+  const _Logo({required this.colors});
 
-  Widget _buildPasswordField() {
-    return TextFormField(
-      controller: _passwordController,
-      obscureText: _obscurePassword,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: 'Password',
-        prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
-        suffixIcon: IconButton(
-          icon: Icon(
-            _obscurePassword
-                ? Icons.visibility_off_rounded
-                : Icons.visibility_rounded,
-            size: 20,
-          ),
-          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+  final AppColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [colors.brand, const Color(0xFF4F46E5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+        boxShadow: [
+          BoxShadow(
+            color: colors.brand.withValues(alpha: 0.35),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
+      child: Icon(Icons.fingerprint_rounded, size: 56, color: colors.onBrand),
     );
   }
 }
