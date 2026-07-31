@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'package:attendance_app/core/di/injection.dart';
-import 'package:attendance_app/domain/repositories/employee_repository.dart';
+import 'package:attendance_app/core/theme/app_colors.dart';
+import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/core/widgets/empty_state.dart';
+import 'package:attendance_app/core/widgets/status_badge.dart';
+import 'package:attendance_app/data/models/company_model.dart';
 import 'package:attendance_app/data/models/user_model.dart';
-import 'package:attendance_app/features/shared/user_provider.dart';
+import 'package:attendance_app/domain/repositories/employee_repository.dart';
 import 'package:attendance_app/features/admin/add_edit_employee.dart';
+import 'package:attendance_app/features/shared/user_provider.dart';
 
 class EmployeeManagement extends StatelessWidget {
   const EmployeeManagement({super.key});
@@ -15,42 +22,23 @@ class EmployeeManagement extends StatelessWidget {
     final companyId = prov.company?.id ?? '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
-        title: const Text('Employees'),
-        backgroundColor: const Color(0xFF1E293B),
-      ),
+      appBar: AppBar(title: const Text('Employees')),
       body: StreamBuilder<List<UserModel>>(
         stream: sl<EmployeeRepository>().watchEmployees(companyId),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF6366F1)),
-            );
+            return const AppLoader();
           }
           final employees = snap.data ?? [];
           if (employees.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.people_outline, size: 64, color: Colors.grey[700]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No employees yet',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Tap + to add your first employee',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                  ),
-                ],
-              ),
+            return const EmptyState(
+              icon: Icons.people_outline,
+              title: 'No employees yet',
+              subtitle: 'Tap + to add your first employee.',
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             itemCount: employees.length,
             itemBuilder: (ctx, i) => _EmployeeCard(
               employee: employees[i],
@@ -60,7 +48,7 @@ class EmployeeManagement extends StatelessWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -72,30 +60,31 @@ class EmployeeManagement extends StatelessWidget {
             ),
           ),
         ),
-        backgroundColor: const Color(0xFF6366F1),
-        child: const Icon(Icons.person_add, color: Colors.white),
+        icon: const Icon(Icons.person_add),
+        label: const Text('Add'),
       ),
     );
   }
 }
 
 class _EmployeeCard extends StatelessWidget {
-  final UserModel employee;
-  final String companyId;
-  final dynamic company;
-
   const _EmployeeCard({
     required this.employee,
     required this.companyId,
     this.company,
   });
 
+  final UserModel employee;
+  final String companyId;
+  final CompanyModel? company;
+
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -109,24 +98,24 @@ class _EmployeeCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: const Color(0xFF6366F1).withAlpha(30),
+                backgroundColor: colors.brandSoft,
                 radius: 24,
                 child: Text(
                   employee.name.isNotEmpty
                       ? employee.name[0].toUpperCase()
                       : '?',
-                  style: const TextStyle(
-                    color: Color(0xFF6366F1),
+                  style: TextStyle(
+                    color: colors.brand,
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: AppSpacing.lg),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,27 +123,20 @@ class _EmployeeCard extends StatelessWidget {
                     Text(
                       employee.name,
                       style: const TextStyle(
-                        color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
                       employee.email,
-                      style: const TextStyle(
-                        color: Color(0xFF94A3B8),
-                        fontSize: 13,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     if (employee.department != null) ...[
                       const SizedBox(height: 2),
                       Text(
                         '${employee.department}${employee.position != null ? " - ${employee.position}" : ""}',
-                        style: const TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 12,
-                        ),
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
                   ],
@@ -162,35 +144,14 @@ class _EmployeeCard extends StatelessWidget {
               ),
               Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: employee.status == 'active'
-                          ? const Color(0xFF10B981).withAlpha(25)
-                          : const Color(0xFFEF4444).withAlpha(25),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      employee.status.toUpperCase(),
-                      style: TextStyle(
-                        color: employee.status == 'active'
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFEF4444),
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  StatusBadge(
+                    status: employee.status == 'active' ? 'present' : 'absent',
+                    label: employee.status,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.sm),
                   Text(
                     '${employee.shiftStart} - ${employee.shiftEnd}',
-                    style: const TextStyle(
-                      color: Color(0xFF64748B),
-                      fontSize: 11,
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
               ),
