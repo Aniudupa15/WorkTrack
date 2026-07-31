@@ -28,6 +28,7 @@ dependencies:
 
   # ── UI & Utilities ───────────────────────────────────────────────────────────
   provider: ^6.1.5+1
+  get_it: ^8.0.3
   fl_chart: ^0.69.0
   flutter_local_notifications: ^18.0.1
   image_picker: ^1.1.2

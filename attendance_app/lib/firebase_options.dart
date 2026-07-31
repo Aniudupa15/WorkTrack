@@ -63,8 +63,10 @@ class DefaultFirebaseOptions {
     messagingSenderId: '46917976454',
     projectId: 'trackin-df4d8',
     storageBucket: 'trackin-df4d8.firebasestorage.app',
-    androidClientId: '46917976454-5mlkv53bocsgr3sfe8fmhlob7j1tcb2d.apps.googleusercontent.com',
-    iosClientId: '46917976454-2dqsiqr0k9gt8q2u9he0d7qgq1bh27mg.apps.googleusercontent.com',
+    androidClientId:
+        '46917976454-5mlkv53bocsgr3sfe8fmhlob7j1tcb2d.apps.googleusercontent.com',
+    iosClientId:
+        '46917976454-2dqsiqr0k9gt8q2u9he0d7qgq1bh27mg.apps.googleusercontent.com',
     iosBundleId: 'com.example.attendanceApp',
   );
 }
