@@ -1,3 +1,4 @@
+import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
 import java.io.FileInputStream
 import java.util.Properties
 
@@ -28,6 +29,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // Required by flutter_local_notifications (and other libs using java.time).
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -60,6 +63,12 @@ android {
 
     buildTypes {
         release {
+            // We don't obfuscate, so there is no R8 mapping file to upload;
+            // disabling this avoids the Crashlytics mapping-upload task while
+            // keeping SDK crash reporting fully functional.
+            configure<CrashlyticsExtension> {
+                mappingFileUploadEnabled = false
+            }
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {
@@ -73,4 +82,8 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
