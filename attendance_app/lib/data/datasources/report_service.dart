@@ -19,8 +19,24 @@ class ReportService {
     required List<AttendanceModel> records,
   }) async {
     final monthLabel = DateFormat('yyyy-MM').format(month);
-    final timeFormat = DateFormat('HH:mm');
+    final csv = buildCsv(records);
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/attendance_$monthLabel.csv');
+    await file.writeAsString(csv);
 
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path, mimeType: 'text/csv')],
+        subject: '$companyName attendance — $monthLabel',
+        text: 'Attendance report for $companyName ($monthLabel).',
+      ),
+    );
+  }
+
+  /// Builds the attendance CSV body (header + one row per record). Extracted so
+  /// the formatting/escaping is unit-testable without the platform share sheet.
+  String buildCsv(List<AttendanceModel> records) {
+    final timeFormat = DateFormat('HH:mm');
     final rows = <List<String>>[
       [
         'Date',
@@ -42,19 +58,7 @@ class ReportService {
           r.isLate ? 'yes' : 'no',
         ],
     ];
-
-    final csv = rows.map((row) => row.map(_escape).join(',')).join('\r\n');
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/attendance_$monthLabel.csv');
-    await file.writeAsString(csv);
-
-    await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile(file.path, mimeType: 'text/csv')],
-        subject: '$companyName attendance — $monthLabel',
-        text: 'Attendance report for $companyName ($monthLabel).',
-      ),
-    );
+    return rows.map((row) => row.map(_escape).join(',')).join('\r\n');
   }
 
   static String _escape(String value) {
