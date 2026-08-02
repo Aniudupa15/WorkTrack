@@ -12,6 +12,7 @@ import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/features/employee/mark_attendance.dart';
 import 'package:attendance_app/features/employee/my_attendance.dart';
 import 'package:attendance_app/features/employee/my_leaves.dart';
+import 'package:attendance_app/features/shared/account_menu.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 class EmployeeDashboard extends StatelessWidget {
@@ -26,11 +27,9 @@ class EmployeeDashboard extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Workspace'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.logout_rounded, color: colors.danger),
-            onPressed: () => userProvider.signOut(),
-          ),
+        actions: const [
+          AccountMenu(),
+          SizedBox(width: AppSpacing.sm),
         ],
       ),
       body: SingleChildScrollView(

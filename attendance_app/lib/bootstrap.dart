@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/data/datasources/offline_attendance_store.dart';
@@ -24,9 +25,10 @@ Future<void> bootstrap() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await Hive.initFlutter();
   await Hive.openBox(OfflineAttendanceStore.boxName);
+  final prefs = await SharedPreferences.getInstance();
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   _wireCrashReporting();
-  configureDependencies();
+  configureDependencies(prefs);
 }
 
 /// Routes uncaught Flutter framework and platform (async) errors to

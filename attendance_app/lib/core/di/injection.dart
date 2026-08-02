@@ -1,10 +1,12 @@
 import 'package:get_it/get_it.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/data/datasources/connectivity_service.dart';
 import 'package:attendance_app/data/datasources/offline_attendance_store.dart';
 import 'package:attendance_app/data/datasources/report_service.dart';
+import 'package:attendance_app/features/shared/theme_controller.dart';
 import 'package:attendance_app/features/shared/offline_sync_manager.dart';
 import 'package:attendance_app/data/repositories/attendance_repository_impl.dart';
 import 'package:attendance_app/data/repositories/auth_repository_impl.dart';
@@ -32,7 +34,9 @@ final GetIt sl = GetIt.instance;
 /// composed into domain repositories, which are the only thing the presentation
 /// layer depends on. Swapping an implementation — or a fake, in tests — is a
 /// one-line change here and nowhere else.
-void configureDependencies() {
+void configureDependencies(SharedPreferences prefs) {
+  sl.registerSingleton<SharedPreferences>(prefs);
+
   // ── Data sources (Firebase wrappers) ────────────────────────────────────────
   sl
     ..registerLazySingleton<AuthService>(AuthService.new)
@@ -65,7 +69,9 @@ void configureDependencies() {
     ..registerLazySingleton<LeaveRepository>(() => LeaveRepositoryImpl(sl()));
 
   // ── App services ────────────────────────────────────────────────────────────
-  sl.registerLazySingleton<OfflineSyncManager>(
-    () => OfflineSyncManager(sl(), sl()),
-  );
+  sl
+    ..registerLazySingleton<OfflineSyncManager>(
+      () => OfflineSyncManager(sl(), sl()),
+    )
+    ..registerLazySingleton<ThemeController>(() => ThemeController(sl()));
 }
