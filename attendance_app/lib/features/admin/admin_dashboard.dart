@@ -16,6 +16,7 @@ import 'package:attendance_app/features/admin/admin_analytics.dart';
 import 'package:attendance_app/features/admin/attendance_logs.dart';
 import 'package:attendance_app/features/admin/employee_management.dart';
 import 'package:attendance_app/features/admin/leave_management.dart';
+import 'package:attendance_app/features/shared/account_menu.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 class AdminDashboard extends StatelessWidget {
@@ -41,12 +42,9 @@ class AdminDashboard extends StatelessWidget {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.logout_rounded, color: colors.danger),
-            onPressed: () => userProvider.signOut(),
-          ),
-          const SizedBox(width: AppSpacing.sm),
+        actions: const [
+          AccountMenu(),
+          SizedBox(width: AppSpacing.sm),
         ],
       ),
       body: StreamBuilder<List<UserModel>>(

@@ -5,6 +5,7 @@ import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_theme.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
+import 'package:attendance_app/features/shared/theme_controller.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 import 'package:attendance_app/features/auth/login_screen.dart';
 import 'package:attendance_app/features/admin/admin_dashboard.dart';
@@ -14,7 +15,10 @@ Future<void> main() async {
   await bootstrap();
   runApp(
     MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => UserProvider())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider.value(value: sl<ThemeController>()),
+      ],
       child: const AttendanceApp(),
     ),
   );
@@ -25,12 +29,13 @@ class AttendanceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = context.watch<ThemeController>().mode;
     return MaterialApp(
       title: 'PunchIn',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       navigatorObservers: [sl<AnalyticsService>().observer],
       home: const AuthWrapper(),
     );
