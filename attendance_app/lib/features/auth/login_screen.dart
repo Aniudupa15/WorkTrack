@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/features/auth/signup_screen.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
@@ -40,6 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
         listen: false,
       ).signIn(_emailController.text.trim(), _passwordController.text);
+      unawaited(sl<AnalyticsService>().logLogin());
     } catch (e) {
       if (mounted) {
         final message = e is AppException ? e.message : 'Login failed.';
