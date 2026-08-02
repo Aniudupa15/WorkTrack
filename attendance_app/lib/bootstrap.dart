@@ -1,5 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -23,5 +25,25 @@ Future<void> bootstrap() async {
   await Hive.initFlutter();
   await Hive.openBox(OfflineAttendanceStore.boxName);
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  _wireCrashReporting();
   configureDependencies();
+}
+
+/// Routes uncaught Flutter framework and platform (async) errors to
+/// Crashlytics. Collection is disabled in debug builds so local runs don't
+/// pollute the dashboard.
+void _wireCrashReporting() {
+  final crashlytics = FirebaseCrashlytics.instance;
+  crashlytics.setCrashlyticsCollectionEnabled(!kDebugMode);
+
+  final previousOnError = FlutterError.onError;
+  FlutterError.onError = (details) {
+    crashlytics.recordFlutterFatalError(details);
+    previousOnError?.call(details);
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    crashlytics.recordError(error, stack, fatal: true);
+    return true;
+  };
 }
