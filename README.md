@@ -468,6 +468,14 @@ flutter build appbundle --release  # → build/app/outputs/bundle/release/app-re
 
 ---
 
+## 🚢 Deployment
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the full Google Play release walkthrough —
+Firebase backend deploy, application-id setup, upload keystore, signed AAB, Play
+Console listing, data-safety form, testing tracks, and post-launch monitoring.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Here's how to get started:
