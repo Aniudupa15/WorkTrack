@@ -47,6 +47,28 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_native_splash: ^2.4.3
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
+
+# Branded splash screen (generated: `dart run flutter_native_splash:create`).
+# Uses the app's dark background; drop a logo at assets/images/logo.png and add
+# an `image:` line below to show it on the splash.
+flutter_native_splash:
+  color: "#0F172A"
+  color_dark: "#0F172A"
+  android_12:
+    color: "#0F172A"
+    color_dark: "#0F172A"
+
+# Adaptive launcher icons. Add a square 1024x1024 logo at assets/images/logo.png,
+# then run: `dart run flutter_launcher_icons`.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+  adaptive_icon_background: "#6366F1"
+  adaptive_icon_foreground: "assets/images/logo.png"
+  min_sdk_android: 21
