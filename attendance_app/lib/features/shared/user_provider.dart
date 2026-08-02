@@ -11,6 +11,7 @@ import 'package:attendance_app/domain/repositories/employee_repository.dart';
 import 'package:attendance_app/data/models/company_model.dart';
 import 'package:attendance_app/data/models/user_model.dart';
 import 'package:attendance_app/data/datasources/notification_service.dart';
+import 'package:attendance_app/features/shared/offline_sync_manager.dart';
 
 /// Holds the authenticated session (Firebase user → role-aware [UserModel] and
 /// their [CompanyModel]) and drives the top-level auth routing.
@@ -20,10 +21,12 @@ class UserProvider with ChangeNotifier {
     CompanyRepository? companyRepository,
     EmployeeRepository? employeeRepository,
     NotificationService? notificationService,
+    OfflineSyncManager? offlineSyncManager,
   }) : _auth = authRepository ?? sl<AuthRepository>(),
        _company = companyRepository ?? sl<CompanyRepository>(),
        _employees = employeeRepository ?? sl<EmployeeRepository>(),
-       _notifications = notificationService ?? sl<NotificationService>() {
+       _notifications = notificationService ?? sl<NotificationService>(),
+       _offlineSync = offlineSyncManager ?? sl<OfflineSyncManager>() {
     _authSubscription = _auth.authStateChanges().listen(_onAuthChange);
   }
 
@@ -31,6 +34,7 @@ class UserProvider with ChangeNotifier {
   final CompanyRepository _company;
   final EmployeeRepository _employees;
   final NotificationService _notifications;
+  final OfflineSyncManager _offlineSync;
 
   UserModel? _user;
   CompanyModel? _companyModel;
@@ -68,6 +72,8 @@ class UserProvider with ChangeNotifier {
             AppLogger.warn('FCM initialization failed: $error');
             AppLogger.debug('$stackTrace');
           }
+          // Replay any attendance captured offline, then keep syncing on reconnect.
+          _offlineSync.configure(user!.companyId!);
         }
       } catch (error, stackTrace) {
         if (version != _authChangeVersion) return;
@@ -125,6 +131,7 @@ class UserProvider with ChangeNotifier {
         AppLogger.warn('Could not clear FCM token on sign-out: $error');
       }
     }
+    _offlineSync.reset();
     await _auth.signOut();
     await _notifications.reset();
     _user = null;

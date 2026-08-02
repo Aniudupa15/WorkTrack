@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
+import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/data/datasources/location_service.dart';
@@ -124,7 +125,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         // Camera not available or user cancelled — proceed without selfie
       }
 
-      await _attendance.checkIn(
+      final outcome = await _attendance.checkIn(
         companyId: company.id,
         location: {
           'latitude': _currentLocation!.latitude,
@@ -132,12 +133,20 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         },
         selfieStoragePath: selfiePath,
       );
-      _todayAttendance = await _attendance.getTodayAttendance(
-        company.id,
-        user.id,
-      );
-      if (mounted) setState(() {});
-      _showSuccessDialog('Checked In', 'Your attendance has been recorded.');
+      if (outcome == CheckOutcome.queuedOffline) {
+        _showSuccessDialog(
+          'Saved Offline',
+          "You're offline — your check-in is saved and will sync "
+              'automatically when a connection is available.',
+        );
+      } else {
+        _todayAttendance = await _attendance.getTodayAttendance(
+          company.id,
+          user.id,
+        );
+        if (mounted) setState(() {});
+        _showSuccessDialog('Checked In', 'Your attendance has been recorded.');
+      }
     } catch (e) {
       if (mounted) {
         final message = e is AppException
@@ -146,7 +155,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
-            backgroundColor: const Color(0xFFEF4444),
+            backgroundColor: context.colors.danger,
           ),
         );
       }
@@ -168,19 +177,27 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
           throw StateError('Current location is required to check out.');
         }
       }
-      await _attendance.checkOut(
+      final outcome = await _attendance.checkOut(
         companyId: company.id,
         location: {
           'latitude': _currentLocation!.latitude,
           'longitude': _currentLocation!.longitude,
         },
       );
-      _todayAttendance = await _attendance.getTodayAttendance(
-        company.id,
-        user.id,
-      );
-      setState(() {});
-      _showSuccessDialog('Checked Out', 'You have successfully checked out.');
+      if (outcome == CheckOutcome.queuedOffline) {
+        _showSuccessDialog(
+          'Saved Offline',
+          "You're offline — your check-out is saved and will sync "
+              'automatically when a connection is available.',
+        );
+      } else {
+        _todayAttendance = await _attendance.getTodayAttendance(
+          company.id,
+          user.id,
+        );
+        setState(() {});
+        _showSuccessDialog('Checked Out', 'You have successfully checked out.');
+      }
     } catch (e) {
       if (mounted) {
         final message = e is AppException
