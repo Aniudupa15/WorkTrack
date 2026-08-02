@@ -22,6 +22,10 @@ function optionalText(value, name, max = 200) {
   return requiredText(value, name, max);
 }
 function validTime(value) { return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value); }
+function toMinutes(value) { if (!validTime(value)) return null; const [h, m] = value.split(":").map(Number); return h * 60 + m; }
+async function sendPush(token, title, body) {
+  await getMessaging().send({ token, notification: { title, body } }).catch((error) => console.error("push failed", { code: error.code }));
+}
 function dateForZone(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const get = (type) => parts.find((part) => part.type === type).value;
@@ -227,4 +231,41 @@ exports.syncOfflineAttendance = onCall(CALLABLE_OPTIONS, async (request) => {
   }
   console.log(JSON.stringify({ event: "sync_offline_attendance", companyId, uid: user.uid, count: events.length }));
   return { results };
+});
+
+// Fires every 5 minutes and nudges employees: a check-in reminder in the 5-min
+// window before shift start (when no check-in exists yet) and a check-out
+// reminder 30-35 min after shift end (when checked in but not out). The narrow
+// windows keep each reminder to roughly one send per day without per-employee
+// dynamic schedules.
+exports.sendShiftReminders = onSchedule({ schedule: "*/5 * * * *", timeZone: TIME_ZONE, region: CALLABLE_OPTIONS.region }, async () => {
+  const now = new Date();
+  const date = dateForZone(now);
+  const [nowHour, nowMinute] = timeForZone(now).split(":").map(Number);
+  const nowMinutes = nowHour * 60 + nowMinute;
+  const companies = await db.collection("companies").get();
+  for (const company of companies.docs) {
+    const employees = await company.ref.collection("employees").where("status", "==", "active").get();
+    for (const employee of employees.docs) {
+      const data = employee.data();
+      if (!data.fcmToken) continue;
+      const startMinutes = toMinutes(data.shift?.start);
+      const endMinutes = toMinutes(data.shift?.end);
+      const attendanceRef = company.ref.collection("attendance").doc(`${employee.id}_${date}`);
+
+      if (startMinutes != null && nowMinutes >= startMinutes - 5 && nowMinutes < startMinutes) {
+        const attendance = await attendanceRef.get();
+        if (!attendance.exists || !attendance.data().checkIn) {
+          await sendPush(data.fcmToken, "Time to check in", `Your shift starts at ${data.shift.start}. Don't forget to check in.`);
+        }
+      }
+
+      if (endMinutes != null && nowMinutes >= endMinutes + 30 && nowMinutes < endMinutes + 35) {
+        const attendance = await attendanceRef.get();
+        if (attendance.exists && attendance.data().checkIn && !attendance.data().checkOut) {
+          await sendPush(data.fcmToken, "Don't forget to check out", `Your shift ended at ${data.shift.end}. Please check out to record your hours.`);
+        }
+      }
+    }
+  }
 });
