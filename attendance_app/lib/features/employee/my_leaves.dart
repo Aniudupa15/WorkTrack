@@ -121,10 +121,9 @@ class _LeaveCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         'Admin: ${leave.adminNote}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(fontStyle: FontStyle.italic),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ),
                   ],

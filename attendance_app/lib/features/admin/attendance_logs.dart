@@ -86,8 +86,10 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
             ),
           Expanded(
             child: StreamBuilder<List<AttendanceModel>>(
-              stream:
-                  _attendance.watchAllLogs(companyId, dateFilter: dateFilter),
+              stream: _attendance.watchAllLogs(
+                companyId,
+                dateFilter: dateFilter,
+              ),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const AppLoader();
@@ -96,13 +98,13 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
 
                 if (_searchQuery.isNotEmpty) {
                   logs = logs
-                      .where((log) =>
-                          log.employeeName
-                              .toLowerCase()
-                              .contains(_searchQuery) ||
-                          log.employeeId
-                              .toLowerCase()
-                              .contains(_searchQuery))
+                      .where(
+                        (log) =>
+                            log.employeeName.toLowerCase().contains(
+                              _searchQuery,
+                            ) ||
+                            log.employeeId.toLowerCase().contains(_searchQuery),
+                      )
                       .toList();
                 }
 
@@ -114,8 +116,9 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
                 }
 
                 return ListView.builder(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xl,
+                  ),
                   itemCount: logs.length,
                   itemBuilder: (context, index) => _LogCard(log: logs[index]),
                 );
@@ -158,8 +161,8 @@ class _LogCard extends StatelessWidget {
               log.status == 'absent'
                   ? Icons.person_off
                   : log.isLate
-                      ? Icons.history_toggle_off_rounded
-                      : Icons.how_to_reg_rounded,
+                  ? Icons.history_toggle_off_rounded
+                  : Icons.how_to_reg_rounded,
               color: statusColor,
               size: 22,
             ),
@@ -168,12 +171,12 @@ class _LogCard extends StatelessWidget {
             log.employeeName.isNotEmpty
                 ? log.employeeName
                 : log.employeeId.substring(0, 8),
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
-          subtitle: Text(log.date, style: Theme.of(context).textTheme.bodySmall),
+          subtitle: Text(
+            log.date,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           trailing: StatusBadge(status: log.status),
           children: [
             Padding(
@@ -187,18 +190,30 @@ class _LogCard extends StatelessWidget {
                 children: [
                   Divider(color: colors.border),
                   const SizedBox(height: AppSpacing.md),
-                  _row(context, Icons.login_rounded, 'Check In',
-                      log.checkIn != null
-                          ? DateFormat('hh:mm a').format(log.checkIn!)
-                          : '--:--'),
+                  _row(
+                    context,
+                    Icons.login_rounded,
+                    'Check In',
+                    log.checkIn != null
+                        ? DateFormat('hh:mm a').format(log.checkIn!)
+                        : '--:--',
+                  ),
                   const SizedBox(height: AppSpacing.md),
-                  _row(context, Icons.logout_rounded, 'Check Out',
-                      log.checkOut != null
-                          ? DateFormat('hh:mm a').format(log.checkOut!)
-                          : '--:--'),
+                  _row(
+                    context,
+                    Icons.logout_rounded,
+                    'Check Out',
+                    log.checkOut != null
+                        ? DateFormat('hh:mm a').format(log.checkOut!)
+                        : '--:--',
+                  ),
                   const SizedBox(height: AppSpacing.md),
-                  _row(context, Icons.timelapse, 'Duration',
-                      log.workDurationFormatted),
+                  _row(
+                    context,
+                    Icons.timelapse,
+                    'Duration',
+                    log.workDurationFormatted,
+                  ),
                 ],
               ),
             ),

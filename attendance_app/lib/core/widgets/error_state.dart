@@ -5,11 +5,7 @@ import '../theme/app_spacing.dart';
 
 /// A standard error placeholder with an optional retry action.
 class ErrorStateView extends StatelessWidget {
-  const ErrorStateView({
-    super.key,
-    required this.message,
-    this.onRetry,
-  });
+  const ErrorStateView({super.key, required this.message, this.onRetry});
 
   final String message;
   final VoidCallback? onRetry;
@@ -29,8 +25,11 @@ class ErrorStateView extends StatelessWidget {
                 color: colors.danger.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.error_outline_rounded,
-                  size: 44, color: colors.danger),
+              child: Icon(
+                Icons.error_outline_rounded,
+                size: 44,
+                color: colors.danger,
+              ),
             ),
             const SizedBox(height: AppSpacing.xl),
             Text(

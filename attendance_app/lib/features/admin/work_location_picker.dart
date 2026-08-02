@@ -4,6 +4,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
+import 'package:attendance_app/core/theme/app_colors.dart';
+import 'package:attendance_app/core/theme/app_spacing.dart';
+
 class WorkLocationPicker extends StatefulWidget {
   final double? initialLat;
   final double? initialLng;
@@ -116,12 +119,9 @@ class _WorkLocationPickerState extends State<WorkLocationPicker> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
-        title: const Text('Pick Work Location'),
-        backgroundColor: const Color(0xFF1E293B),
-      ),
+      appBar: AppBar(title: const Text('Pick Work Location')),
       body: Stack(
         children: [
           FlutterMap(
@@ -143,8 +143,8 @@ class _WorkLocationPickerState extends State<WorkLocationPicker> {
                       point: LatLng(_pickedLat!, _pickedLng!),
                       radius: _radius,
                       useRadiusInMeter: true,
-                      color: const Color(0xFF6366F1).withAlpha(50),
-                      borderColor: const Color(0xFF6366F1),
+                      color: colors.brand.withValues(alpha: 0.2),
+                      borderColor: colors.brand,
                       borderStrokeWidth: 2,
                     ),
                   ],
@@ -171,63 +171,53 @@ class _WorkLocationPickerState extends State<WorkLocationPicker> {
             right: 0,
             bottom: 0,
             child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E293B),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppRadius.xl),
+                ),
+                border: Border(top: BorderSide(color: colors.border)),
               ),
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.lg,
+                AppSpacing.xl,
+                AppSpacing.xxl + AppSpacing.xs,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.location_on, color: Color(0xFF6366F1)),
-                      const SizedBox(width: 8),
+                      Icon(Icons.location_on, color: colors.brand),
+                      const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Text(
                           _loadingAddress ? 'Getting address...' : _address,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                          ),
+                          style: const TextStyle(fontSize: 14),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.lg),
                   Text(
                     'Geofence Radius: ${_radius.round()} m',
-                    style: const TextStyle(
-                      color: Color(0xFF94A3B8),
-                      fontSize: 13,
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   Slider(
                     value: _radius,
                     min: 50,
                     max: 500,
                     divisions: 18,
-                    activeColor: const Color(0xFF6366F1),
                     onChanged: (v) => setState(() => _radius = v),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.sm),
                   ElevatedButton(
                     onPressed: _confirm,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6366F1),
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 52),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Text(
-                      'Confirm Location',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                    child: const Text('Confirm Location'),
                   ),
                 ],
               ),
@@ -239,8 +229,7 @@ class _WorkLocationPickerState extends State<WorkLocationPicker> {
         padding: const EdgeInsets.only(bottom: 260),
         child: FloatingActionButton(
           onPressed: _goToCurrentLocation,
-          backgroundColor: const Color(0xFF6366F1),
-          child: const Icon(Icons.my_location, color: Colors.white),
+          child: const Icon(Icons.my_location),
         ),
       ),
     );

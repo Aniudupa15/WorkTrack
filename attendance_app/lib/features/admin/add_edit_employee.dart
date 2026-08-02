@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
+import 'package:attendance_app/core/theme/app_colors.dart';
+import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/domain/repositories/employee_repository.dart';
 import 'package:attendance_app/data/models/user_model.dart';
 import 'package:attendance_app/features/admin/work_location_picker.dart';
@@ -148,7 +150,7 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
-            backgroundColor: const Color(0xFFDC2626),
+            backgroundColor: context.colors.danger,
           ),
         );
       }
@@ -159,14 +161,11 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
-        title: Text(_isEdit ? 'Edit Employee' : 'Add Employee'),
-        backgroundColor: const Color(0xFF1E293B),
-      ),
+      appBar: AppBar(title: Text(_isEdit ? 'Edit Employee' : 'Add Employee')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: Form(
           key: _formKey,
           child: Column(
@@ -218,43 +217,40 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
                 onTap: _pickLocation,
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withAlpha(25)),
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    border: Border.all(color: colors.border),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.map, color: Color(0xFF6366F1)),
-                      const SizedBox(width: 12),
+                      Icon(Icons.map, color: colors.brand),
+                      const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Work Location',
-                              style: TextStyle(
-                                color: Color(0xFF94A3B8),
-                                fontSize: 12,
-                              ),
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: AppSpacing.xs),
                             Text(
                               _workLocation != null
                                   ? '${_workLocation!["address"] ?? "Set"} (${(_workLocation!["radius"] as num?)?.round() ?? 100}m)'
                                   : 'Tap to set location',
                               style: TextStyle(
                                 color: _workLocation != null
-                                    ? Colors.white
-                                    : const Color(0xFF94A3B8),
+                                    ? colors.textPrimary
+                                    : colors.textSecondary,
                                 fontSize: 14,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right, color: Color(0xFF94A3B8)),
+                      Icon(Icons.chevron_right, color: colors.textTertiary),
                     ],
                   ),
                 ),
@@ -263,12 +259,12 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
               ElevatedButton(
                 onPressed: _saving ? null : _save,
                 child: _saving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: colors.onBrand,
                         ),
                       )
                     : Text(_isEdit ? 'Save Changes' : 'Add Employee'),
@@ -290,7 +286,6 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
     return TextFormField(
       controller: ctrl,
       keyboardType: keyboard,
-      style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
       validator: required
           ? (v) => v == null || v.trim().isEmpty ? 'Required' : null
@@ -299,30 +294,24 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
   }
 
   Widget _timeTile(String label, String value, VoidCallback onTap) {
+    final colors = context.colors;
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withAlpha(25)),
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: colors.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
-            ),
-            const SizedBox(height: 4),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: AppSpacing.xs),
             Text(
               value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
         ),

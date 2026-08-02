@@ -257,9 +257,7 @@ class _StatusItem extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            color: active
-                ? color.withValues(alpha: 0.12)
-                : colors.surfaceMuted,
+            color: active ? color.withValues(alpha: 0.12) : colors.surfaceMuted,
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -303,10 +301,8 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => builder()),
-      ),
+      onTap: () =>
+          Navigator.push(context, MaterialPageRoute(builder: (_) => builder())),
       borderRadius: BorderRadius.circular(AppRadius.xl),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.xl),

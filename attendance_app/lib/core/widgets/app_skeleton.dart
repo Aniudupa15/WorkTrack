@@ -49,11 +49,7 @@ class _AppSkeletonState extends State<AppSkeleton>
             gradient: LinearGradient(
               begin: Alignment(-1 - 2 * t, 0),
               end: Alignment(1 - 2 * t, 0),
-              colors: [
-                colors.surfaceMuted,
-                colors.border,
-                colors.surfaceMuted,
-              ],
+              colors: [colors.surfaceMuted, colors.border, colors.surfaceMuted],
             ),
           ),
         );
@@ -75,10 +71,8 @@ class SkeletonList extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.xl),
       itemCount: itemCount,
       separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-      itemBuilder: (_, _) => AppSkeleton(
-        height: itemHeight,
-        radius: AppRadius.lg,
-      ),
+      itemBuilder: (_, _) =>
+          AppSkeleton(height: itemHeight, radius: AppRadius.lg),
     );
   }
 }

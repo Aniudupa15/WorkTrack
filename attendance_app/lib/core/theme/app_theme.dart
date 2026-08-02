@@ -15,19 +15,22 @@ class AppTheme {
 
   static ThemeData _build(Brightness brightness, AppColors c) {
     final isDark = brightness == Brightness.dark;
-    final scheme = ColorScheme.fromSeed(
-      seedColor: c.brand,
-      brightness: brightness,
-    ).copyWith(
-      primary: c.brand,
-      onPrimary: c.onBrand,
-      surface: c.surface,
-      error: c.danger,
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: c.brand,
+          brightness: brightness,
+        ).copyWith(
+          primary: c.brand,
+          onPrimary: c.onBrand,
+          surface: c.surface,
+          error: c.danger,
+        );
 
-    final baseText = (isDark ? Typography.material2021().white
-            : Typography.material2021().black)
-        .apply(fontFamily: 'Roboto');
+    final baseText =
+        (isDark
+                ? Typography.material2021().white
+                : Typography.material2021().black)
+            .apply(fontFamily: 'Roboto');
 
     final textTheme = baseText.copyWith(
       displaySmall: baseText.displaySmall?.copyWith(
@@ -70,8 +73,9 @@ class AppTheme {
         scrolledUnderElevation: 0.5,
         backgroundColor: c.background,
         foregroundColor: c.textPrimary,
-        systemOverlayStyle:
-            isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        systemOverlayStyle: isDark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         titleTextStyle: textTheme.titleLarge,
       ),
       cardTheme: CardThemeData(

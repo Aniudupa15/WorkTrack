@@ -65,8 +65,9 @@ class AdminDashboard extends StatelessWidget {
               final employees = employeesSnapshot.data ?? [];
               final allLogs = attendanceSnapshot.data ?? [];
               final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-              final todayLogs =
-                  allLogs.where((log) => log.date == today).toList();
+              final todayLogs = allLogs
+                  .where((log) => log.date == today)
+                  .toList();
 
               final totalEmployees = employees.length;
               final presentToday = todayLogs
@@ -230,10 +231,9 @@ class _StatCard extends StatelessWidget {
             Text(title, style: Theme.of(context).textTheme.bodySmall),
             Text(
               value,
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineSmall
-                  ?.copyWith(color: color),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(color: color),
             ),
           ],
         ),
@@ -261,10 +261,8 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => builder()),
-      ),
+      onTap: () =>
+          Navigator.push(context, MaterialPageRoute(builder: (_) => builder())),
       borderRadius: BorderRadius.circular(AppRadius.xl),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.xl),
@@ -339,8 +337,9 @@ class _RecentActivity extends StatelessWidget {
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundColor:
-                      colors.statusColor(log.status).withValues(alpha: 0.15),
+                  backgroundColor: colors
+                      .statusColor(log.status)
+                      .withValues(alpha: 0.15),
                   radius: 18,
                   child: Icon(
                     log.isLate
@@ -375,8 +374,9 @@ class _RecentActivity extends StatelessWidget {
                     vertical: AppSpacing.xs,
                   ),
                   decoration: BoxDecoration(
-                    color:
-                        colors.statusColor(log.status).withValues(alpha: 0.15),
+                    color: colors
+                        .statusColor(log.status)
+                        .withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                   child: Text(

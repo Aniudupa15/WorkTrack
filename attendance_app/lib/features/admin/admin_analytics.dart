@@ -42,8 +42,10 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
 
   void _changeMonth(int delta) {
     setState(() {
-      _selectedMonth =
-          DateTime(_selectedMonth.year, _selectedMonth.month + delta);
+      _selectedMonth = DateTime(
+        _selectedMonth.year,
+        _selectedMonth.month + delta,
+      );
     });
     _loadData();
   }
