@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
+import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/data/datasources/location_service.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
@@ -198,12 +199,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context).user;
     if (user == null || _isLoading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0F172A),
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF6366F1)),
-        ),
-      );
+      return const Scaffold(body: AppLoader());
     }
 
     final hasWorkLoc = user.workLatitude != null && user.workLongitude != null;
@@ -212,7 +208,6 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         : const LatLng(20.5937, 78.9629);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Live Check-in'),

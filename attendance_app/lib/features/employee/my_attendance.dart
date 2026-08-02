@@ -41,8 +41,9 @@ class MyAttendanceScreen extends StatelessWidget {
           }
 
           final currentMonth = DateFormat('yyyy-MM').format(DateTime.now());
-          final monthLogs =
-              logs.where((l) => l.date.startsWith(currentMonth)).toList();
+          final monthLogs = logs
+              .where((l) => l.date.startsWith(currentMonth))
+              .toList();
           final present = monthLogs
               .where((l) => l.status == 'present' || l.status == 'late')
               .length;
@@ -61,17 +62,22 @@ class MyAttendanceScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     _SummaryCard(
-                        label: 'Present',
-                        value: '$present',
-                        color: colors.success),
+                      label: 'Present',
+                      value: '$present',
+                      color: colors.success,
+                    ),
                     const SizedBox(width: AppSpacing.md),
                     _SummaryCard(
-                        label: 'Late', value: '$late', color: colors.warning),
+                      label: 'Late',
+                      value: '$late',
+                      color: colors.warning,
+                    ),
                     const SizedBox(width: AppSpacing.md),
                     _SummaryCard(
-                        label: 'Absent',
-                        value: '$absent',
-                        color: colors.danger),
+                      label: 'Absent',
+                      value: '$absent',
+                      color: colors.danger,
+                    ),
                   ],
                 ),
               ),
@@ -165,8 +171,8 @@ class _LogItem extends StatelessWidget {
               log.status == 'absent'
                   ? Icons.person_off
                   : log.isLate
-                      ? Icons.history_toggle_off_rounded
-                      : Icons.how_to_reg_rounded,
+                  ? Icons.history_toggle_off_rounded
+                  : Icons.how_to_reg_rounded,
               color: statusColor,
               size: 20,
             ),
@@ -186,8 +192,11 @@ class _LogItem extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xs),
                 Row(
                   children: [
-                    Icon(Icons.login_rounded,
-                        size: 12, color: colors.textTertiary),
+                    Icon(
+                      Icons.login_rounded,
+                      size: 12,
+                      color: colors.textTertiary,
+                    ),
                     const SizedBox(width: AppSpacing.xs),
                     Text(
                       log.checkIn != null
@@ -196,8 +205,11 @@ class _LogItem extends StatelessWidget {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(width: AppSpacing.lg),
-                    Icon(Icons.logout_rounded,
-                        size: 12, color: colors.textTertiary),
+                    Icon(
+                      Icons.logout_rounded,
+                      size: 12,
+                      color: colors.textTertiary,
+                    ),
                     const SizedBox(width: AppSpacing.xs),
                     Text(
                       log.checkOut != null

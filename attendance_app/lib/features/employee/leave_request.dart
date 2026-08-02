@@ -217,10 +217,7 @@ class _LeaveRequestState extends State<LeaveRequest> {
           children: [
             Text(label, style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: AppSpacing.xs),
-            Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
       ),

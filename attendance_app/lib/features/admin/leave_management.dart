@@ -139,9 +139,9 @@ class _LeaveCard extends StatelessWidget {
               Text(
                 'Admin note: ${leave.adminNote}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.brand,
-                      fontStyle: FontStyle.italic,
-                    ),
+                  color: colors.brand,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ],
             if (leave.status == 'pending') ...[
@@ -185,9 +185,7 @@ class _LeaveCard extends StatelessWidget {
         title: Text('${status == "approved" ? "Approve" : "Reject"} Leave'),
         content: TextField(
           controller: noteCtrl,
-          decoration: const InputDecoration(
-            hintText: 'Add a note (optional)',
-          ),
+          decoration: const InputDecoration(hintText: 'Add a note (optional)'),
         ),
         actions: [
           TextButton(

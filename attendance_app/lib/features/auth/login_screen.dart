@@ -36,8 +36,10 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     setState(() => _isLoading = true);
     try {
-      await Provider.of<UserProvider>(context, listen: false)
-          .signIn(_emailController.text.trim(), _passwordController.text);
+      await Provider.of<UserProvider>(
+        context,
+        listen: false,
+      ).signIn(_emailController.text.trim(), _passwordController.text);
     } catch (e) {
       if (mounted) {
         final message = e is AppException ? e.message : 'Login failed.';
@@ -62,7 +64,8 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              minHeight: MediaQuery.of(context).size.height -
+              minHeight:
+                  MediaQuery.of(context).size.height -
                   MediaQuery.of(context).padding.vertical,
             ),
             child: Padding(
