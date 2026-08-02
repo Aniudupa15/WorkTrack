@@ -41,6 +41,16 @@ function location(value) {
   if (value.accuracy != null && (!Number.isFinite(value.accuracy) || value.accuracy < 0 || value.accuracy > 100)) fail("invalid-argument", "Location accuracy is insufficient");
   return { latitude: value.latitude, longitude: value.longitude, ...(value.accuracy != null ? { accuracy: value.accuracy } : {}) };
 }
+// Accepts an offline-captured instant (epoch ms or ISO string) and rejects
+// times that are in the future or unreasonably old (stale queue).
+function capturedInstant(value) {
+  const ms = typeof value === "number" ? value : Date.parse(value);
+  if (!Number.isFinite(ms)) fail("invalid-argument", "Invalid capture time");
+  const now = Date.now();
+  if (ms > now + 5 * 60 * 1000) fail("invalid-argument", "Capture time is in the future");
+  if (ms < now - 7 * 24 * 60 * 60 * 1000) fail("invalid-argument", "Capture time is too old to sync");
+  return new Date(ms);
+}
 async function caller(request) {
   if (!request.auth) fail("unauthenticated", "Sign-in is required");
   const role = await db.collection("users").doc(request.auth.uid).get();
@@ -161,4 +171,60 @@ exports.onLeaveStatusChanged = onDocumentUpdated("companies/{companyId}/leaves/{
   const employee = await db.collection("companies").doc(event.params.companyId).collection("employees").doc(after.employeeId).get();
   if (employee.exists && employee.data().fcmToken) await getMessaging().send({ token: employee.data().fcmToken, notification: { title: `Leave ${after.status}`, body: after.adminNote || `Your ${after.type} leave has been ${after.status}.` } }).catch((error) => console.error("leave notification failed", { code: error.code }));
   await db.collection("notifications").add({ type: "leave_status", companyId: event.params.companyId, employeeId: after.employeeId, message: `Leave ${after.status} for ${after.employeeName}`, createdAt: FieldValue.serverTimestamp(), read: false });
+});
+
+// Replays attendance events captured while the device was offline. Each event
+// is validated server-side against the stored work location and the captured
+// instant, so geofence and late-status remain server-authoritative even though
+// the action happened earlier on the device. Per-event results let the client
+// clear exactly what synced and retry the rest.
+exports.syncOfflineAttendance = onCall(CALLABLE_OPTIONS, async (request) => {
+  const user = await caller(request);
+  const companyId = requiredText(request.data?.companyId, "company id", 128);
+  if (user.role !== "employee" || user.companyId !== companyId) fail("permission-denied", "Employee access is required");
+  const events = request.data?.events;
+  if (!Array.isArray(events) || events.length === 0 || events.length > 100) fail("invalid-argument", "A batch of 1-100 events is required");
+
+  const employeeRef = db.collection("companies").doc(companyId).collection("employees").doc(user.uid);
+  const employeeSnap = await employeeRef.get();
+  if (!employeeSnap.exists || employeeSnap.data().status !== "active") fail("permission-denied", "Your employee account is inactive");
+  const employee = employeeSnap.data();
+  const assigned = employee.workLocation;
+  const shiftStart = employee.shift?.start || "09:00";
+
+  const results = [];
+  for (const event of events) {
+    const clientId = typeof event?.clientId === "string" ? event.clientId : null;
+    try {
+      const type = event?.type;
+      if (type !== "checkIn" && type !== "checkOut") fail("invalid-argument", "Invalid event type");
+      const capturedAt = capturedInstant(event?.capturedAt);
+      const currentLocation = location(event?.location);
+      const date = dateForZone(capturedAt);
+      const ref = db.collection("companies").doc(companyId).collection("attendance").doc(`${user.uid}_${date}`);
+      const outcome = await db.runTransaction(async (transaction) => {
+        const existing = await transaction.get(ref);
+        if (type === "checkIn") {
+          if (!assigned) fail("failed-precondition", "No work location is assigned");
+          if (distanceMeters(currentLocation, assigned) > (Number(assigned.radius) || 100)) fail("permission-denied", "Outside the work location radius");
+          if (existing.exists) return "duplicate";
+          const [hour, minute] = shiftStart.split(":").map(Number);
+          const [capturedHour, capturedMinute] = timeForZone(capturedAt).split(":").map(Number);
+          const isLate = capturedHour * 60 + capturedMinute > hour * 60 + minute + 15;
+          transaction.set(ref, { employeeId: user.uid, companyId, employeeName: employee.name, date, checkIn: Timestamp.fromDate(capturedAt), checkOut: null, status: isLate ? "late" : "present", isLate, checkInLocation: currentLocation, checkOutLocation: null, selfieStoragePath: null, isSynced: true, notes: "Synced from offline" });
+          return "created";
+        }
+        if (!existing.exists || !existing.data().checkIn) fail("failed-precondition", "No matching check-in to check out from");
+        if (existing.data().checkOut) return "duplicate";
+        transaction.update(ref, { checkOut: Timestamp.fromDate(capturedAt), checkOutLocation: currentLocation });
+        return "updated";
+      });
+      results.push({ clientId, status: outcome });
+    } catch (error) {
+      // A single bad event never fails the batch; the client keeps/retries it.
+      results.push({ clientId, status: "error", code: error.code || "internal", message: error.message || "Sync failed" });
+    }
+  }
+  console.log(JSON.stringify({ event: "sync_offline_attendance", companyId, uid: user.uid, count: events.length }));
+  return { results };
 });

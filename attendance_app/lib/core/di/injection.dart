@@ -1,5 +1,9 @@
 import 'package:get_it/get_it.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
+import 'package:attendance_app/data/datasources/connectivity_service.dart';
+import 'package:attendance_app/data/datasources/offline_attendance_store.dart';
+import 'package:attendance_app/features/shared/offline_sync_manager.dart';
 import 'package:attendance_app/data/repositories/attendance_repository_impl.dart';
 import 'package:attendance_app/data/repositories/auth_repository_impl.dart';
 import 'package:attendance_app/data/repositories/company_repository_impl.dart';
@@ -34,7 +38,11 @@ void configureDependencies() {
     ..registerLazySingleton<AttendanceService>(AttendanceService.new)
     ..registerLazySingleton<StorageService>(StorageService.new)
     ..registerLazySingleton<LocationService>(LocationService.new)
-    ..registerLazySingleton<NotificationService>(NotificationService.new);
+    ..registerLazySingleton<NotificationService>(NotificationService.new)
+    ..registerLazySingleton<ConnectivityService>(ConnectivityService.new)
+    ..registerLazySingleton<OfflineAttendanceStore>(
+      () => OfflineAttendanceStore(Hive.box(OfflineAttendanceStore.boxName)),
+    );
 
   // ── Repositories (domain contracts) ─────────────────────────────────────────
   sl
@@ -48,7 +56,12 @@ void configureDependencies() {
       () => EmployeeRepositoryImpl(sl(), sl()),
     )
     ..registerLazySingleton<AttendanceRepository>(
-      () => AttendanceRepositoryImpl(sl(), sl(), sl()),
+      () => AttendanceRepositoryImpl(sl(), sl(), sl(), sl(), sl()),
     )
     ..registerLazySingleton<LeaveRepository>(() => LeaveRepositoryImpl(sl()));
+
+  // ── App services ────────────────────────────────────────────────────────────
+  sl.registerLazySingleton<OfflineSyncManager>(
+    () => OfflineSyncManager(sl(), sl()),
+  );
 }

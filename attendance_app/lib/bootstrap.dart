@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:attendance_app/core/di/injection.dart';
+import 'package:attendance_app/data/datasources/offline_attendance_store.dart';
 import 'package:attendance_app/firebase_options.dart';
 
 /// Handles FCM messages received while the app is terminated or backgrounded.
@@ -20,6 +21,7 @@ Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await Hive.initFlutter();
+  await Hive.openBox(OfflineAttendanceStore.boxName);
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   configureDependencies();
 }
