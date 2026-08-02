@@ -6,6 +6,7 @@ service cloud.firestore {
     function isAdmin(companyId) { return signedIn() && role().data.role == 'admin' && role().data.companyId == companyId; }
     function isEmployee(companyId, employeeId) { return signedIn() && request.auth.uid == employeeId && role().data.role == 'employee' && role().data.companyId == companyId; }
     function onlyTokenChanged() { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']); }
+    function employee(companyId, employeeId) { return get(/databases/$(database)/documents/companies/$(companyId)/employees/$(employeeId)); }
 
     // Identity, role, company, attendance, and employee lifecycle writes are server-owned.
     match /users/{userId} { allow read: if signedIn() && request.auth.uid == userId; }
@@ -20,7 +21,19 @@ service cloud.firestore {
       }
       match /leaves/{leaveId} {
         allow read: if isAdmin(companyId) || (signedIn() && resource.data.employeeId == request.auth.uid && isEmployee(companyId, request.auth.uid));
-        allow create: if isEmployee(companyId, request.resource.data.employeeId) && request.resource.data.companyId == companyId && request.resource.data.status == 'pending' && request.resource.data.keys().hasOnly(['employeeId', 'companyId', 'employeeName', 'type', 'startDate', 'endDate', 'reason', 'status', 'createdAt', 'updatedAt', 'adminNote', 'id']);
+        allow create: if isEmployee(companyId, request.resource.data.employeeId)
+          && request.resource.data.companyId == companyId
+          && request.resource.data.employeeName == employee(companyId, request.auth.uid).data.name
+          && request.resource.data.status == 'pending'
+          && request.resource.data.type in ['casual', 'sick', 'earned', 'other']
+          && request.resource.data.reason is string
+          && request.resource.data.reason.size() > 0
+          && request.resource.data.reason.size() <= 1000
+          && request.resource.data.startDate is timestamp
+          && request.resource.data.endDate is timestamp
+          && request.resource.data.endDate >= request.resource.data.startDate
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.keys().hasOnly(['employeeId', 'companyId', 'employeeName', 'type', 'startDate', 'endDate', 'reason', 'status', 'createdAt', 'updatedAt', 'adminNote', 'id']);
         allow update: if isAdmin(companyId);
       }
     }
