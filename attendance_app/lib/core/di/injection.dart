@@ -1,8 +1,10 @@
 import 'package:get_it/get_it.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/data/datasources/connectivity_service.dart';
 import 'package:attendance_app/data/datasources/offline_attendance_store.dart';
+import 'package:attendance_app/data/datasources/report_service.dart';
 import 'package:attendance_app/features/shared/offline_sync_manager.dart';
 import 'package:attendance_app/data/repositories/attendance_repository_impl.dart';
 import 'package:attendance_app/data/repositories/auth_repository_impl.dart';
@@ -40,6 +42,8 @@ void configureDependencies() {
     ..registerLazySingleton<LocationService>(LocationService.new)
     ..registerLazySingleton<NotificationService>(NotificationService.new)
     ..registerLazySingleton<ConnectivityService>(ConnectivityService.new)
+    ..registerLazySingleton<AnalyticsService>(AnalyticsService.new)
+    ..registerLazySingleton<ReportService>(ReportService.new)
     ..registerLazySingleton<OfflineAttendanceStore>(
       () => OfflineAttendanceStore(Hive.box(OfflineAttendanceStore.boxName)),
     );

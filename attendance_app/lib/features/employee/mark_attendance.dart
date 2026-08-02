@@ -3,11 +3,13 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:async';
 import 'dart:io';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/data/datasources/location_service.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
@@ -133,6 +135,11 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         },
         selfieStoragePath: selfiePath,
       );
+      unawaited(
+        sl<AnalyticsService>().logCheckIn(
+          offline: outcome == CheckOutcome.queuedOffline,
+        ),
+      );
       if (outcome == CheckOutcome.queuedOffline) {
         _showSuccessDialog(
           'Saved Offline',
@@ -183,6 +190,11 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
           'latitude': _currentLocation!.latitude,
           'longitude': _currentLocation!.longitude,
         },
+      );
+      unawaited(
+        sl<AnalyticsService>().logCheckOut(
+          offline: outcome == CheckOutcome.queuedOffline,
+        ),
       );
       if (outcome == CheckOutcome.queuedOffline) {
         _showSuccessDialog(

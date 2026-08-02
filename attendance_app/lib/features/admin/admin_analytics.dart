@@ -8,6 +8,8 @@ import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
+import 'package:attendance_app/data/datasources/analytics_service.dart';
+import 'package:attendance_app/data/datasources/report_service.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
@@ -50,6 +52,30 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
     _loadData();
   }
 
+  Future<void> _exportCsv() async {
+    if (_records.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nothing to export for this month.')),
+      );
+      return;
+    }
+    final company = Provider.of<UserProvider>(context, listen: false).company;
+    try {
+      await sl<ReportService>().shareAttendanceCsv(
+        companyName: company?.name ?? 'Company',
+        month: _selectedMonth,
+        records: _records,
+      );
+      await sl<AnalyticsService>().logReportExported();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not export the report.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -67,7 +93,16 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Analytics')),
+      appBar: AppBar(
+        title: const Text('Analytics'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.ios_share_rounded),
+            tooltip: 'Export CSV',
+            onPressed: _loading ? null : _exportCsv,
+          ),
+        ],
+      ),
       body: _loading
           ? const AppLoader()
           : SingleChildScrollView(

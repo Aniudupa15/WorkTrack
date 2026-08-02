@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +8,7 @@ import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/data/models/leave_model.dart';
 import 'package:attendance_app/domain/repositories/leave_repository.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
@@ -76,6 +79,7 @@ class _LeaveRequestState extends State<LeaveRequest> {
         createdAt: DateTime.now(),
       );
       await sl<LeaveRepository>().submitLeave(prov.company!.id, leave);
+      unawaited(sl<AnalyticsService>().logLeaveRequested(_type));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

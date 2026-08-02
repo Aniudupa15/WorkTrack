@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:attendance_app/bootstrap.dart';
+import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_theme.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 import 'package:attendance_app/features/auth/login_screen.dart';
 import 'package:attendance_app/features/admin/admin_dashboard.dart';
@@ -29,6 +31,7 @@ class AttendanceApp extends StatelessWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
+      navigatorObservers: [sl<AnalyticsService>().observer],
       home: const AuthWrapper(),
     );
   }
