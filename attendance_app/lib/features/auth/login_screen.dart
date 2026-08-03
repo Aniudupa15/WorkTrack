@@ -185,13 +185,7 @@ class _Logo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colors.brand, const Color(0xFF4F46E5)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
         borderRadius: BorderRadius.circular(AppRadius.xxl),
         boxShadow: [
           BoxShadow(
@@ -201,7 +195,15 @@ class _Logo extends StatelessWidget {
           ),
         ],
       ),
-      child: Icon(Icons.fingerprint_rounded, size: 56, color: colors.onBrand),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+        child: Image.asset(
+          'assets/images/logo.png',
+          width: 104,
+          height: 104,
+          fit: BoxFit.cover,
+        ),
+      ),
     );
   }
 }
