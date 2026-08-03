@@ -111,6 +111,21 @@ class UserProvider with ChangeNotifier {
     await refreshUser();
   }
 
+  Future<void> signUpEmployee(
+    String name,
+    String email,
+    String password,
+    String companyCode,
+  ) async {
+    await _auth.signUpEmployee(
+      name: name,
+      email: email,
+      password: password,
+      companyCode: companyCode,
+    );
+    await refreshUser();
+  }
+
   Future<void> refreshUser() async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;

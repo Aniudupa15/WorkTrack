@@ -13,19 +13,23 @@ enum CheckOutcome {
 
 /// Attendance capture and history.
 ///
-/// Check-in/out are server-authoritative (validated by Cloud Functions); the
-/// device never writes attendance documents directly. When offline, events are
-/// captured to a local queue and replayed on reconnect — still validated
-/// server-side at sync time.
+/// Geofence is validated on the device, then the record is written directly to
+/// Firestore (Security Rules restrict an employee to their own records). Writes
+/// made while offline are held in Firestore's local cache and sync
+/// automatically on reconnect.
 abstract interface class AttendanceRepository {
   Future<CheckOutcome> checkIn({
     required String companyId,
+    required String employeeId,
+    required String employeeName,
+    required String shiftStart,
     required Map<String, dynamic> location,
     String? selfieStoragePath,
   });
 
   Future<CheckOutcome> checkOut({
     required String companyId,
+    required String employeeId,
     required Map<String, dynamic> location,
   });
 

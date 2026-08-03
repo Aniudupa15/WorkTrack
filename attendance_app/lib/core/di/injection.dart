@@ -61,10 +61,10 @@ void configureDependencies(SharedPreferences prefs) {
       () => CompanyRepositoryImpl(sl()),
     )
     ..registerLazySingleton<EmployeeRepository>(
-      () => EmployeeRepositoryImpl(sl(), sl()),
+      () => EmployeeRepositoryImpl(sl()),
     )
     ..registerLazySingleton<AttendanceRepository>(
-      () => AttendanceRepositoryImpl(sl(), sl(), sl(), sl(), sl()),
+      () => AttendanceRepositoryImpl(sl(), sl(), sl()),
     )
     ..registerLazySingleton<LeaveRepository>(() => LeaveRepositoryImpl(sl()));
 

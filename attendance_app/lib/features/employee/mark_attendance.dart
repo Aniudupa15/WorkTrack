@@ -129,6 +129,9 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
 
       final outcome = await _attendance.checkIn(
         companyId: company.id,
+        employeeId: user.id,
+        employeeName: user.name,
+        shiftStart: user.shiftStart,
         location: {
           'latitude': _currentLocation!.latitude,
           'longitude': _currentLocation!.longitude,
@@ -186,6 +189,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
       }
       final outcome = await _attendance.checkOut(
         companyId: company.id,
+        employeeId: user.id,
         location: {
           'latitude': _currentLocation!.latitude,
           'longitude': _currentLocation!.longitude,
