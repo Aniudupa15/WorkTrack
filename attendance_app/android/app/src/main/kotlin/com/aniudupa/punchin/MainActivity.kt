@@ -1,4 +1,4 @@
-package com.example.attendance_app
+package com.aniudupa.punchin
 
 import io.flutter.embedding.android.FlutterActivity
 
