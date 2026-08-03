@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:46917976454:android:4c0ad328c379dde1146c07",
+        "mobilesdk_app_id": "1:46917976454:android:2a0b83110bbadb92146c07",
         "android_client_info": {
-          "package_name": "com.example.attendance_app"
+          "package_name": "com.aniudupa.punchin"
         }
       },
       "oauth_client": [
@@ -31,10 +31,10 @@
               "client_type": 3
             },
             {
-              "client_id": "46917976454-3mp5oprvq3krk97v5udodkoqpe557ccc.apps.googleusercontent.com",
+              "client_id": "46917976454-2dqsiqr0k9gt8q2u9he0d7qgq1bh27mg.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.trackin"
+                "bundle_id": "com.example.attendanceApp"
               }
             }
           ]
@@ -75,10 +75,10 @@
               "client_type": 3
             },
             {
-              "client_id": "46917976454-3mp5oprvq3krk97v5udodkoqpe557ccc.apps.googleusercontent.com",
+              "client_id": "46917976454-2dqsiqr0k9gt8q2u9he0d7qgq1bh27mg.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.trackin"
+                "bundle_id": "com.example.attendanceApp"
               }
             }
           ]
