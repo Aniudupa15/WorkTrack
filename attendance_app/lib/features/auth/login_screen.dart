@@ -100,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             builder: (_) => const SignupScreen(),
                           ),
                         ),
-                        child: const Text('Register Company'),
+                        child: const Text('Create Account'),
                       ),
                     ],
                   ),

@@ -23,6 +23,8 @@ class ProfileScreen extends StatelessWidget {
       (Icons.badge_outlined, 'Role', user.role),
       if (prov.company?.name.isNotEmpty ?? false)
         (Icons.business_outlined, 'Company', prov.company!.name),
+      if (user.role == 'admin')
+        (Icons.key_outlined, 'Company code', user.companyId ?? user.id),
       if (user.department != null)
         (Icons.apartment_outlined, 'Department', user.department!),
       if (user.position != null)

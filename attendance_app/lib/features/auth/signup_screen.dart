@@ -6,6 +6,8 @@ import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
+enum _SignupMode { registerCompany, joinCompany }
+
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -18,9 +20,13 @@ class _SignupScreenState extends State<SignupScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  // Company name (register) or company code (join), depending on the mode.
   final _companyController = TextEditingController();
+  _SignupMode _mode = _SignupMode.registerCompany;
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  bool get _isRegister => _mode == _SignupMode.registerCompany;
 
   @override
   void dispose() {
@@ -31,16 +37,26 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  Future<void> _signup() async {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     try {
-      await Provider.of<UserProvider>(context, listen: false).signUpAdmin(
-        _nameController.text.trim(),
-        _emailController.text.trim(),
-        _passwordController.text,
-        _companyController.text.trim(),
-      );
+      final provider = Provider.of<UserProvider>(context, listen: false);
+      if (_isRegister) {
+        await provider.signUpAdmin(
+          _nameController.text.trim(),
+          _emailController.text.trim(),
+          _passwordController.text,
+          _companyController.text.trim(),
+        );
+      } else {
+        await provider.signUpEmployee(
+          _nameController.text.trim(),
+          _emailController.text.trim(),
+          _passwordController.text,
+          _companyController.text.trim(),
+        );
+      }
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -63,7 +79,7 @@ class _SignupScreenState extends State<SignupScreen> {
     final text = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Register Company'),
+        title: const Text('Create Account'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded),
           onPressed: () => Navigator.pop(context),
@@ -75,59 +91,46 @@ class _SignupScreenState extends State<SignupScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                decoration: BoxDecoration(
-                  color: colors.brandSoft,
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.sm + 2),
-                      decoration: BoxDecoration(
-                        color: colors.brand,
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                      ),
-                      child: Icon(
-                        Icons.business_center_rounded,
-                        color: colors.onBrand,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.lg),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('New Company', style: text.titleMedium),
-                          Text(
-                            'Create your admin account',
-                            style: text.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              SegmentedButton<_SignupMode>(
+                segments: const [
+                  ButtonSegment(
+                    value: _SignupMode.registerCompany,
+                    label: Text('Register Company'),
+                    icon: Icon(Icons.business_center_rounded, size: 18),
+                  ),
+                  ButtonSegment(
+                    value: _SignupMode.joinCompany,
+                    label: Text('Join Company'),
+                    icon: Icon(Icons.groups_rounded, size: 18),
+                  ),
+                ],
+                selected: {_mode},
+                onSelectionChanged: (s) => setState(() => _mode = s.first),
               ),
-              const SizedBox(height: AppSpacing.xxxl),
+              const SizedBox(height: AppSpacing.xl),
+              Text(
+                _isRegister ? 'New Company' : 'Join Your Team',
+                style: text.titleLarge,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                _isRegister
+                    ? "Create your company and admin account. You'll get a company code to invite employees."
+                    : 'Enter the company code your admin shared with you.',
+                style: text.bodyMedium,
+              ),
+              const SizedBox(height: AppSpacing.xxl),
               Form(
                 key: _formKey,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _sectionLabel('Company Information', colors),
-                    const SizedBox(height: AppSpacing.md),
                     _field(
                       _companyController,
-                      'Company Name',
-                      Icons.business_rounded,
-                      hint: 'e.g. Acme Corp',
+                      _isRegister ? 'Company Name' : 'Company Code',
+                      _isRegister ? Icons.business_rounded : Icons.key_rounded,
+                      hint: _isRegister ? 'e.g. Acme Corp' : 'Paste the code',
                     ),
-                    const SizedBox(height: AppSpacing.xxl),
-                    _sectionLabel('Administrator Details', colors),
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(height: AppSpacing.lg),
                     _field(
                       _nameController,
                       'Your Full Name',
@@ -146,7 +149,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     _passwordField(),
                     const SizedBox(height: AppSpacing.xxxl),
                     ElevatedButton(
-                      onPressed: _isLoading ? null : _signup,
+                      onPressed: _isLoading ? null : _submit,
                       child: _isLoading
                           ? SizedBox(
                               width: 22,
@@ -156,7 +159,11 @@ class _SignupScreenState extends State<SignupScreen> {
                                 color: colors.onBrand,
                               ),
                             )
-                          : const Text('CREATE COMPANY ACCOUNT'),
+                          : Text(
+                              _isRegister
+                                  ? 'CREATE COMPANY ACCOUNT'
+                                  : 'JOIN COMPANY',
+                            ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     Center(
@@ -171,18 +178,6 @@ class _SignupScreenState extends State<SignupScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _sectionLabel(String label, AppColors colors) {
-    return Text(
-      label.toUpperCase(),
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        color: colors.textSecondary,
-        letterSpacing: 1.2,
       ),
     );
   }
@@ -203,7 +198,7 @@ class _SignupScreenState extends State<SignupScreen> {
         prefixIcon: Icon(icon, size: 20),
       ),
       validator: (v) =>
-          v == null || v.isEmpty ? 'This field is required' : null,
+          v == null || v.trim().isEmpty ? 'This field is required' : null,
     );
   }
 

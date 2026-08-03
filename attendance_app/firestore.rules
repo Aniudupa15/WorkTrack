@@ -2,41 +2,69 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function role() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
-    function isAdmin(companyId) { return signedIn() && role().data.role == 'admin' && role().data.companyId == companyId; }
-    function isEmployee(companyId, employeeId) { return signedIn() && request.auth.uid == employeeId && role().data.role == 'employee' && role().data.companyId == companyId; }
-    function onlyTokenChanged() { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']); }
-    function employee(companyId, employeeId) { return get(/databases/$(database)/documents/companies/$(companyId)/employees/$(employeeId)); }
+    function uid() { return request.auth.uid; }
+    function role() { return get(/databases/$(database)/documents/users/$(uid())).data; }
+    function isAdmin(companyId) { return signedIn() && role().role == 'admin' && role().companyId == companyId; }
+    function isEmployee(companyId, employeeId) {
+      return signedIn() && uid() == employeeId && role().role == 'employee' && role().companyId == companyId;
+    }
+    function memberOf(companyId) { return signedIn() && role().companyId == companyId; }
 
-    // Identity, role, company, attendance, and employee lifecycle writes are server-owned.
-    match /users/{userId} { allow read: if signedIn() && request.auth.uid == userId; }
+    // Role doc. You may only create your OWN. Admins may claim only their own
+    // company (companyId == uid); employees may join a company by its code.
+    match /users/{userId} {
+      allow read: if signedIn() && uid() == userId;
+      allow create: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(['role', 'companyId'])
+        && (
+          (request.resource.data.role == 'admin' && request.resource.data.companyId == userId) ||
+          (request.resource.data.role == 'employee' && request.resource.data.companyId is string
+            && request.resource.data.companyId.size() > 0)
+        );
+    }
+
     match /companies/{companyId} {
-      allow read: if isAdmin(companyId);
+      allow read: if memberOf(companyId);
+      // The admin creates their own company; companyId == their uid.
+      allow create: if signedIn() && uid() == companyId
+        && request.resource.data.adminId == companyId;
+      allow update: if isAdmin(companyId);
+
       match /employees/{employeeId} {
         allow read: if isAdmin(companyId) || isEmployee(companyId, employeeId);
-        allow update: if isEmployee(companyId, employeeId) && onlyTokenChanged();
+        // Employee self-joins by creating their own active profile.
+        allow create: if signedIn() && uid() == employeeId
+          && request.resource.data.status == 'active';
+        // Admin manages the profile; the employee may only touch their fcmToken.
+        allow update: if isAdmin(companyId)
+          || (isEmployee(companyId, employeeId)
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']));
+        allow delete: if isAdmin(companyId);
       }
+
+      // Attendance is validated client-side (geofence) then written directly.
       match /attendance/{attendanceId} {
-        allow read: if isAdmin(companyId) || (signedIn() && resource.data.employeeId == request.auth.uid && isEmployee(companyId, request.auth.uid));
+        allow read: if isAdmin(companyId)
+          || (signedIn() && resource.data.employeeId == uid() && memberOf(companyId));
+        allow create, update: if isEmployee(companyId, request.resource.data.employeeId)
+          && request.resource.data.employeeId == uid()
+          && request.resource.data.companyId == companyId
+          && request.resource.data.status in ['present', 'late', 'absent', 'half_day'];
+        allow delete: if isAdmin(companyId);
       }
+
       match /leaves/{leaveId} {
-        allow read: if isAdmin(companyId) || (signedIn() && resource.data.employeeId == request.auth.uid && isEmployee(companyId, request.auth.uid));
+        allow read: if isAdmin(companyId)
+          || (signedIn() && resource.data.employeeId == uid() && memberOf(companyId));
         allow create: if isEmployee(companyId, request.resource.data.employeeId)
           && request.resource.data.companyId == companyId
-          && request.resource.data.employeeName == employee(companyId, request.auth.uid).data.name
           && request.resource.data.status == 'pending'
           && request.resource.data.type in ['casual', 'sick', 'earned', 'other']
           && request.resource.data.reason is string
           && request.resource.data.reason.size() > 0
-          && request.resource.data.reason.size() <= 1000
-          && request.resource.data.startDate is timestamp
-          && request.resource.data.endDate is timestamp
-          && request.resource.data.endDate >= request.resource.data.startDate
-          && request.resource.data.createdAt == request.time
-          && request.resource.data.keys().hasOnly(['employeeId', 'companyId', 'employeeName', 'type', 'startDate', 'endDate', 'reason', 'status', 'createdAt', 'updatedAt', 'adminNote', 'id']);
+          && request.resource.data.reason.size() <= 1000;
         allow update: if isAdmin(companyId);
       }
     }
-    match /notifications/{notificationId} { allow read: if signedIn() && (isAdmin(resource.data.companyId) || resource.data.employeeId == request.auth.uid); }
   }
 }

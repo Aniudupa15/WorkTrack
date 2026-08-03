@@ -1,21 +1,11 @@
 import 'package:attendance_app/data/models/user_model.dart';
 
-/// Employee lifecycle (admin-owned) and directory queries.
+/// Employee directory and admin-side profile management.
 ///
-/// Account provisioning (create/update) is delegated to server Cloud Functions;
-/// reads stream directly from Firestore under the company subcollection.
+/// Employees self-join via a company code (see [AuthRepository.signUpEmployee]);
+/// the admin then edits their profile — work location, shift, status — with the
+/// methods below. All reads stream from Firestore under the company subcollection.
 abstract interface class EmployeeRepository {
-  Future<String> addEmployee({
-    required String companyId,
-    required String name,
-    required String email,
-    String? phone,
-    String? department,
-    String? position,
-    Map<String, dynamic>? workLocation,
-    required Map<String, String> shift,
-  });
-
   Future<void> updateEmployee({
     required String companyId,
     required String employeeId,

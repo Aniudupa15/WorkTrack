@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:attendance_app/core/constants/app_constants.dart';
 import 'package:attendance_app/data/models/user_model.dart';
 import 'package:attendance_app/data/models/company_model.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
@@ -33,6 +34,64 @@ class DatabaseService {
 
   Future<void> saveCompany(CompanyModel company) async {
     await _companies.doc(company.id).set(company.toMap());
+  }
+
+  /// Admin signup: atomically create the company doc and the admin role doc.
+  /// The companyId is the admin's uid, which also serves as the join code.
+  Future<void> provisionCompany({
+    required String uid,
+    required String companyName,
+    required String adminName,
+    required String adminEmail,
+  }) async {
+    final batch = _db.batch();
+    batch.set(_companies.doc(uid), {
+      'companyId': uid,
+      'companyName': companyName,
+      'adminId': uid,
+      'adminName': adminName,
+      'adminEmail': adminEmail,
+      'phone': null,
+      'createdAt': FieldValue.serverTimestamp(),
+      'totalEmployees': 0,
+      'settings': {
+        'defaultRadius': AppConstants.defaultGeofenceRadiusMeters,
+        'defaultShiftStart': AppConstants.defaultShiftStart,
+        'defaultShiftEnd': AppConstants.defaultShiftEnd,
+      },
+    });
+    batch.set(_users.doc(uid), {'role': 'admin', 'companyId': uid});
+    await batch.commit();
+  }
+
+  /// Employee signup: atomically create their employee profile under [companyId]
+  /// and their role doc. The admin later assigns work location + shift.
+  Future<void> provisionEmployee({
+    required String companyId,
+    required String uid,
+    required String name,
+    required String email,
+  }) async {
+    final batch = _db.batch();
+    batch.set(_employees(companyId).doc(uid), {
+      'uid': uid,
+      'name': name,
+      'email': email,
+      'phone': null,
+      'department': null,
+      'position': null,
+      'status': 'active',
+      'avatarUrl': null,
+      'workLocation': null,
+      'shift': {
+        'start': AppConstants.defaultShiftStart,
+        'end': AppConstants.defaultShiftEnd,
+      },
+      'fcmToken': null,
+      'joinedAt': FieldValue.serverTimestamp(),
+    });
+    batch.set(_users.doc(uid), {'role': 'employee', 'companyId': companyId});
+    await batch.commit();
   }
 
   Future<CompanyModel?> getCompany(String id) async {
@@ -108,9 +167,11 @@ class DatabaseService {
     await _employees(companyId).doc(uid).update(data);
   }
 
+  /// Without server access we can't remove another user's Auth account, so
+  /// "removing" an employee deactivates them: they drop out of the active
+  /// directory and their account is effectively disabled.
   Future<void> deleteEmployee(String companyId, String uid) async {
-    await _employees(companyId).doc(uid).delete();
-    await _users.doc(uid).delete();
+    await _employees(companyId).doc(uid).update({'status': 'inactive'});
   }
 
   Stream<List<UserModel>> getAllEmployees(String companyId) {
@@ -139,21 +200,57 @@ class DatabaseService {
 
   // ── Attendance ──────────────────────────────────────────────────────────────
 
-  Future<void> checkIn(String companyId, AttendanceModel record) async {
-    await _attendance(companyId).doc(record.id).set(record.toMap());
+  /// Client-side check-in. Geofence is validated in the UI before this is
+  /// called; here we compute late status from the shift and write the record
+  /// (doc id `{uid}_{date}` guarantees one per day). Works offline via
+  /// Firestore's local cache, syncing automatically on reconnect.
+  Future<void> performCheckIn({
+    required String companyId,
+    required String employeeId,
+    required String employeeName,
+    required String shiftStart,
+    required Map<String, dynamic> location,
+    String? selfieStoragePath,
+  }) async {
+    final now = DateTime.now();
+    final date = DateFormat('yyyy-MM-dd').format(now);
+    final late = _isLate(now, shiftStart);
+    await _attendance(companyId).doc('${employeeId}_$date').set({
+      'employeeId': employeeId,
+      'companyId': companyId,
+      'employeeName': employeeName,
+      'date': date,
+      'checkIn': Timestamp.fromDate(now),
+      'checkOut': null,
+      'status': late ? 'late' : 'present',
+      'isLate': late,
+      'checkInLocation': location,
+      'checkOutLocation': null,
+      'selfieStoragePath': selfieStoragePath,
+      'isSynced': true,
+      'notes': null,
+    });
   }
 
-  Future<void> checkOut(
-    String companyId,
-    String docId,
-    DateTime checkOutTime, {
-    Map<String, dynamic>? location,
+  Future<void> performCheckOut({
+    required String companyId,
+    required String employeeId,
+    required Map<String, dynamic> location,
   }) async {
-    await _attendance(companyId).doc(docId).update({
-      'checkOut': Timestamp.fromDate(checkOutTime),
-      'checkOutLocation': ?location,
-      'status': 'present',
+    final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    await _attendance(companyId).doc('${employeeId}_$date').update({
+      'checkOut': FieldValue.serverTimestamp(),
+      'checkOutLocation': location,
     });
+  }
+
+  bool _isLate(DateTime now, String shiftStart) {
+    final parts = shiftStart.split(':');
+    if (parts.length != 2) return false;
+    final startMinutes =
+        (int.tryParse(parts[0]) ?? 9) * 60 + (int.tryParse(parts[1]) ?? 0);
+    final nowMinutes = now.hour * 60 + now.minute;
+    return nowMinutes > startMinutes + AppConstants.lateGracePeriodMinutes;
   }
 
   Future<AttendanceModel?> getTodayAttendance(
