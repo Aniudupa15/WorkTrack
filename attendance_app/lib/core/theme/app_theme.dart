@@ -26,35 +26,48 @@ class AppTheme {
           error: c.danger,
         );
 
+    const family = 'PlusJakartaSans';
     final baseText =
         (isDark
                 ? Typography.material2021().white
                 : Typography.material2021().black)
-            .apply(fontFamily: 'Roboto');
+            .apply(fontFamily: family);
 
+    // Tight, confident tracking on large type + comfortable line-height on body
+    // — the hallmark of a polished, professional interface.
     final textTheme = baseText.copyWith(
       displaySmall: baseText.displaySmall?.copyWith(
-        fontWeight: FontWeight.bold,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.6,
         color: c.textPrimary,
       ),
       headlineSmall: baseText.headlineSmall?.copyWith(
-        fontWeight: FontWeight.bold,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.4,
         color: c.textPrimary,
       ),
       titleLarge: baseText.titleLarge?.copyWith(
         fontWeight: FontWeight.w700,
+        letterSpacing: -0.2,
         color: c.textPrimary,
       ),
       titleMedium: baseText.titleMedium?.copyWith(
         fontWeight: FontWeight.w600,
+        letterSpacing: -0.1,
         color: c.textPrimary,
       ),
-      bodyLarge: baseText.bodyLarge?.copyWith(color: c.textPrimary),
-      bodyMedium: baseText.bodyMedium?.copyWith(color: c.textSecondary),
+      bodyLarge: baseText.bodyLarge?.copyWith(
+        color: c.textPrimary,
+        height: 1.45,
+      ),
+      bodyMedium: baseText.bodyMedium?.copyWith(
+        color: c.textSecondary,
+        height: 1.45,
+      ),
       bodySmall: baseText.bodySmall?.copyWith(color: c.textTertiary),
       labelLarge: baseText.labelLarge?.copyWith(
-        fontWeight: FontWeight.bold,
-        letterSpacing: 0.3,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.2,
       ),
     );
 
@@ -63,10 +76,18 @@ class AppTheme {
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: c.background,
-      fontFamily: 'Roboto',
+      fontFamily: family,
       textTheme: textTheme,
       extensions: [c],
       splashFactory: InkSparkle.splashFactory,
+      // Smooth, iOS-style forward/back slide on every platform — reads as a
+      // more refined, considered app than the default zoom.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       appBarTheme: AppBarTheme(
         centerTitle: false,
         elevation: 0,
@@ -80,7 +101,12 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: c.surface,
-        elevation: 0,
+        // Flat, border-defined in dark; a soft lift in light for quiet depth.
+        elevation: isDark ? 0 : 3,
+        shadowColor: isDark
+            ? Colors.transparent
+            : const Color(0xFF101828).withValues(alpha: 0.06),
+        surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.xl),
