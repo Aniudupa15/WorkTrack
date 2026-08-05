@@ -106,8 +106,7 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
                   return const EmptyState(
                     icon: Icons.event_busy_rounded,
                     title: 'No records found',
-                    subtitle:
-                        'Try a different name or clear the date filter.',
+                    subtitle: 'Try a different name or clear the date filter.',
                   );
                 }
 

@@ -58,7 +58,10 @@ class _PressableState extends State<Pressable> {
           opacity: _down && enabled ? 0.92 : 1.0,
           duration: const Duration(milliseconds: 110),
           child: widget.borderRadius != null
-              ? ClipRRect(borderRadius: widget.borderRadius!, child: widget.child)
+              ? ClipRRect(
+                  borderRadius: widget.borderRadius!,
+                  child: widget.child,
+                )
               : widget.child,
         ),
       ),
