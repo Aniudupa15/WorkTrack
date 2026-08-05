@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
@@ -81,16 +82,7 @@ class MyAttendanceScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xl,
-                    vertical: AppSpacing.sm,
-                  ),
-                  itemCount: logs.length,
-                  itemBuilder: (context, i) => _LogItem(log: logs[i]),
-                ),
-              ),
+              Expanded(child: _GroupedLogList(logs: logs)),
             ],
           );
         },
@@ -142,23 +134,90 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
+/// Renders the history as month sections ("August 2026", "July 2026") with the
+/// day rows beneath each — so a long history stays scannable.
+class _GroupedLogList extends StatelessWidget {
+  const _GroupedLogList({required this.logs});
+
+  final List<AttendanceModel> logs;
+
+  @override
+  Widget build(BuildContext context) {
+    // Preserve incoming order (newest first); group consecutively by month.
+    final rows = <Widget>[];
+    String? lastMonth;
+    for (final log in logs) {
+      final monthKey = log.date.length >= 7 ? log.date.substring(0, 7) : '';
+      if (monthKey != lastMonth) {
+        lastMonth = monthKey;
+        rows.add(_MonthHeader(monthKey: monthKey));
+      }
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: _LogItem(log: log),
+        ),
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.sm,
+        AppSpacing.xl,
+        40,
+      ),
+      children: rows,
+    );
+  }
+}
+
+class _MonthHeader extends StatelessWidget {
+  const _MonthHeader({required this.monthKey});
+
+  final String monthKey;
+
+  @override
+  Widget build(BuildContext context) {
+    String label = monthKey;
+    try {
+      label = DateFormat(
+        'MMMM yyyy',
+      ).format(DateFormat('yyyy-MM').parse(monthKey));
+    } catch (_) {}
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.md),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: context.colors.textTertiary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+}
+
 class _LogItem extends StatelessWidget {
   const _LogItem({required this.log});
 
   final AttendanceModel log;
 
+  String get _prettyDate {
+    try {
+      return DateFormat('EEE, d MMM').format(DateTime.parse(log.date));
+    } catch (_) {
+      return log.date;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final statusColor = colors.statusColor(log.status);
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+    return AppCard(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         children: [
           Container(
@@ -183,9 +242,9 @@ class _LogItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  log.date,
+                  _prettyDate,
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                     fontSize: 14,
                   ),
                 ),
