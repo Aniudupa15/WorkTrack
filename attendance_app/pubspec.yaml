@@ -1,7 +1,7 @@
 name: attendance_app
 description: "PunchIn — Firebase-powered Workplace Attendance Tracking App"
 publish_to: 'none'
-version: 1.0.3+4
+version: 1.0.4+5
 
 environment:
   sdk: ^3.8.0

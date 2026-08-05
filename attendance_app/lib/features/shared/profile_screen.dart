@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_button.dart';
+import 'package:attendance_app/core/widgets/app_card.dart';
+import 'package:attendance_app/core/widgets/avatar.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 /// Read-only view of the signed-in user's profile and, for employees, their
@@ -48,18 +51,7 @@ class ProfileScreen extends StatelessWidget {
           Center(
             child: Column(
               children: [
-                CircleAvatar(
-                  radius: 44,
-                  backgroundColor: colors.brandSoft,
-                  child: Text(
-                    user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                    style: TextStyle(
-                      color: colors.brand,
-                      fontSize: 34,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+                Avatar(name: user.name, size: 88),
                 const SizedBox(height: AppSpacing.lg),
                 Text(
                   user.name,
@@ -67,16 +59,42 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(user.email, style: Theme.of(context).textTheme.bodyMedium),
+                const SizedBox(height: AppSpacing.md),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.brandSoft,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Text(
+                    user.role == 'admin' ? 'Administrator' : 'Employee',
+                    style: TextStyle(
+                      color: colors.brand,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(height: AppSpacing.xxxl),
-          Container(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(AppRadius.xl),
-              border: Border.all(color: colors.border),
+          Text(
+            'ACCOUNT DETAILS',
+            style: TextStyle(
+              color: colors.textTertiary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.4,
             ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppCard(
+            padding: EdgeInsets.zero,
             child: Column(
               children: [
                 for (var i = 0; i < rows.length; i++) ...[
@@ -91,15 +109,11 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.xxl),
-          OutlinedButton.icon(
+          AppButton(
+            label: 'Sign out',
+            icon: Icons.logout_rounded,
+            variant: AppButtonVariant.danger,
             onPressed: () => prov.signOut(),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.danger,
-              side: BorderSide(color: colors.danger),
-              minimumSize: const Size.fromHeight(50),
-            ),
-            icon: const Icon(Icons.logout_rounded, size: 18),
-            label: const Text('Sign out'),
           ),
         ],
       ),
