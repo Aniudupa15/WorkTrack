@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
@@ -32,15 +33,29 @@ class MyLeaves extends StatelessWidget {
           }
           final leaves = snap.data ?? [];
           if (leaves.isEmpty) {
-            return const EmptyState(
+            return EmptyState(
               icon: Icons.beach_access_rounded,
               title: 'No leave requests yet',
-              subtitle: 'Tap + to request time off.',
+              subtitle: 'Request time off and track its status here.',
+              action: FilledButton.tonalIcon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LeaveRequest()),
+                ),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Request leave'),
+              ),
             );
           }
-          return ListView.builder(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              100,
+            ),
             itemCount: leaves.length,
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
             itemBuilder: (ctx, i) => _LeaveCard(leave: leaves[i]),
           );
         },
@@ -76,62 +91,82 @@ class _LeaveCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final statusColor = colors.statusColor(leave.status);
-    final dateFormat = DateFormat('dd MMM yyyy');
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(_statusIcon, color: statusColor, size: 20),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  leave.type.toUpperCase(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                const Spacer(),
-                StatusBadge(status: leave.status),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              '${dateFormat.format(leave.startDate)} - ${dateFormat.format(leave.endDate)}  (${leave.durationDays}d)',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(leave.reason, style: Theme.of(context).textTheme.bodyLarge),
-            if (leave.adminNote != null && leave.adminNote!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.sm),
+    final dateFormat = DateFormat('d MMM');
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
               Container(
-                padding: const EdgeInsets.all(AppSpacing.md),
+                padding: const EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
-                  color: colors.surfaceMuted,
+                  color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.comment, size: 14, color: colors.brand),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        'Admin: ${leave.adminNote}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ),
-                  ],
+                child: Icon(_statusIcon, color: statusColor, size: 18),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Text(
+                '${leave.type[0].toUpperCase()}${leave.type.substring(1)} leave',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
                 ),
               ),
+              const Spacer(),
+              StatusBadge(status: leave.status),
             ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: colors.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.calendar_today_rounded,
+                  size: 16,
+                  color: colors.textSecondary,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    '${dateFormat.format(leave.startDate)} → ${dateFormat.format(leave.endDate)}',
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${leave.durationDays} ${leave.durationDays == 1 ? "day" : "days"}',
+                  style: TextStyle(
+                    color: colors.brand,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(leave.reason, style: Theme.of(context).textTheme.bodyMedium),
+          if (leave.adminNote != null && leave.adminNote!.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Admin: ${leave.adminNote}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

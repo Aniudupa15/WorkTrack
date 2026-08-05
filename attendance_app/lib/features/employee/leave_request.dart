@@ -8,6 +8,9 @@ import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_button.dart';
+import 'package:attendance_app/core/widgets/app_card.dart';
+import 'package:attendance_app/core/widgets/app_chip.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/data/models/leave_model.dart';
 import 'package:attendance_app/domain/repositories/leave_repository.dart';
@@ -113,39 +116,40 @@ class _LeaveRequestState extends State<LeaveRequest> {
     return Scaffold(
       appBar: AppBar(title: const Text('Request Leave')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          AppSpacing.md,
+          AppSpacing.xl,
+          40,
+        ),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Leave Type', style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(height: AppSpacing.sm),
+              _label('LEAVE TYPE'),
+              const SizedBox(height: AppSpacing.md),
               Wrap(
                 spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
                 children: _leaveTypes
                     .map(
-                      (t) => ChoiceChip(
-                        label: Text(t.toUpperCase()),
+                      (t) => AppChip(
+                        label: '${t[0].toUpperCase()}${t.substring(1)}',
                         selected: _type == t,
-                        onSelected: (_) => setState(() => _type = t),
-                        labelStyle: TextStyle(
-                          color: _type == t
-                              ? colors.onBrand
-                              : colors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        onTap: () => setState(() => _type = t),
                       ),
                     )
                     .toList(),
               ),
-              const SizedBox(height: AppSpacing.xl),
+              const SizedBox(height: AppSpacing.xxl),
+              _label('DURATION'),
+              const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
                   Expanded(
                     child: _dateTile(
-                      'Start Date',
+                      'Start',
                       dateFormat.format(_startDate),
                       () => _pickDate(true),
                     ),
@@ -153,50 +157,60 @@ class _LeaveRequestState extends State<LeaveRequest> {
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: _dateTile(
-                      'End Date',
+                      'End',
                       dateFormat.format(_endDate),
                       () => _pickDate(false),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  '$days day${days > 1 ? "s" : ""}',
-                  style: TextStyle(
-                    color: colors.brand,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xl),
+              const SizedBox(height: AppSpacing.xxl),
+              _label('REASON'),
+              const SizedBox(height: AppSpacing.md),
               TextFormField(
                 controller: _reasonCtrl,
                 maxLines: 4,
                 decoration: const InputDecoration(
-                  labelText: 'Reason',
+                  hintText: 'Briefly describe why you need this time off',
                   alignLabelWithHint: true,
-                  prefixIcon: Icon(Icons.notes),
                 ),
                 validator: (v) => v == null || v.trim().isEmpty
                     ? 'Please enter a reason'
                     : null,
               ),
-              const SizedBox(height: AppSpacing.xxxl),
-              ElevatedButton(
-                onPressed: _submitting ? null : _submit,
-                child: _submitting
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colors.onBrand,
+              const SizedBox(height: AppSpacing.xxl),
+              // Summary before submit
+              AppCard(
+                color: colors.brandSoft,
+                border: false,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.event_available_rounded,
+                      color: colors.brand,
+                      size: 22,
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Text(
+                        'You’re requesting $days ${days > 1 ? "days" : "day"} '
+                        'of $_type leave.',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
-                      )
-                    : const Text('Submit Request'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              AppButton(
+                label: 'Submit request',
+                icon: Icons.send_rounded,
+                loading: _submitting,
+                onPressed: _submitting ? null : _submit,
               ),
             ],
           ),
@@ -204,6 +218,16 @@ class _LeaveRequestState extends State<LeaveRequest> {
       ),
     );
   }
+
+  Widget _label(String text) => Text(
+    text,
+    style: TextStyle(
+      color: context.colors.textTertiary,
+      fontSize: 12,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 1.4,
+    ),
+  );
 
   Widget _dateTile(String label, String value, VoidCallback onTap) {
     final colors = context.colors;
@@ -216,12 +240,31 @@ class _LeaveRequestState extends State<LeaveRequest> {
           borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(color: colors.border),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: AppSpacing.xs),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Icon(
+              Icons.calendar_today_rounded,
+              size: 18,
+              color: colors.textSecondary,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(color: colors.textTertiary, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

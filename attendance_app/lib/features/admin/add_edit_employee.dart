@@ -3,6 +3,7 @@ import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/domain/repositories/employee_repository.dart';
 import 'package:attendance_app/data/models/user_model.dart';
 import 'package:attendance_app/features/admin/work_location_picker.dart';
@@ -152,105 +153,73 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
         child: Form(
           key: _formKey,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _field(_nameCtrl, 'Full Name', Icons.person, required: true),
-              const SizedBox(height: 14),
+              _label('PROFILE'),
+              const SizedBox(height: AppSpacing.md),
+              _field(
+                _nameCtrl,
+                'Full name',
+                Icons.person_outline,
+                required: true,
+              ),
+              const SizedBox(height: AppSpacing.md),
               if (!_isEdit) ...[
                 _field(
                   _emailCtrl,
                   'Email',
-                  Icons.email,
+                  Icons.alternate_email_rounded,
                   required: true,
                   keyboard: TextInputType.emailAddress,
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: AppSpacing.md),
               ],
               _field(
                 _phoneCtrl,
                 'Phone (optional)',
-                Icons.phone,
+                Icons.phone_outlined,
                 keyboard: TextInputType.phone,
               ),
-              const SizedBox(height: 14),
-              _field(_deptCtrl, 'Department (optional)', Icons.business),
-              const SizedBox(height: 14),
-              _field(_posCtrl, 'Position (optional)', Icons.badge),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.md),
+              _field(
+                _deptCtrl,
+                'Department (optional)',
+                Icons.business_outlined,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _field(_posCtrl, 'Position (optional)', Icons.badge_outlined),
+              const SizedBox(height: AppSpacing.xxl),
+              _label('SCHEDULE'),
+              const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
                   Expanded(
                     child: _timeTile(
-                      'Shift Start',
+                      'Shift start',
                       _shiftStart,
                       () => _pickShiftTime(true),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: _timeTile(
-                      'Shift End',
+                      'Shift end',
                       _shiftEnd,
                       () => _pickShiftTime(false),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              GestureDetector(
-                onTap: _pickLocation,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    border: Border.all(color: colors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.map, color: colors.brand),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Work Location',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              _workLocation != null
-                                  ? '${_workLocation!["address"] ?? "Set"} (${(_workLocation!["radius"] as num?)?.round() ?? 100}m)'
-                                  : 'Tap to set location',
-                              style: TextStyle(
-                                color: _workLocation != null
-                                    ? colors.textPrimary
-                                    : colors.textSecondary,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(Icons.chevron_right, color: colors.textTertiary),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton(
+              const SizedBox(height: AppSpacing.xxl),
+              _label('WORK LOCATION'),
+              const SizedBox(height: AppSpacing.md),
+              _locationCard(colors),
+              const SizedBox(height: AppSpacing.xxxl),
+              AppButton(
+                label: _isEdit ? 'Save changes' : 'Add employee',
+                icon: Icons.check_rounded,
+                loading: _saving,
                 onPressed: _saving ? null : _save,
-                child: _saving
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colors.onBrand,
-                        ),
-                      )
-                    : Text(_isEdit ? 'Save Changes' : 'Add Employee'),
               ),
             ],
           ),
@@ -258,6 +227,16 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
       ),
     );
   }
+
+  Widget _label(String text) => Text(
+    text,
+    style: TextStyle(
+      color: context.colors.textTertiary,
+      fontSize: 12,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 1.4,
+    ),
+  );
 
   Widget _field(
     TextEditingController ctrl,
@@ -269,7 +248,10 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
     return TextFormField(
       controller: ctrl,
       keyboardType: keyboard,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 20),
+      ),
       validator: required
           ? (v) => v == null || v.trim().isEmpty ? 'Required' : null
           : null,
@@ -287,15 +269,87 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
           borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(color: colors.border),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Icon(Icons.schedule_rounded, size: 20, color: colors.brand),
+            const SizedBox(width: AppSpacing.md),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(color: colors.textTertiary, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _locationCard(AppColors colors) {
+    final isSet = _workLocation != null;
+    final accent = isSet ? colors.success : colors.brand;
+    return GestureDetector(
+      onTap: _pickLocation,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: isSet ? accent.withValues(alpha: 0.08) : colors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(
+            color: isSet ? accent.withValues(alpha: 0.4) : colors.border,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Icon(
+                isSet ? Icons.where_to_vote_rounded : Icons.map_outlined,
+                color: accent,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isSet ? 'Location set' : 'No location set',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isSet
+                        ? '${_workLocation!["address"] ?? "Custom point"} · ${(_workLocation!["radius"] as num?)?.round() ?? 100}m radius'
+                        : 'Tap to place the geofence on the map',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: colors.textTertiary, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: colors.textTertiary),
           ],
         ),
       ),
