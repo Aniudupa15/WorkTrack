@@ -8,7 +8,9 @@ import 'dart:io';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
+import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/core/widgets/pressable.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/data/datasources/location_service.dart';
@@ -75,6 +77,25 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
       user.workRadius,
     );
   }
+
+  /// Straight-line distance in metres from the employee to the work location,
+  /// or null when either point is unknown.
+  double? get _distanceMeters {
+    final user = Provider.of<UserProvider>(context, listen: false).user;
+    if (_currentLocation == null ||
+        user?.workLatitude == null ||
+        user?.workLongitude == null) {
+      return null;
+    }
+    return const Distance().as(
+      LengthUnit.Meter,
+      _currentLocation!,
+      LatLng(user!.workLatitude!, user.workLongitude!),
+    );
+  }
+
+  String _fmtDistance(double m) =>
+      m >= 1000 ? '${(m / 1000).toStringAsFixed(1)} km' : '${m.round()} m';
 
   Future<void> _checkIn() async {
     final prov = Provider.of<UserProvider>(context, listen: false);
@@ -340,10 +361,21 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     final text = Theme.of(context).textTheme;
     final isNearby = _isNearby;
     final statusColor = isNearby ? colors.success : colors.warning;
+    final distance = _distanceMeters;
+
+    final String subtitle;
+    if (distance == null) {
+      subtitle = 'Locating you…';
+    } else if (isNearby) {
+      subtitle = 'You’re ${_fmtDistance(distance)} from the centre';
+    } else {
+      subtitle = '${_fmtDistance(distance)} away · move closer to check in';
+    }
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.97),
+        color: colors.surface.withValues(alpha: 0.98),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: colors.border),
         boxShadow: [
@@ -359,32 +391,22 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isNearby ? Icons.location_on : Icons.location_off,
-                  color: statusColor,
-                  size: 20,
-                ),
-              ),
+              _LivePulse(color: statusColor, active: isNearby),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isNearby ? 'In Range' : 'Out of Range',
+                      isNearby ? 'Within range' : 'Out of range',
                       style: text.titleMedium,
                     ),
+                    const SizedBox(height: 2),
                     Text(
-                      isNearby
-                          ? 'You are at the work location'
-                          : 'Move closer to the workplace',
-                      style: text.bodySmall,
+                      subtitle,
+                      style: text.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -393,11 +415,14 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
           ),
           const SizedBox(height: 20),
           if (_actionLoading)
-            const AppLoader()
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: AppLoader(),
+            )
           else if (_todayAttendance == null)
-            _actionBtn('CONFIRM CHECK-IN', colors.success, _checkIn)
+            _actionBtn('Confirm check-in', colors.success, _checkIn)
           else if (_todayAttendance!.checkOut == null)
-            _actionBtn('COMPLETE CHECK-OUT', colors.danger, _checkOut)
+            _actionBtn('Complete check-out', colors.danger, _checkOut)
           else
             _completionStatus(),
         ],
@@ -406,17 +431,45 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   }
 
   Widget _actionBtn(String label, Color color, VoidCallback onPressed) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        minimumSize: const Size(double.infinity, 56),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(letterSpacing: 0.4, fontWeight: FontWeight.w700),
+    return Pressable(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 56,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.35),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              label.contains('out')
+                  ? Icons.logout_rounded
+                  : Icons.check_circle_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                letterSpacing: 0.2,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -475,6 +528,75 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('GREAT'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A location dot that emits a soft, repeating "radar" pulse when [active]
+/// (i.e. the employee is inside the geofence) — a subtle live signal that the
+/// GPS lock is good, the way a maps app animates your position.
+class _LivePulse extends StatefulWidget {
+  const _LivePulse({required this.color, required this.active});
+
+  final Color color;
+  final bool active;
+
+  @override
+  State<_LivePulse> createState() => _LivePulseState();
+}
+
+class _LivePulseState extends State<_LivePulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (widget.active)
+            AnimatedBuilder(
+              animation: _c,
+              builder: (context, _) {
+                final t = _c.value;
+                return Container(
+                  width: 24 + 20 * t,
+                  height: 24 + 20 * t,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: widget.color.withValues(alpha: (1 - t) * 0.28),
+                  ),
+                );
+              },
+            ),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: widget.color.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              widget.active
+                  ? Icons.location_on_rounded
+                  : Icons.location_off_rounded,
+              color: widget.color,
+              size: 20,
+            ),
           ),
         ],
       ),
