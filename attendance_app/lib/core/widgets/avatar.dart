@@ -8,12 +8,7 @@ import 'package:flutter/material.dart';
 /// warm-paper light theme and the ink dark theme (the way Notion / Linear pick
 /// avatar colours). Initials use white for legible contrast on every swatch.
 class Avatar extends StatelessWidget {
-  const Avatar({
-    super.key,
-    required this.name,
-    this.size = 40,
-    this.imageUrl,
-  });
+  const Avatar({super.key, required this.name, this.size = 40, this.imageUrl});
 
   final String name;
   final double size;
@@ -60,10 +55,7 @@ class Avatar extends StatelessWidget {
         color: bg,
         shape: BoxShape.circle,
         image: imageUrl != null && imageUrl!.isNotEmpty
-            ? DecorationImage(
-                image: NetworkImage(imageUrl!),
-                fit: BoxFit.cover,
-              )
+            ? DecorationImage(image: NetworkImage(imageUrl!), fit: BoxFit.cover)
             : null,
       ),
       child: (imageUrl == null || imageUrl!.isEmpty)

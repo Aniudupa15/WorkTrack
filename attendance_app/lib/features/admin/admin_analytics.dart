@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
@@ -109,24 +110,31 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        onPressed: () => _changeMonth(-1),
-                        icon: const Icon(Icons.chevron_left),
-                      ),
-                      Text(
-                        DateFormat('MMMM yyyy').format(_selectedMonth),
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      IconButton(
-                        onPressed: () => _changeMonth(1),
-                        icon: const Icon(Icons.chevron_right),
-                      ),
-                    ],
+                  Container(
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          onPressed: () => _changeMonth(-1),
+                          icon: const Icon(Icons.chevron_left_rounded),
+                        ),
+                        Text(
+                          DateFormat('MMMM yyyy').format(_selectedMonth),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        IconButton(
+                          onPressed: () => _changeMonth(1),
+                          icon: const Icon(Icons.chevron_right_rounded),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.lg),
                   Row(
                     children: [
                       for (final s in segments) ...[
@@ -136,50 +144,59 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
                       ],
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.xxl),
-                  if (total > 0) ...[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Attendance Distribution',
-                        style: Theme.of(context).textTheme.titleMedium,
+                  const SizedBox(height: AppSpacing.lg),
+                  if (total > 0)
+                    AppCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Attendance distribution',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
+                          SizedBox(
+                            height: 200,
+                            child: PieChart(
+                              PieChartData(
+                                sectionsSpace: 2,
+                                centerSpaceRadius: 46,
+                                sections: [
+                                  for (final s in segments)
+                                    if (s.count > 0)
+                                      PieChartSectionData(
+                                        value: s.count.toDouble(),
+                                        title: '${s.count}',
+                                        color: s.color,
+                                        radius: 46,
+                                        titleStyle: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
+                          Wrap(
+                            spacing: AppSpacing.lg,
+                            runSpacing: AppSpacing.sm,
+                            children: [for (final s in segments) _legend(s)],
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    SizedBox(
-                      height: 200,
-                      child: PieChart(
-                        PieChartData(
-                          sectionsSpace: 2,
-                          centerSpaceRadius: 40,
-                          sections: [
-                            for (final s in segments)
-                              if (s.count > 0)
-                                PieChartSectionData(
-                                  value: s.count.toDouble(),
-                                  title: '${s.count}',
-                                  color: s.color,
-                                  radius: 50,
-                                  titleStyle: TextStyle(
-                                    color: colors.onBrand,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                          ],
-                        ),
+                    )
+                  else
+                    const Padding(
+                      padding: EdgeInsets.only(top: AppSpacing.xxxl),
+                      child: EmptyState(
+                        icon: Icons.bar_chart_rounded,
+                        title: 'No data for this month',
+                        subtitle:
+                            'Attendance analytics appear once your team starts checking in.',
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-                    Wrap(
-                      spacing: AppSpacing.lg,
-                      runSpacing: AppSpacing.sm,
-                      children: [for (final s in segments) _legend(s)],
-                    ),
-                  ] else
-                    const EmptyState(
-                      icon: Icons.bar_chart_rounded,
-                      title: 'No data for this month',
                     ),
                 ],
               ),
@@ -190,27 +207,28 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
   Widget _statCard(_Segment s) {
     final colors = context.colors;
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: s.color.withValues(alpha: 0.4)),
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.md,
+          horizontal: AppSpacing.sm,
         ),
+        radius: AppRadius.md,
         child: Column(
           children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: s.color, shape: BoxShape.circle),
+            ),
+            const SizedBox(height: AppSpacing.sm),
             Text(
               '${s.count}',
-              style: TextStyle(
-                color: s.color,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: 2),
             Text(
               s.label,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: TextStyle(color: colors.textTertiary, fontSize: 11),
               textAlign: TextAlign.center,
             ),
           ],

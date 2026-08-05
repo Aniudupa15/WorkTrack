@@ -61,10 +61,7 @@ class EntityTile extends StatelessWidget {
                     subtitle!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.textTertiary,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: colors.textTertiary, fontSize: 13),
                   ),
                 ],
               ],
@@ -83,12 +80,7 @@ class EntityTile extends StatelessWidget {
 /// A rounded, tinted icon in a square chip — the standard "leading" glyph for
 /// rows and quick-action cards when there's no avatar.
 class IconChip extends StatelessWidget {
-  const IconChip({
-    super.key,
-    required this.icon,
-    this.color,
-    this.size = 40,
-  });
+  const IconChip({super.key, required this.icon, this.color, this.size = 40});
 
   final IconData icon;
   final Color? color;

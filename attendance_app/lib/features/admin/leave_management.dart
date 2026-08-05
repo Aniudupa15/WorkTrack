@@ -99,9 +99,7 @@ class _LeaveList extends StatelessWidget {
             icon: icon,
             title: 'No $statusFilter leaves',
             subtitle: subtitle,
-            accent: statusFilter == 'pending'
-                ? context.colors.success
-                : null,
+            accent: statusFilter == 'pending' ? context.colors.success : null,
           );
         }
         return ListView.separated(
@@ -148,7 +146,10 @@ class _LeaveCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       '${leave.type[0].toUpperCase()}${leave.type.substring(1)} leave',
-                      style: TextStyle(color: colors.textTertiary, fontSize: 13),
+                      style: TextStyle(
+                        color: colors.textTertiary,
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
@@ -198,9 +199,9 @@ class _LeaveCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Text(
             leave.reason,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: colors.textPrimary,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: colors.textPrimary),
           ),
           if (leave.adminNote != null && leave.adminNote!.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),

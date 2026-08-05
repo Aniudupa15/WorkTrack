@@ -37,7 +37,10 @@ class AdminDashboard extends StatelessWidget {
       appBar: AppBar(
         titleSpacing: AppSpacing.xxl,
         title: Text(userProvider.company?.name ?? 'Workspace'),
-        actions: const [AccountMenu(), SizedBox(width: AppSpacing.sm)],
+        actions: const [
+          AccountMenu(),
+          SizedBox(width: AppSpacing.sm),
+        ],
       ),
       body: StreamBuilder<List<UserModel>>(
         stream: employeeRepo.watchEmployees(companyId),
@@ -66,8 +69,10 @@ class AdminDashboard extends StatelessWidget {
               final lateCheckins = todayLogs
                   .where((log) => log.status == 'late' || log.isLate)
                   .length;
-              final absentToday = (totalEmployees - presentToday)
-                  .clamp(0, totalEmployees);
+              final absentToday = (totalEmployees - presentToday).clamp(
+                0,
+                totalEmployees,
+              );
               final onTime = (presentToday - lateCheckins).clamp(
                 0,
                 totalEmployees,
@@ -239,12 +244,7 @@ class _TodayPulse extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
-          _SegmentBar(
-            onTime: onTime,
-            late: late,
-            absent: absent,
-            total: total,
-          ),
+          _SegmentBar(onTime: onTime, late: late, absent: absent, total: total),
           const SizedBox(height: AppSpacing.lg),
           Row(
             children: [

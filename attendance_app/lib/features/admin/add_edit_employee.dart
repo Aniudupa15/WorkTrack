@@ -157,7 +157,12 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
             children: [
               _label('PROFILE'),
               const SizedBox(height: AppSpacing.md),
-              _field(_nameCtrl, 'Full name', Icons.person_outline, required: true),
+              _field(
+                _nameCtrl,
+                'Full name',
+                Icons.person_outline,
+                required: true,
+              ),
               const SizedBox(height: AppSpacing.md),
               if (!_isEdit) ...[
                 _field(
@@ -176,7 +181,11 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
                 keyboard: TextInputType.phone,
               ),
               const SizedBox(height: AppSpacing.md),
-              _field(_deptCtrl, 'Department (optional)', Icons.business_outlined),
+              _field(
+                _deptCtrl,
+                'Department (optional)',
+                Icons.business_outlined,
+              ),
               const SizedBox(height: AppSpacing.md),
               _field(_posCtrl, 'Position (optional)', Icons.badge_outlined),
               const SizedBox(height: AppSpacing.xxl),
