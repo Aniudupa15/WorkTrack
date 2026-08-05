@@ -89,83 +89,37 @@ class _ProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final text = Theme.of(context).textTheme;
     final name = provider.user?.name ?? '';
     final firstName = name.isNotEmpty ? name.split(' ').first : 'there';
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xxl),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colors.brand, const Color(0xFF4F46E5)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'WELCOME BACK',
+          style: text.bodySmall?.copyWith(
+            letterSpacing: 2.5,
+            fontWeight: FontWeight.w700,
+            color: colors.textTertiary,
+          ),
         ),
-        borderRadius: BorderRadius.circular(AppRadius.xxl),
-        boxShadow: [
-          BoxShadow(
-            color: colors.brand.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.xs),
-            decoration: BoxDecoration(
-              color: colors.onBrand.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Hello, $firstName.',
+          style: text.displaySmall?.copyWith(fontSize: 38),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Icon(Icons.schedule_rounded, size: 15, color: colors.textTertiary),
+            const SizedBox(width: 6),
+            Text(
+              'Shift ${provider.user?.shiftStart} – ${provider.user?.shiftEnd}',
+              style: text.bodyMedium,
             ),
-            child: CircleAvatar(
-              radius: 32,
-              backgroundColor: colors.onBrand,
-              child: Icon(Icons.person_rounded, size: 40, color: colors.brand),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.xl),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hello, $firstName 👋',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: colors.onBrand,
-                  ),
-                ),
-                Text(
-                  provider.user?.email ?? '',
-                  style: TextStyle(
-                    color: colors.onBrand.withValues(alpha: 0.85),
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.xs,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.onBrand.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                  ),
-                  child: Text(
-                    'Shift: ${provider.user?.shiftStart} - ${provider.user?.shiftEnd}',
-                    style: TextStyle(
-                      color: colors.onBrand,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }

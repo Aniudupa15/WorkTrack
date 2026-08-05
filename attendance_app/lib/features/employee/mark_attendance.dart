@@ -265,13 +265,13 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
                       point: workLoc,
                       color:
                           (_isNearby
-                                  ? const Color(0xFF10B981)
-                                  : const Color(0xFFEF4444))
-                              .withAlpha(40),
+                                  ? context.colors.success
+                                  : context.colors.danger)
+                              .withValues(alpha: 0.16),
                       borderStrokeWidth: 2,
                       borderColor: _isNearby
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFFEF4444),
+                          ? context.colors.success
+                          : context.colors.danger,
                       useRadiusInMeter: true,
                       radius: user.workRadius,
                     ),
@@ -284,10 +284,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
                       point: workLoc,
                       width: 50,
                       height: 50,
-                      child: _buildMarker(
-                        Icons.business,
-                        const Color(0xFF6366F1),
-                      ),
+                      child: _buildMarker(Icons.business, context.colors.brand),
                     ),
                   if (_currentLocation != null)
                     Marker(
@@ -296,7 +293,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
                       height: 50,
                       child: _buildMarker(
                         Icons.person_pin_circle,
-                        const Color(0xFF10B981),
+                        context.colors.success,
                       ),
                     ),
                 ],
@@ -315,8 +312,8 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
             child: FloatingActionButton.small(
               heroTag: 'refresh_loc',
               onPressed: _updateCurrentLocation,
-              backgroundColor: const Color(0xFF1E293B),
-              foregroundColor: Colors.white,
+              backgroundColor: context.colors.surface,
+              foregroundColor: context.colors.textPrimary,
               child: const Icon(Icons.my_location_rounded),
             ),
           ),
@@ -339,13 +336,23 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   }
 
   Widget _buildActionPanel() {
+    final colors = context.colors;
+    final text = Theme.of(context).textTheme;
     final isNearby = _isNearby;
+    final statusColor = isNearby ? colors.success : colors.warning;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B).withAlpha(245),
+        color: colors.surface.withValues(alpha: 0.97),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withAlpha(25)),
+        border: Border.all(color: colors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -355,18 +362,12 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color:
-                      (isNearby
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFFF59E0B))
-                          .withAlpha(25),
+                  color: statusColor.withValues(alpha: 0.14),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   isNearby ? Icons.location_on : Icons.location_off,
-                  color: isNearby
-                      ? const Color(0xFF10B981)
-                      : const Color(0xFFF59E0B),
+                  color: statusColor,
                   size: 20,
                 ),
               ),
@@ -377,17 +378,13 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
                   children: [
                     Text(
                       isNearby ? 'In Range' : 'Out of Range',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: Colors.white,
-                      ),
+                      style: text.titleMedium,
                     ),
                     Text(
                       isNearby
                           ? 'You are at the work location'
                           : 'Move closer to the workplace',
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      style: text.bodySmall,
                     ),
                   ],
                 ),
@@ -396,13 +393,11 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
           ),
           const SizedBox(height: 20),
           if (_actionLoading)
-            const Center(
-              child: CircularProgressIndicator(color: Color(0xFF6366F1)),
-            )
+            const AppLoader()
           else if (_todayAttendance == null)
-            _actionBtn('CONFIRM CHECK-IN', const Color(0xFF10B981), _checkIn)
+            _actionBtn('CONFIRM CHECK-IN', colors.success, _checkIn)
           else if (_todayAttendance!.checkOut == null)
-            _actionBtn('COMPLETE CHECK-OUT', const Color(0xFFF43F5E), _checkOut)
+            _actionBtn('COMPLETE CHECK-OUT', colors.danger, _checkOut)
           else
             _completionStatus(),
         ],
@@ -415,33 +410,28 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
+        foregroundColor: Colors.white,
         minimumSize: const Size(double.infinity, 56),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       child: Text(
         label,
-        style: const TextStyle(letterSpacing: 1.2, fontWeight: FontWeight.bold),
+        style: const TextStyle(letterSpacing: 0.4, fontWeight: FontWeight.w700),
       ),
     );
   }
 
   Widget _completionStatus() {
+    final colors = context.colors;
     return Column(
       children: [
-        const Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 48),
+        Icon(Icons.verified_rounded, color: colors.success, size: 48),
         const SizedBox(height: 8),
-        const Text(
-          'Duty Completed',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-            color: Colors.white,
-          ),
-        ),
+        Text('Duty Completed', style: Theme.of(context).textTheme.titleLarge),
         if (_todayAttendance != null)
           Text(
             _todayAttendance!.workDurationFormatted,
-            style: TextStyle(color: Colors.grey[400], fontSize: 13),
+            style: Theme.of(context).textTheme.bodySmall,
           ),
       ],
     );
@@ -451,20 +441,18 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            const Icon(Icons.error_outline, color: Color(0xFFF43F5E)),
+            Icon(Icons.error_outline, color: context.colors.danger),
             const SizedBox(width: 12),
-            Text(title, style: const TextStyle(color: Colors.white)),
+            Expanded(child: Text(title)),
           ],
         ),
-        content: Text(message, style: TextStyle(color: Colors.grey[400])),
+        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK', style: TextStyle(color: Color(0xFF6366F1))),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -475,16 +463,14 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            const Icon(Icons.check_circle, color: Color(0xFF10B981)),
+            Icon(Icons.check_circle, color: context.colors.success),
             const SizedBox(width: 12),
-            Text(title, style: const TextStyle(color: Colors.white)),
+            Expanded(child: Text(title)),
           ],
         ),
-        content: Text(message, style: TextStyle(color: Colors.grey[400])),
+        content: Text(message),
         actions: [
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
