@@ -5,7 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/core/widgets/app_search_field.dart';
+import 'package:attendance_app/core/widgets/avatar.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
@@ -60,20 +63,11 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.xl,
-              vertical: AppSpacing.lg,
+              vertical: AppSpacing.md,
             ),
-            child: TextField(
+            child: AppSearchField(
+              hint: 'Search by employee name',
               onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
-              decoration: InputDecoration(
-                hintText: 'Search by employee name...',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => setState(() => _searchQuery = ''),
-                      )
-                    : null,
-              ),
             ),
           ),
           if (_selectedDate != null)
@@ -112,14 +106,21 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
                   return const EmptyState(
                     icon: Icons.event_busy_rounded,
                     title: 'No records found',
+                    subtitle:
+                        'Try a different name or clear the date filter.',
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xl,
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    AppSpacing.sm,
+                    AppSpacing.xl,
+                    40,
                   ),
                   itemCount: logs.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: AppSpacing.md),
                   itemBuilder: (context, index) => _LogCard(log: logs[index]),
                 );
               },
@@ -139,39 +140,24 @@ class _LogCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final statusColor = colors.statusColor(log.status);
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: colors.border),
-      ),
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           shape: const RoundedRectangleBorder(side: BorderSide.none),
-          leading: Container(
-            padding: const EdgeInsets.all(AppSpacing.sm + 2),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              log.status == 'absent'
-                  ? Icons.person_off
-                  : log.isLate
-                  ? Icons.history_toggle_off_rounded
-                  : Icons.how_to_reg_rounded,
-              color: statusColor,
-              size: 22,
-            ),
+          tilePadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          leading: Avatar(
+            name: log.employeeName.isNotEmpty
+                ? log.employeeName
+                : log.employeeId,
+            size: 40,
           ),
           title: Text(
             log.employeeName.isNotEmpty
                 ? log.employeeName
                 : log.employeeId.substring(0, 8),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
           ),
           subtitle: Text(
             log.date,
