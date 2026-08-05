@@ -54,38 +54,40 @@ class AppColors extends ThemeExtension<AppColors> {
   /// Foreground on top of [brand].
   final Color onBrand;
 
+  // "Ink" dark theme — warm near-black paper stock, not the generic cool slate.
   static const AppColors dark = AppColors(
-    brand: Color(0xFF6366F1),
-    brandSoft: Color(0x1A6366F1),
-    background: Color(0xFF0F172A),
-    surface: Color(0xFF1E293B),
-    surfaceMuted: Color(0xFF162236),
-    border: Color(0x1AFFFFFF),
-    textPrimary: Color(0xFFF8FAFC),
-    textSecondary: Color(0xFF94A3B8),
-    textTertiary: Color(0xFF64748B),
-    success: Color(0xFF10B981),
-    warning: Color(0xFFF59E0B),
-    danger: Color(0xFFEF4444),
-    info: Color(0xFF3B82F6),
-    onBrand: Color(0xFFFFFFFF),
+    brand: Color(0xFF8B85FF), // luminous indigo, legible on ink
+    brandSoft: Color(0x1F8B85FF),
+    background: Color(0xFF15140F),
+    surface: Color(0xFF1E1C16),
+    surfaceMuted: Color(0xFF272319),
+    border: Color(0xFF35302A),
+    textPrimary: Color(0xFFF4F1E9),
+    textSecondary: Color(0xFFACA594),
+    textTertiary: Color(0xFF79715F),
+    success: Color(0xFF5FBE7C),
+    warning: Color(0xFFE7B54B),
+    danger: Color(0xFFE9705E),
+    info: Color(0xFF7FA9E8),
+    onBrand: Color(0xFF15140F),
   );
 
+  // "Paper" light theme — warm off-white stock with ink text.
   static const AppColors light = AppColors(
-    brand: Color(0xFF6366F1),
-    brandSoft: Color(0x146366F1),
-    background: Color(0xFFF8FAFC),
-    surface: Color(0xFFFFFFFF),
-    surfaceMuted: Color(0xFFF1F5F9),
-    border: Color(0xFFE2E8F0),
-    textPrimary: Color(0xFF0F172A),
-    textSecondary: Color(0xFF475569),
-    textTertiary: Color(0xFF94A3B8),
-    success: Color(0xFF059669),
-    warning: Color(0xFFD97706),
-    danger: Color(0xFFDC2626),
-    info: Color(0xFF2563EB),
-    onBrand: Color(0xFFFFFFFF),
+    brand: Color(0xFF3A34C9), // deep confident indigo (not candy #6366F1)
+    brandSoft: Color(0x143A34C9),
+    background: Color(0xFFF5F2EA),
+    surface: Color(0xFFFFFEFB),
+    surfaceMuted: Color(0xFFECE7DC),
+    border: Color(0xFFE2DCCF),
+    textPrimary: Color(0xFF1C1A16),
+    textSecondary: Color(0xFF5C574C),
+    textTertiary: Color(0xFF8B8473),
+    success: Color(0xFF2E7A4B),
+    warning: Color(0xFF8F6416),
+    danger: Color(0xFFB23A2B),
+    info: Color(0xFF345C8C),
+    onBrand: Color(0xFFFFFEFB),
   );
 
   /// Returns the status color for an attendance/leave status string.

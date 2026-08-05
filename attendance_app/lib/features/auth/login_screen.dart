@@ -74,134 +74,117 @@ class _LoginScreenState extends State<LoginScreen> {
                   MediaQuery.of(context).padding.vertical,
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
+              padding: const EdgeInsets.fromLTRB(28, 40, 28, 28),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Spacer(flex: 2),
-                  _Logo(colors: colors),
-                  const SizedBox(height: AppSpacing.xxl),
-                  Text(
-                    'PunchIn',
-                    style: text.displaySmall?.copyWith(letterSpacing: 1.5),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text('Smart Workplace Attendance', style: text.bodyMedium),
-                  const Spacer(flex: 2),
-                  _buildFormCard(colors, text),
-                  const Spacer(),
+                  // Wordmark
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text("Don't have an account?", style: text.bodyMedium),
-                      TextButton(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SignupScreen(),
-                          ),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(11),
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
                         ),
-                        child: const Text('Create Account'),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Text(
+                        'PunchIn',
+                        style: text.titleLarge?.copyWith(letterSpacing: -0.3),
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.lg),
+                  const Spacer(flex: 2),
+                  // Editorial headline (serif)
+                  Text(
+                    'Time,',
+                    style: text.displaySmall?.copyWith(fontSize: 44),
+                  ),
+                  Text(
+                    'accounted for.',
+                    style: text.displaySmall?.copyWith(
+                      fontSize: 44,
+                      color: colors.brand,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    'Sign in to your workspace to check in, manage leave, and see your team at a glance.',
+                    style: text.bodyMedium?.copyWith(height: 1.5),
+                  ),
+                  const Spacer(flex: 3),
+                  // Form
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Email address',
+                      prefixIcon: Icon(Icons.alternate_email_rounded, size: 20),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    onFieldSubmitted: (_) => _login(),
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: const Icon(
+                        Icons.lock_outline_rounded,
+                        size: 20,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off_rounded
+                              : Icons.visibility_rounded,
+                          size: 20,
+                        ),
+                        onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _login,
+                    child: _isLoading
+                        ? SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: colors.onBrand,
+                            ),
+                          )
+                        : const Text('SIGN IN'),
+                  ),
+                  const Spacer(),
+                  Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text("New here?", style: text.bodyMedium),
+                        TextButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SignupScreen(),
+                            ),
+                          ),
+                          child: const Text('Create an account'),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFormCard(AppColors colors, TextTheme text) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xxl),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xxl),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('Welcome back', style: text.titleLarge),
-          const SizedBox(height: AppSpacing.xs),
-          Text('Sign in to your workspace', style: text.bodyMedium),
-          const SizedBox(height: AppSpacing.xxl),
-          TextFormField(
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Email address',
-              prefixIcon: Icon(Icons.alternate_email_rounded, size: 20),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          TextFormField(
-            controller: _passwordController,
-            obscureText: _obscurePassword,
-            decoration: InputDecoration(
-              labelText: 'Password',
-              prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_off_rounded
-                      : Icons.visibility_rounded,
-                  size: 20,
-                ),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xxl),
-          ElevatedButton(
-            onPressed: _isLoading ? null : _login,
-            child: _isLoading
-                ? SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: colors.onBrand,
-                    ),
-                  )
-                : const Text('SIGN IN'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Logo extends StatelessWidget {
-  const _Logo({required this.colors});
-
-  final AppColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.xxl),
-        boxShadow: [
-          BoxShadow(
-            color: colors.brand.withValues(alpha: 0.35),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.xxl),
-        child: Image.asset(
-          'assets/images/logo.png',
-          width: 104,
-          height: 104,
-          fit: BoxFit.cover,
         ),
       ),
     );

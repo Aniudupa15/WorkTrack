@@ -36,14 +36,19 @@ class AppTheme {
     // Tight, confident tracking on large type + comfortable line-height on body
     // — the hallmark of a polished, professional interface.
     final textTheme = baseText.copyWith(
+      // Editorial serif for the largest headlines — the app's signature voice.
       displaySmall: baseText.displaySmall?.copyWith(
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.6,
+        fontFamily: 'Fraunces',
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.5,
+        height: 1.05,
         color: c.textPrimary,
       ),
       headlineSmall: baseText.headlineSmall?.copyWith(
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.4,
+        fontFamily: 'Fraunces',
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.3,
+        height: 1.1,
         color: c.textPrimary,
       ),
       titleLarge: baseText.titleLarge?.copyWith(

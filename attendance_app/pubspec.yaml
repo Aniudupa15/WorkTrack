@@ -1,7 +1,7 @@
 name: attendance_app
 description: "PunchIn — Firebase-powered Workplace Attendance Tracking App"
 publish_to: 'none'
-version: 1.0.2+3
+version: 1.0.3+4
 
 environment:
   sdk: ^3.8.0
@@ -58,6 +58,9 @@ flutter:
     - family: PlusJakartaSans
       fonts:
         - asset: assets/fonts/PlusJakartaSans.ttf
+    - family: Fraunces
+      fonts:
+        - asset: assets/fonts/Fraunces.ttf
 
 # Branded splash screen (generated: `dart run flutter_native_splash:create`).
 flutter_native_splash:
