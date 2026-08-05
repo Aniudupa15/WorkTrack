@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 enum _SignupMode { registerCompany, joinCompany }
@@ -75,7 +76,6 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     final text = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(
@@ -107,17 +107,17 @@ class _SignupScreenState extends State<SignupScreen> {
                 selected: {_mode},
                 onSelectionChanged: (s) => setState(() => _mode = s.first),
               ),
-              const SizedBox(height: AppSpacing.xl),
+              const SizedBox(height: AppSpacing.xxl),
               Text(
-                _isRegister ? 'New Company' : 'Join Your Team',
-                style: text.titleLarge,
+                _isRegister ? 'Start your\nworkspace.' : 'Join your\nteam.',
+                style: text.displaySmall?.copyWith(fontSize: 34),
               ),
-              const SizedBox(height: AppSpacing.xs),
+              const SizedBox(height: AppSpacing.sm),
               Text(
                 _isRegister
-                    ? "Create your company and admin account. You'll get a company code to invite employees."
+                    ? "Create your company and admin account — you'll get a code to invite employees."
                     : 'Enter the company code your admin shared with you.',
-                style: text.bodyMedium,
+                style: text.bodyMedium?.copyWith(height: 1.5),
               ),
               const SizedBox(height: AppSpacing.xxl),
               Form(
@@ -148,22 +148,15 @@ class _SignupScreenState extends State<SignupScreen> {
                     const SizedBox(height: AppSpacing.lg),
                     _passwordField(),
                     const SizedBox(height: AppSpacing.xxxl),
-                    ElevatedButton(
+                    AppButton(
+                      label: _isRegister
+                          ? 'Create company account'
+                          : 'Join company',
+                      icon: _isRegister
+                          ? Icons.business_center_rounded
+                          : Icons.groups_rounded,
+                      loading: _isLoading,
                       onPressed: _isLoading ? null : _submit,
-                      child: _isLoading
-                          ? SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: colors.onBrand,
-                              ),
-                            )
-                          : Text(
-                              _isRegister
-                                  ? 'CREATE COMPANY ACCOUNT'
-                                  : 'JOIN COMPANY',
-                            ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     Center(
