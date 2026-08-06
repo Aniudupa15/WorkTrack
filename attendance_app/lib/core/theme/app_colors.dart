@@ -54,41 +54,51 @@ class AppColors extends ThemeExtension<AppColors> {
   /// Foreground on top of [brand].
   final Color onBrand;
 
-  // "Ink" dark theme — warm near-black paper stock, not the generic cool slate.
+  // "Deep Noir" dark theme (Aura) — a warm off-black base with tonal layers,
+  // a lavender primary, and teal reserved for success. OLED-ready: hierarchy
+  // comes from surface brightness, not shadows.
   static const AppColors dark = AppColors(
-    brand: Color(0xFF8B85FF), // luminous indigo, legible on ink
-    brandSoft: Color(0x1F8B85FF),
-    background: Color(0xFF15140F),
-    surface: Color(0xFF1E1C16),
-    surfaceMuted: Color(0xFF272319),
-    border: Color(0xFF35302A),
-    textPrimary: Color(0xFFF4F1E9),
-    textSecondary: Color(0xFFACA594),
-    textTertiary: Color(0xFF79715F),
-    success: Color(0xFF5FBE7C),
-    warning: Color(0xFFE7B54B),
-    danger: Color(0xFFE9705E),
-    info: Color(0xFF7FA9E8),
-    onBrand: Color(0xFF15140F),
+    brand: Color(0xFFCEBDFF), // lavender primary
+    brandSoft: Color(0x24CEBDFF), // ~14% lavender wash
+    background: Color(0xFF131313),
+    surface: Color(0xFF1C1B1B), // Level-1 card
+    surfaceMuted: Color(0xFF201F1F), // inset panels / fields
+    border: Color(0xFF302E36), // subtle warm hairline
+    textPrimary: Color(0xFFE5E2E1), // on-surface
+    textSecondary: Color(0xFFCAC4D4), // on-surface-variant
+    textTertiary: Color(0xFF948E9D), // outline
+    success: Color(0xFF44E2CD), // teal — "Checked In"
+    warning: Color(0xFFF2C26B), // amber — late / pending (functional accent)
+    danger: Color(0xFFFFB4AB), // error
+    info: Color(0xFFA9C7FF), // periwinkle — info / half-day
+    onBrand: Color(0xFF381385), // dark text on lavender
   );
 
-  // "Paper" light theme — warm off-white stock with ink text.
+  // Light counterpart in the same lavender/teal/rose family, so the toggle
+  // still reads as "Aura" rather than a different product. Derived from Aura's
+  // inverse / fixed tokens (inverse-primary #674BB5).
   static const AppColors light = AppColors(
-    brand: Color(0xFF3A34C9), // deep confident indigo (not candy #6366F1)
-    brandSoft: Color(0x143A34C9),
-    background: Color(0xFFF5F2EA),
-    surface: Color(0xFFFFFEFB),
-    surfaceMuted: Color(0xFFECE7DC),
-    border: Color(0xFFE2DCCF),
-    textPrimary: Color(0xFF1C1A16),
-    textSecondary: Color(0xFF5C574C),
-    textTertiary: Color(0xFF8B8473),
-    success: Color(0xFF2E7A4B),
-    warning: Color(0xFF8F6416),
-    danger: Color(0xFFB23A2B),
-    info: Color(0xFF345C8C),
-    onBrand: Color(0xFFFFFEFB),
+    brand: Color(0xFF674BB5), // inverse-primary lavender
+    brandSoft: Color(0x14674BB5),
+    background: Color(0xFFF6F4F2),
+    surface: Color(0xFFFFFFFF),
+    surfaceMuted: Color(0xFFEFECF4),
+    border: Color(0xFFE4E0EA),
+    textPrimary: Color(0xFF1C1B1F),
+    textSecondary: Color(0xFF49454E),
+    textTertiary: Color(0xFF7A7580),
+    success: Color(0xFF0F766E), // deep teal, legible on light
+    warning: Color(0xFF9A6B12),
+    danger: Color(0xFFB3261E),
+    info: Color(0xFF3B5BDB),
+    onBrand: Color(0xFFFFFFFF),
   );
+
+  /// Returns a foreground (near-black or white) that stays legible on top of a
+  /// solid [c] — used for buttons/markers painted in a state colour, since those
+  /// colours are light in the dark theme and dark in the light theme.
+  static Color onColor(Color c) =>
+      c.computeLuminance() > 0.5 ? const Color(0xFF201F1F) : Colors.white;
 
   /// Returns the status color for an attendance/leave status string.
   Color statusColor(String status) {

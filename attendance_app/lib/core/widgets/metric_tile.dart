@@ -52,7 +52,7 @@ class MetricTile extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontFamily: 'PlusJakartaSans',
+              fontFamily: 'HankenGrotesk',
               fontWeight: FontWeight.w800,
               letterSpacing: -0.5,
               height: 1.0,

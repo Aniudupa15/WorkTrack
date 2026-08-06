@@ -352,7 +352,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         border: Border.all(color: Colors.white, width: 2),
         boxShadow: [BoxShadow(color: color.withAlpha(100), blurRadius: 10)],
       ),
-      child: Icon(icon, color: Colors.white, size: 22),
+      child: Icon(icon, color: AppColors.onColor(color), size: 22),
     );
   }
 
@@ -431,15 +431,16 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   }
 
   Widget _actionBtn(String label, Color color, VoidCallback onPressed) {
+    final fg = AppColors.onColor(color);
     return Pressable(
       onTap: onPressed,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         height: 56,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
               color: color.withValues(alpha: 0.35),
@@ -455,14 +456,14 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
               label.contains('out')
                   ? Icons.logout_rounded
                   : Icons.check_circle_rounded,
-              color: Colors.white,
+              color: fg,
               size: 20,
             ),
             const SizedBox(width: AppSpacing.sm),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: fg,
                 fontSize: 15,
                 letterSpacing: 0.2,
                 fontWeight: FontWeight.w700,
