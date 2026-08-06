@@ -283,25 +283,26 @@ class _ApproveButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final fg = AppColors.onColor(colors.success);
     return Pressable(
       onTap: onPressed,
-      borderRadius: BorderRadius.circular(AppRadius.md),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Container(
         height: 40,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: colors.success,
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+            Icon(Icons.check_rounded, size: 16, color: fg),
             const SizedBox(width: 6),
-            const Text(
+            Text(
               'Approve',
               style: TextStyle(
-                color: Colors.white,
+                color: fg,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.2,

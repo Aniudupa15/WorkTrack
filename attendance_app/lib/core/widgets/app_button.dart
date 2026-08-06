@@ -65,7 +65,7 @@ class AppButton extends StatelessWidget {
     }
 
     final height = small ? 40.0 : 52.0;
-    final radius = small ? AppRadius.md : AppRadius.lg;
+    final radius = AppRadius.sm; // Aura: buttons use an 8px radius
     final hpad = small ? AppSpacing.lg : AppSpacing.xl;
 
     final content = loading
