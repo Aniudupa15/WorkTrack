@@ -29,13 +29,14 @@ class AttendanceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = context.watch<ThemeController>().mode;
+    // Aura "Deep Noir" is a dark-first identity — the app is locked to dark so
+    // the OLED tonal-layer look is what every user sees.
     return MaterialApp(
       title: 'PunchIn',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
+      theme: AppTheme.dark,
       darkTheme: AppTheme.dark,
-      themeMode: themeMode,
+      themeMode: ThemeMode.dark,
       navigatorObservers: [sl<AnalyticsService>().observer],
       home: const AuthWrapper(),
     );
