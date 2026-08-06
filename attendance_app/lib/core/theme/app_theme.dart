@@ -26,7 +26,7 @@ class AppTheme {
           error: c.danger,
         );
 
-    const family = 'PlusJakartaSans';
+    const family = 'HankenGrotesk';
     final baseText =
         (isDark
                 ? Typography.material2021().white
@@ -38,14 +38,14 @@ class AppTheme {
     final textTheme = baseText.copyWith(
       // Editorial serif for the largest headlines — the app's signature voice.
       displaySmall: baseText.displaySmall?.copyWith(
-        fontFamily: 'Fraunces',
+        fontFamily: 'Newsreader',
         fontWeight: FontWeight.w600,
         letterSpacing: -0.5,
         height: 1.05,
         color: c.textPrimary,
       ),
       headlineSmall: baseText.headlineSmall?.copyWith(
-        fontFamily: 'Fraunces',
+        fontFamily: 'Newsreader',
         fontWeight: FontWeight.w600,
         letterSpacing: -0.3,
         height: 1.1,
@@ -114,7 +114,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.xl),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           side: BorderSide(color: c.border),
         ),
       ),
@@ -127,23 +127,23 @@ class AppTheme {
           vertical: AppSpacing.lg,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           borderSide: BorderSide(color: c.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           borderSide: BorderSide(color: c.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           borderSide: BorderSide(color: c.brand, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           borderSide: BorderSide(color: c.danger),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           borderSide: BorderSide(color: c.danger, width: 2),
         ),
         labelStyle: TextStyle(color: c.textSecondary),
@@ -158,7 +158,7 @@ class AppTheme {
           minimumSize: const Size(double.infinity, 54),
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
           textStyle: textTheme.labelLarge,
         ),
@@ -169,7 +169,7 @@ class AppTheme {
           minimumSize: const Size(0, 50),
           side: BorderSide(color: c.border),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
           textStyle: textTheme.labelLarge,
         ),

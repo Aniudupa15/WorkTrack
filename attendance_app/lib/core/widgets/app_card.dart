@@ -19,7 +19,7 @@ class AppCard extends StatelessWidget {
     required this.child,
     this.onTap,
     this.padding = const EdgeInsets.all(AppSpacing.xl),
-    this.radius = AppRadius.xl,
+    this.radius = AppRadius.lg, // Aura: 16px "pod" containers
     this.color,
     this.border = true,
     this.elevated = false,

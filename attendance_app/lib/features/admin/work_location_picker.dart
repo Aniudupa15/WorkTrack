@@ -169,9 +169,9 @@ class _WorkLocationPickerState extends State<WorkLocationPicker> {
                             ),
                           ],
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.business_rounded,
-                          color: Colors.white,
+                          color: AppColors.onColor(colors.brand),
                           size: 20,
                         ),
                       ),

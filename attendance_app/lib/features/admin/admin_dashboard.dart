@@ -207,7 +207,7 @@ class _TodayPulse extends StatelessWidget {
                         Text(
                           '$present',
                           style: text.displaySmall?.copyWith(
-                            fontFamily: 'PlusJakartaSans',
+                            fontFamily: 'HankenGrotesk',
                             fontWeight: FontWeight.w800,
                             letterSpacing: -1,
                           ),
