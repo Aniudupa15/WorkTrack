@@ -59,7 +59,10 @@ class SettingsScreen extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xxl),
           Center(
-            child: Text('PunchIn', style: Theme.of(context).textTheme.bodySmall),
+            child: Text(
+              'PunchIn',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ),
         ],
       ),
