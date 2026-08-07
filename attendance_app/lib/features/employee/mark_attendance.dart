@@ -420,7 +420,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
               child: AppLoader(),
             )
           else if (_todayAttendance == null)
-            _actionBtn('Confirm check-in', colors.success, _checkIn)
+            _actionBtn('Confirm check-in', colors.brand, _checkIn)
           else if (_todayAttendance!.checkOut == null)
             _actionBtn('Complete check-out', colors.danger, _checkOut)
           else

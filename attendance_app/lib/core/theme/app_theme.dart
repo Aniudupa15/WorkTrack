@@ -37,18 +37,19 @@ class AppTheme {
     // — the hallmark of a polished, professional interface.
     final textTheme = baseText.copyWith(
       // Editorial serif for the largest headlines — the app's signature voice.
+      // Heavy grotesk display — impactful, tightly tracked editorial headlines.
       displaySmall: baseText.displaySmall?.copyWith(
-        fontFamily: 'Newsreader',
-        fontWeight: FontWeight.w600,
-        letterSpacing: -0.5,
-        height: 1.05,
+        fontFamily: 'HankenGrotesk',
+        fontWeight: FontWeight.w800,
+        letterSpacing: -1,
+        height: 1.02,
         color: c.textPrimary,
       ),
       headlineSmall: baseText.headlineSmall?.copyWith(
-        fontFamily: 'Newsreader',
-        fontWeight: FontWeight.w600,
-        letterSpacing: -0.3,
-        height: 1.1,
+        fontFamily: 'HankenGrotesk',
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.6,
+        height: 1.05,
         color: c.textPrimary,
       ),
       titleLarge: baseText.titleLarge?.copyWith(
@@ -106,11 +107,10 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: c.surface,
-        // Flat, border-defined in dark; a soft lift in light for quiet depth.
-        elevation: isDark ? 0 : 3,
-        shadowColor: isDark
-            ? Colors.transparent
-            : const Color(0xFF101828).withValues(alpha: 0.06),
+        // Flat, hairline-defined — editorial cards carry a crisp border, not a
+        // shadow.
+        elevation: 0,
+        shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(

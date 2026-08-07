@@ -221,7 +221,7 @@ class _LeaveCard extends StatelessWidget {
                   child: AppButton(
                     label: 'Reject',
                     icon: Icons.close_rounded,
-                    variant: AppButtonVariant.danger,
+                    variant: AppButtonVariant.secondary,
                     size: AppButtonSize.small,
                     onPressed: () => _updateStatus(context, 'rejected'),
                   ),
@@ -283,7 +283,7 @@ class _ApproveButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final fg = AppColors.onColor(colors.success);
+    final fg = AppColors.onColor(colors.brand);
     return Pressable(
       onTap: onPressed,
       borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -291,7 +291,7 @@ class _ApproveButton extends StatelessWidget {
         height: 40,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: colors.success,
+          color: colors.brand,
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
         child: Row(

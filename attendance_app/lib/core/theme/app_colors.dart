@@ -54,43 +54,42 @@ class AppColors extends ThemeExtension<AppColors> {
   /// Foreground on top of [brand].
   final Color onBrand;
 
-  // "Deep Noir" dark theme (Aura) — a warm off-black base with tonal layers,
-  // a lavender primary, and teal reserved for success. OLED-ready: hierarchy
-  // comes from surface brightness, not shadows.
-  static const AppColors dark = AppColors(
-    brand: Color(0xFFCEBDFF), // lavender primary
-    brandSoft: Color(0x24CEBDFF), // ~14% lavender wash
-    background: Color(0xFF131313),
-    surface: Color(0xFF1C1B1B), // Level-1 card
-    surfaceMuted: Color(0xFF201F1F), // inset panels / fields
-    border: Color(0xFF302E36), // subtle warm hairline
-    textPrimary: Color(0xFFE5E2E1), // on-surface
-    textSecondary: Color(0xFFCAC4D4), // on-surface-variant
-    textTertiary: Color(0xFF948E9D), // outline
-    success: Color(0xFF44E2CD), // teal — "Checked In"
-    warning: Color(0xFFF2C26B), // amber — late / pending (functional accent)
-    danger: Color(0xFFFFB4AB), // error
-    info: Color(0xFFA9C7FF), // periwinkle — info / half-day
-    onBrand: Color(0xFF381385), // dark text on lavender
+  // Editorial red/black/white — a sharp, high-contrast light identity: white
+  // paper, ink text, a single vermilion accent for actions and attention.
+  // Present/on-time read as ink; late is grey; absent/rejected are red.
+  static const AppColors light = AppColors(
+    brand: Color(0xFFE23A1A), // vermilion — primary actions & attention
+    brandSoft: Color(0x14E23A1A),
+    background: Color(0xFFFFFFFF),
+    surface: Color(0xFFFFFFFF),
+    surfaceMuted: Color(0xFFF3F2EF), // inset boxes / fields
+    border: Color(0xFFDBD8D2), // clean hairline
+    textPrimary: Color(0xFF17150F), // near-black ink
+    textSecondary: Color(0xFF57544C),
+    textTertiary: Color(0xFF8A867C),
+    success: Color(0xFF17150F), // ink — present / on-time / approved
+    warning: Color(0xFF8A867C), // grey — late
+    danger: Color(0xFFE23A1A), // red — absent / rejected
+    info: Color(0xFFB0ACA2), // light grey — half-day
+    onBrand: Color(0xFFFFFFFF),
   );
 
-  // Light counterpart in the same lavender/teal/rose family, so the toggle
-  // still reads as "Aura" rather than a different product. Derived from Aura's
-  // inverse / fixed tokens (inverse-primary #674BB5).
-  static const AppColors light = AppColors(
-    brand: Color(0xFF674BB5), // inverse-primary lavender
-    brandSoft: Color(0x14674BB5),
-    background: Color(0xFFF6F4F2),
-    surface: Color(0xFFFFFFFF),
-    surfaceMuted: Color(0xFFEFECF4),
-    border: Color(0xFFE4E0EA),
-    textPrimary: Color(0xFF1C1B1F),
-    textSecondary: Color(0xFF49454E),
-    textTertiary: Color(0xFF7A7580),
-    success: Color(0xFF0F766E), // deep teal, legible on light
-    warning: Color(0xFF9A6B12),
-    danger: Color(0xFFB3261E),
-    info: Color(0xFF3B5BDB),
+  // Dark counterpart in the same red/ink family (kept coherent; the app is
+  // currently locked to the light editorial identity).
+  static const AppColors dark = AppColors(
+    brand: Color(0xFFFF4A2E),
+    brandSoft: Color(0x1FFF4A2E),
+    background: Color(0xFF0E0E0E),
+    surface: Color(0xFF161616),
+    surfaceMuted: Color(0xFF1E1E1E),
+    border: Color(0xFF2C2C2C),
+    textPrimary: Color(0xFFF2F0EA),
+    textSecondary: Color(0xFFA8A49B),
+    textTertiary: Color(0xFF736F66),
+    success: Color(0xFFF2F0EA), // ink→light for present/on-time on dark
+    warning: Color(0xFF8A867C),
+    danger: Color(0xFFFF4A2E),
+    info: Color(0xFF6B6B6B),
     onBrand: Color(0xFFFFFFFF),
   );
 

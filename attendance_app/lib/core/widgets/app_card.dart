@@ -38,22 +38,14 @@ class AppCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Editorial cards are flat and hairline-defined — [elevated] is retained
+    // for API compatibility but no longer paints a shadow.
     final surface = Container(
       padding: padding,
       decoration: BoxDecoration(
         color: color ?? colors.surface,
         borderRadius: BorderRadius.circular(radius),
         border: border ? Border.all(color: colors.border) : null,
-        boxShadow: elevated && !isDark
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF101828).withValues(alpha: 0.05),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ]
-            : null,
       ),
       child: child,
     );
