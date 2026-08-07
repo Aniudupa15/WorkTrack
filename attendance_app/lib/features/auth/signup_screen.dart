@@ -7,8 +7,9 @@ import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
-enum _SignupMode { registerCompany, joinCompany }
-
+/// A single registration screen. There is no admin/employee choice — the code
+/// the user enters (minted by a super admin or their company admin) determines
+/// their role automatically.
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -18,23 +19,19 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _codeController = TextEditingController();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  // Company name (register) or company code (join), depending on the mode.
-  final _companyController = TextEditingController();
-  _SignupMode _mode = _SignupMode.registerCompany;
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  bool get _isRegister => _mode == _SignupMode.registerCompany;
-
   @override
   void dispose() {
+    _codeController.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _companyController.dispose();
     super.dispose();
   }
 
@@ -42,22 +39,12 @@ class _SignupScreenState extends State<SignupScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     try {
-      final provider = Provider.of<UserProvider>(context, listen: false);
-      if (_isRegister) {
-        await provider.signUpAdmin(
-          _nameController.text.trim(),
-          _emailController.text.trim(),
-          _passwordController.text,
-          _companyController.text.trim(),
-        );
-      } else {
-        await provider.signUpEmployee(
-          _nameController.text.trim(),
-          _emailController.text.trim(),
-          _passwordController.text,
-          _companyController.text.trim(),
-        );
-      }
+      await Provider.of<UserProvider>(context, listen: false).signUpWithCode(
+        _nameController.text.trim(),
+        _emailController.text.trim(),
+        _passwordController.text,
+        _codeController.text.trim(),
+      );
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -81,94 +68,79 @@ class _SignupScreenState extends State<SignupScreen> {
       appBar: AppBar(
         title: const Text('Create Account'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SegmentedButton<_SignupMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: _SignupMode.registerCompany,
-                    label: Text('Register Company'),
-                    icon: Icon(Icons.business_center_rounded, size: 18),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'JOIN WITH A COMPANY CODE',
+                  style: text.bodySmall?.copyWith(
+                    letterSpacing: 1.6,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textTertiary,
                   ),
-                  ButtonSegment(
-                    value: _SignupMode.joinCompany,
-                    label: Text('Join Company'),
-                    icon: Icon(Icons.groups_rounded, size: 18),
-                  ),
-                ],
-                selected: {_mode},
-                onSelectionChanged: (s) => setState(() => _mode = s.first),
-              ),
-              const SizedBox(height: AppSpacing.xxl),
-              Text(
-                _isRegister ? 'Start your\nworkspace.' : 'Join your\nteam.',
-                style: text.displaySmall?.copyWith(fontSize: 34),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                _isRegister
-                    ? "Create your company and admin account — you'll get a code to invite employees."
-                    : 'Enter the company code your admin shared with you.',
-                style: text.bodyMedium?.copyWith(height: 1.5),
-              ),
-              const SizedBox(height: AppSpacing.xxl),
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    _field(
-                      _companyController,
-                      _isRegister ? 'Company Name' : 'Company Code',
-                      _isRegister ? Icons.business_rounded : Icons.key_rounded,
-                      hint: _isRegister ? 'e.g. Acme Corp' : 'Paste the code',
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    _field(
-                      _nameController,
-                      'Your Full Name',
-                      Icons.person_rounded,
-                      hint: 'e.g. John Doe',
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    _field(
-                      _emailController,
-                      'Work Email',
-                      Icons.alternate_email_rounded,
-                      hint: 'you@company.com',
-                      keyboard: TextInputType.emailAddress,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    _passwordField(),
-                    const SizedBox(height: AppSpacing.xxxl),
-                    AppButton(
-                      label: _isRegister
-                          ? 'Create company account'
-                          : 'Join company',
-                      icon: _isRegister
-                          ? Icons.business_center_rounded
-                          : Icons.groups_rounded,
-                      loading: _isLoading,
-                      onPressed: _isLoading ? null : _submit,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Center(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Already have an account? Sign In'),
-                      ),
-                    ),
-                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Join your\nteam.',
+                  style: text.displaySmall?.copyWith(fontSize: 34),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Enter the code your admin shared with you. PunchIn assigns '
+                  'your role automatically — there’s no admin/employee choice to '
+                  'make here.',
+                  style: text.bodyMedium?.copyWith(height: 1.5),
+                ),
+                const SizedBox(height: AppSpacing.xxl),
+                _field(
+                  _codeController,
+                  'Company code',
+                  Icons.key_rounded,
+                  hint: 'e.g. 4F7K2Q',
+                  caps: true,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _field(
+                  _nameController,
+                  'Your full name',
+                  Icons.person_outline_rounded,
+                  hint: 'e.g. Priya Sharma',
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _field(
+                  _emailController,
+                  'Work email',
+                  Icons.alternate_email_rounded,
+                  hint: 'you@company.com',
+                  keyboard: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _passwordField(),
+                const SizedBox(height: AppSpacing.xxxl),
+                AppButton(
+                  label: 'Join company',
+                  icon: Icons.arrow_forward_rounded,
+                  loading: _isLoading,
+                  onPressed: _isLoading ? null : _submit,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Already have an account? Sign In'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -181,10 +153,14 @@ class _SignupScreenState extends State<SignupScreen> {
     IconData icon, {
     String? hint,
     TextInputType? keyboard,
+    bool caps = false,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboard,
+      textCapitalization: caps
+          ? TextCapitalization.characters
+          : TextCapitalization.none,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,

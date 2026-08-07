@@ -28,4 +28,50 @@ class CompanyRepositoryImpl implements CompanyRepository {
       throw ErrorMapper.map(error);
     }
   }
+
+  @override
+  Future<({String adminCode, String employeeCode})> createCompany({
+    required String superAdminUid,
+    required String companyName,
+    String? address,
+    required String adminName,
+    required String adminEmail,
+    required String shiftStart,
+    required String shiftEnd,
+  }) async {
+    try {
+      return await _db.createCompany(
+        superAdminUid: superAdminUid,
+        companyName: companyName,
+        address: address,
+        adminName: adminName,
+        adminEmail: adminEmail,
+        shiftStart: shiftStart,
+        shiftEnd: shiftEnd,
+      );
+    } catch (error) {
+      throw ErrorMapper.map(error);
+    }
+  }
+
+  @override
+  Stream<List<CompanyModel>> watchCompanies() => _db.watchCompanies();
+
+  @override
+  Future<void> setStatus(String companyId, String status) async {
+    try {
+      await _db.setCompanyStatus(companyId, status);
+    } catch (error) {
+      throw ErrorMapper.map(error);
+    }
+  }
+
+  @override
+  Future<({String? code, bool used})> getAdminCode(String companyId) async {
+    try {
+      return await _db.getAdminCode(companyId);
+    } catch (error) {
+      throw ErrorMapper.map(error);
+    }
+  }
 }

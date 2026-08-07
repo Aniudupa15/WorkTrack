@@ -4,31 +4,56 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function uid() { return request.auth.uid; }
     function role() { return get(/databases/$(database)/documents/users/$(uid())).data; }
+    function isSuperAdmin() { return signedIn() && role().role == 'super_admin'; }
     function isAdmin(companyId) { return signedIn() && role().role == 'admin' && role().companyId == companyId; }
     function isEmployee(companyId, employeeId) {
       return signedIn() && uid() == employeeId && role().role == 'employee' && role().companyId == companyId;
     }
     function memberOf(companyId) { return signedIn() && role().companyId == companyId; }
+    function codeDoc(code) { return get(/databases/$(database)/documents/codes/$(code)).data; }
 
-    // Role doc. You may only create your OWN. Admins may claim only their own
-    // company (companyId == uid); employees may join a company by its code.
+    // Registration codes. The doc id IS the code string, and reads are limited
+    // to `get` (never `list`) so codes cannot be enumerated — knowing the exact
+    // code is the secret. Only a super admin mints codes; an admin code is
+    // consumed (used:false → true) exactly once by the person who claims it.
+    match /codes/{code} {
+      allow get: if signedIn();
+      allow list, create, delete: if isSuperAdmin();
+      allow update: if signedIn()
+        && resource.data.type == 'admin'
+        && resource.data.used == false
+        && request.resource.data.used == true
+        && request.resource.data.claimedBy == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'claimedBy']);
+    }
+
+    // Role doc. You may only create your OWN, and only by presenting a valid
+    // super-admin-minted code for the company you name. super_admin role docs
+    // are created ONLY from the Firebase console (never by a client).
     match /users/{userId} {
       allow read: if signedIn() && uid() == userId;
       allow create: if signedIn() && uid() == userId
-        && request.resource.data.keys().hasOnly(['role', 'companyId'])
         && (
-          (request.resource.data.role == 'admin' && request.resource.data.companyId == userId) ||
-          (request.resource.data.role == 'employee' && request.resource.data.companyId is string
-            && request.resource.data.companyId.size() > 0)
+          (request.resource.data.role == 'employee'
+            && request.resource.data.keys().hasOnly(['role', 'companyId', 'viaCode'])
+            && codeDoc(request.resource.data.viaCode).type == 'employee'
+            && codeDoc(request.resource.data.viaCode).companyId == request.resource.data.companyId)
+          || (request.resource.data.role == 'admin'
+            && request.resource.data.keys().hasOnly(['role', 'companyId', 'viaCode'])
+            && codeDoc(request.resource.data.viaCode).type == 'admin'
+            && codeDoc(request.resource.data.viaCode).claimedBy == userId
+            && codeDoc(request.resource.data.viaCode).companyId == request.resource.data.companyId)
         );
     }
 
     match /companies/{companyId} {
-      allow read: if memberOf(companyId);
-      // The admin creates their own company; companyId == their uid.
-      allow create: if signedIn() && uid() == companyId
-        && request.resource.data.adminId == companyId;
-      allow update: if isAdmin(companyId);
+      allow read: if memberOf(companyId) || isSuperAdmin();
+      // Only a super admin provisions companies.
+      allow create: if isSuperAdmin();
+      // Super admin edits anything (e.g. suspend); the assigned admin edits
+      // their own company (settings, employee count, and the one-time claim
+      // that stamps adminId onto the company).
+      allow update: if isSuperAdmin() || isAdmin(companyId);
 
       match /employees/{employeeId} {
         allow read: if isAdmin(companyId) || isEmployee(companyId, employeeId);
