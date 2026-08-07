@@ -45,6 +45,7 @@ class UserProvider with ChangeNotifier {
   UserModel? get user => _user;
   CompanyModel? get company => _companyModel;
   bool get loading => _loading;
+  bool get isSuperAdmin => _user?.role == 'super_admin';
   bool get isAdmin => _user?.role == 'admin';
   bool get isEmployee => _user?.role == 'employee';
 
@@ -96,32 +97,17 @@ class UserProvider with ChangeNotifier {
   Future<void> signIn(String email, String password) =>
       _auth.signIn(email: email, password: password);
 
-  Future<void> signUpAdmin(
+  Future<void> signUpWithCode(
     String name,
     String email,
     String password,
-    String companyName,
+    String code,
   ) async {
-    await _auth.signUpAdmin(
+    await _auth.signUpWithCode(
       name: name,
       email: email,
       password: password,
-      companyName: companyName,
-    );
-    await refreshUser();
-  }
-
-  Future<void> signUpEmployee(
-    String name,
-    String email,
-    String password,
-    String companyCode,
-  ) async {
-    await _auth.signUpEmployee(
-      name: name,
-      email: email,
-      password: password,
-      companyCode: companyCode,
+      code: code,
     );
     await refreshUser();
   }

@@ -2,7 +2,7 @@ import 'package:attendance_app/data/models/user_model.dart';
 
 /// Employee directory and admin-side profile management.
 ///
-/// Employees self-join via a company code (see [AuthRepository.signUpEmployee]);
+/// Employees self-join via a company code (see AuthRepository.signUpWithCode);
 /// the admin then edits their profile — work location, shift, status — with the
 /// methods below. All reads stream from Firestore under the company subcollection.
 abstract interface class EmployeeRepository {

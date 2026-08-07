@@ -9,6 +9,7 @@ import 'package:attendance_app/features/shared/theme_controller.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 import 'package:attendance_app/features/auth/login_screen.dart';
 import 'package:attendance_app/features/admin/admin_dashboard.dart';
+import 'package:attendance_app/features/admin/super_admin_console.dart';
 import 'package:attendance_app/features/employee/employee_dashboard.dart';
 
 Future<void> main() async {
@@ -55,6 +56,7 @@ class AuthWrapper extends StatelessWidget {
     }
 
     if (userProvider.user == null) return const LoginScreen();
+    if (userProvider.isSuperAdmin) return const SuperAdminConsole();
     if (userProvider.isAdmin) return const AdminDashboard();
     return const EmployeeDashboard();
   }

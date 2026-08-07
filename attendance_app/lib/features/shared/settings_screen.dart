@@ -13,7 +13,7 @@ class SettingsScreen extends StatelessWidget {
   // Hosted on GitHub Pages (docs/ folder). Update if the Pages URL changes.
   static const _privacyUrl =
       'https://aniudupa15.github.io/WorkTrack/privacy-policy.html';
-  static const _version = '1.0.7 (8)';
+  static const _version = '1.0.8 (9)';
 
   @override
   Widget build(BuildContext context) {

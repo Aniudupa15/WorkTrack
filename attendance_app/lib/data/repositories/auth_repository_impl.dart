@@ -31,40 +31,63 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> signOut() => _auth.signOut();
 
   @override
-  Future<void> signUpAdmin({
+  Future<void> signUpWithCode({
     required String name,
     required String email,
     required String password,
-    required String companyName,
+    required String code,
   }) async {
-    await _provision(
-      email: email,
-      password: password,
-      provision: (uid) => _db.provisionCompany(
-        uid: uid,
-        companyName: companyName.trim(),
-        adminName: name.trim(),
-        adminEmail: email.trim(),
-      ),
-    );
-  }
+    final trimmedCode = code.trim().toUpperCase();
+    final trimmedName = name.trim();
+    final trimmedEmail = email.trim();
 
-  @override
-  Future<void> signUpEmployee({
-    required String name,
-    required String email,
-    required String password,
-    required String companyCode,
-  }) async {
     await _provision(
-      email: email,
+      email: trimmedEmail,
       password: password,
-      provision: (uid) => _db.provisionEmployee(
-        companyId: companyCode.trim(),
-        uid: uid,
-        name: name.trim(),
-        email: email.trim(),
-      ),
+      provision: (uid) async {
+        final data = await _db.resolveCode(trimmedCode);
+        if (data == null) {
+          throw const AppException(
+            'That code isn’t valid. Check it and try again.',
+          );
+        }
+        final type = data['type'] as String?;
+        final companyId = data['companyId'] as String?;
+        if (companyId == null) {
+          throw const AppException(
+            'That code is misconfigured. Ask your admin for a new one.',
+          );
+        }
+
+        if (type == 'admin') {
+          if (data['used'] == true) {
+            throw const AppException('This admin code has already been used.');
+          }
+          final intended = (data['intendedEmail'] as String?) ?? '';
+          if (intended.isNotEmpty && intended != trimmedEmail.toLowerCase()) {
+            throw AppException('This admin code is registered to $intended.');
+          }
+          await _db.registerAdminViaCode(
+            code: trimmedCode,
+            companyId: companyId,
+            uid: uid,
+            name: trimmedName,
+            email: trimmedEmail,
+          );
+        } else if (type == 'employee') {
+          await _db.registerEmployeeViaCode(
+            code: trimmedCode,
+            companyId: companyId,
+            uid: uid,
+            name: trimmedName,
+            email: trimmedEmail,
+          );
+        } else {
+          throw const AppException(
+            'That code isn’t valid. Check it and try again.',
+          );
+        }
+      },
     );
   }
 

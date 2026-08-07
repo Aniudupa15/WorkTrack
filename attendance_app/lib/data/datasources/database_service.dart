@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/core/constants/app_constants.dart';
@@ -18,6 +20,18 @@ class DatabaseService {
   // ── Shorthand refs ──────────────────────────────────────────────────────────
   CollectionReference get _companies => _db.collection('companies');
   CollectionReference get _users => _db.collection('users');
+  CollectionReference get _codes => _db.collection('codes');
+
+  static const _codeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+  /// A short, human-shareable code (avoids ambiguous 0/O/1/I).
+  String _shortCode([int length = 6]) {
+    final rand = Random.secure();
+    return List.generate(
+      length,
+      (_) => _codeAlphabet[rand.nextInt(_codeAlphabet.length)],
+    ).join();
+  }
 
   CollectionReference _employees(String companyId) =>
       _companies.doc(companyId).collection('employees');
@@ -36,37 +50,92 @@ class DatabaseService {
     await _companies.doc(company.id).set(company.toMap());
   }
 
-  /// Admin signup: atomically create the company doc and the admin role doc.
-  /// The companyId is the admin's uid, which also serves as the join code.
-  Future<void> provisionCompany({
-    required String uid,
+  /// Super admin provisions a company: creates the company doc (with no admin
+  /// yet) plus a single-use admin code and a reusable employee code. Returns
+  /// both codes so the super admin can share them.
+  Future<({String adminCode, String employeeCode})> createCompany({
+    required String superAdminUid,
     required String companyName,
+    String? address,
     required String adminName,
     required String adminEmail,
+    required String shiftStart,
+    required String shiftEnd,
   }) async {
+    final companyId = newId();
+    final adminCode = _shortCode();
+    final employeeCode = _shortCode();
     final batch = _db.batch();
-    batch.set(_companies.doc(uid), {
-      'companyId': uid,
+    batch.set(_companies.doc(companyId), {
+      'companyId': companyId,
       'companyName': companyName,
-      'adminId': uid,
+      'adminId': '',
       'adminName': adminName,
       'adminEmail': adminEmail,
       'phone': null,
+      'address': address,
+      'status': 'active',
+      'employeeCode': employeeCode,
+      'createdBy': superAdminUid,
       'createdAt': FieldValue.serverTimestamp(),
       'totalEmployees': 0,
       'settings': {
         'defaultRadius': AppConstants.defaultGeofenceRadiusMeters,
-        'defaultShiftStart': AppConstants.defaultShiftStart,
-        'defaultShiftEnd': AppConstants.defaultShiftEnd,
+        'defaultShiftStart': shiftStart,
+        'defaultShiftEnd': shiftEnd,
       },
     });
-    batch.set(_users.doc(uid), {'role': 'admin', 'companyId': uid});
+    batch.set(_codes.doc(adminCode), {
+      'companyId': companyId,
+      'type': 'admin',
+      'used': false,
+      'claimedBy': null,
+      'intendedEmail': adminEmail.toLowerCase(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    batch.set(_codes.doc(employeeCode), {
+      'companyId': companyId,
+      'type': 'employee',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
     await batch.commit();
+    return (adminCode: adminCode, employeeCode: employeeCode);
   }
 
-  /// Employee signup: atomically create their employee profile under [companyId]
-  /// and their role doc. The admin later assigns work location + shift.
-  Future<void> provisionEmployee({
+  /// Reads a registration code (by exact id). Returns null if it doesn't exist.
+  Future<Map<String, dynamic>?> resolveCode(String code) async {
+    final doc = await _codes.doc(code).get();
+    if (!doc.exists) return null;
+    return doc.data() as Map<String, dynamic>;
+  }
+
+  /// Admin registration: consumes the single-use admin [code], writes the admin
+  /// role doc, and stamps the admin onto the company. Sequential (not batched)
+  /// so each step's security rule can see the previous committed write.
+  Future<void> registerAdminViaCode({
+    required String code,
+    required String companyId,
+    required String uid,
+    required String name,
+    required String email,
+  }) async {
+    await _codes.doc(code).update({'used': true, 'claimedBy': uid});
+    await _users.doc(uid).set({
+      'role': 'admin',
+      'companyId': companyId,
+      'viaCode': code,
+    });
+    await _companies.doc(companyId).update({
+      'adminId': uid,
+      'adminName': name,
+      'adminEmail': email,
+    });
+  }
+
+  /// Employee registration: creates their profile under [companyId] and their
+  /// role doc (carrying the employee [code] that authorised the join).
+  Future<void> registerEmployeeViaCode({
+    required String code,
     required String companyId,
     required String uid,
     required String name,
@@ -90,8 +159,47 @@ class DatabaseService {
       'fcmToken': null,
       'joinedAt': FieldValue.serverTimestamp(),
     });
-    batch.set(_users.doc(uid), {'role': 'employee', 'companyId': companyId});
+    batch.set(_users.doc(uid), {
+      'role': 'employee',
+      'companyId': companyId,
+      'viaCode': code,
+    });
     await batch.commit();
+  }
+
+  /// All companies, newest first — the super admin console.
+  Stream<List<CompanyModel>> watchCompanies() {
+    return _companies
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map(
+                (doc) => CompanyModel.fromMap(
+                  doc.data() as Map<String, dynamic>,
+                  doc.id,
+                ),
+              )
+              .toList(),
+        );
+  }
+
+  Future<void> setCompanyStatus(String companyId, String status) async {
+    await _companies.doc(companyId).update({'status': status});
+  }
+
+  /// Super admin: the admin code for a company (so it can be re-shared), plus
+  /// whether it's already been claimed.
+  Future<({String? code, bool used})> getAdminCode(String companyId) async {
+    final snap = await _codes
+        .where('companyId', isEqualTo: companyId)
+        .where('type', isEqualTo: 'admin')
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return (code: null, used: false);
+    final doc = snap.docs.first;
+    final data = doc.data() as Map<String, dynamic>;
+    return (code: doc.id, used: data['used'] == true);
   }
 
   Future<CompanyModel?> getCompany(String id) async {
@@ -126,6 +234,15 @@ class DatabaseService {
     final roleData = roleDoc.data() as Map<String, dynamic>;
     final role = roleData['role'] as String? ?? 'employee';
     final companyId = roleData['companyId'] as String?;
+
+    if (role == 'super_admin') {
+      return UserModel(
+        id: uid,
+        name: roleData['name'] ?? 'Super Admin',
+        email: roleData['email'] ?? '',
+        role: 'super_admin',
+      );
+    }
 
     if (role == 'admin' && companyId != null) {
       final companyDoc = await _companies.doc(companyId).get();
