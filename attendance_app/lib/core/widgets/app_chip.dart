@@ -24,19 +24,23 @@ class AppChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    // Editorial tabs: selected = solid ink block, idle = crisp outline.
+    final fg = selected ? colors.background : colors.textSecondary;
     return Pressable(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.pill),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
+          horizontal: AppSpacing.md,
           vertical: AppSpacing.sm,
         ),
         decoration: BoxDecoration(
-          color: selected ? colors.brandSoft : colors.surfaceMuted,
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          border: Border.all(color: selected ? colors.brand : colors.border),
+          color: selected ? colors.textPrimary : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: selected ? colors.textPrimary : colors.border,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -44,9 +48,9 @@ class AppChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: selected ? colors.brand : colors.textSecondary,
+                color: fg,
                 fontSize: 13,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                fontWeight: FontWeight.w700,
               ),
             ),
             if (count != null) ...[
@@ -54,7 +58,7 @@ class AppChip extends StatelessWidget {
               Text(
                 '$count',
                 style: TextStyle(
-                  color: selected ? colors.brand : colors.textTertiary,
+                  color: fg,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),
