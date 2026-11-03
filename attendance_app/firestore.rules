@@ -4,6 +4,9 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function uid() { return request.auth.uid; }
     function role() { return get(/databases/$(database)/documents/users/$(uid())).data; }
+    // Role doc as it will be once the current batch commits — lets the admin
+    // claim (code + role doc + company stamp) be written atomically.
+    function roleAfter() { return getAfter(/databases/$(database)/documents/users/$(uid())).data; }
     function isSuperAdmin() { return signedIn() && role().role == 'super_admin'; }
     function isAdmin(companyId) { return signedIn() && role().role == 'admin' && role().companyId == companyId; }
     function isEmployee(companyId, employeeId) {
@@ -11,17 +14,109 @@ service cloud.firestore {
     }
     function memberOf(companyId) { return signedIn() && role().companyId == companyId; }
     function codeDoc(code) { return get(/databases/$(database)/documents/codes/$(code)).data; }
+    function codeAfter(code) { return getAfter(/databases/$(database)/documents/codes/$(code)).data; }
+    function companyDoc(companyId) { return get(/databases/$(database)/documents/companies/$(companyId)).data; }
+    function companyActive(companyId) { return companyDoc(companyId).get('status', 'active') == 'active'; }
+    function employeeDoc(companyId, employeeId) {
+      return get(/databases/$(database)/documents/companies/$(companyId)/employees/$(employeeId)).data;
+    }
+
+    // ── Validation helpers ────────────────────────────────────────────────────
+    function validText(value, max) { return value is string && value.size() > 0 && value.size() <= max; }
+    function optionalText(value, max) { return value == null || (value is string && value.size() <= max); }
+    function validTime(value) { return value is string && value.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'); }
+    function validShift(shift) { return shift is map && validTime(shift.start) && validTime(shift.end) && shift.start < shift.end; }
+    function validZone(zone) {
+      return zone == null || (zone is map
+        && zone.latitude is number && zone.latitude >= -90 && zone.latitude <= 90
+        && zone.longitude is number && zone.longitude >= -180 && zone.longitude <= 180
+        && zone.radius is number && zone.radius >= 10 && zone.radius <= 5000);
+    }
+
+    // ── Server-time helpers ───────────────────────────────────────────────────
+    // Attendance days and late status are judged against request.time (server
+    // clock), never the device clock. Must match
+    // AppConstants.attendanceUtcOffsetMinutes in the app (IST = UTC+05:30).
+    function localNow() { return request.time + duration.value(330, 'm'); }
+    function pad2(n) { return n < 10 ? '0' + string(n) : string(n); }
+    function localDate() {
+      let t = localNow();
+      return string(t.year()) + '-' + pad2(t.month()) + '-' + pad2(t.day());
+    }
+    function localMinutes() { let t = localNow(); return t.hours() * 60 + t.minutes(); }
+    function toMinutes(hhmm) { let p = hhmm.split(':'); return int(p[0]) * 60 + int(p[1]); }
+
+    // ── Geofence ──────────────────────────────────────────────────────────────
+    // Rules have no trig functions, so cos(latitude) uses a Taylor series
+    // (error < 0.1% up to ±60°) and distance uses the equirectangular
+    // approximation, which is accurate to well under a metre at geofence scale.
+    function cosApprox(degrees) {
+      let x2 = (degrees * 0.017453292519943295) * (degrees * 0.017453292519943295);
+      return 1 - x2 / 2 + x2 * x2 / 24 - x2 * x2 * x2 / 720;
+    }
+    function validFix(loc) {
+      return loc is map && loc.keys().hasOnly(['latitude', 'longitude', 'accuracy'])
+        && loc.latitude is number && loc.latitude >= -90 && loc.latitude <= 90
+        && loc.longitude is number && loc.longitude >= -180 && loc.longitude <= 180
+        && loc.accuracy is number && loc.accuracy >= 0 && loc.accuracy <= 100;
+    }
+    function withinZone(loc, zone) {
+      let dy = (loc.latitude - zone.latitude) * 111320;
+      let dx = (loc.longitude - zone.longitude) * 111320 * cosApprox(zone.latitude);
+      return zone != null && dx * dx + dy * dy <= zone.radius * zone.radius;
+    }
+
+    function validCheckIn(companyId, attendanceId) {
+      let d = request.resource.data;
+      let emp = employeeDoc(companyId, uid());
+      let lateNow = localMinutes() > toMinutes(emp.shift.start) + 15;
+      return emp.status == 'active'
+        && companyActive(companyId)
+        && d.keys().hasOnly(['employeeId', 'companyId', 'employeeName', 'date', 'checkIn', 'checkOut', 'status', 'isLate', 'checkInLocation', 'checkOutLocation', 'selfieStoragePath', 'isSynced', 'notes'])
+        && d.employeeId == uid()
+        && d.companyId == companyId
+        && validText(d.employeeName, 200)
+        && d.date == localDate()
+        && attendanceId == uid() + '_' + localDate()
+        && d.checkIn == request.time
+        // The shift must not already be over.
+        && localMinutes() < toMinutes(emp.shift.end)
+        // The client may always flag itself late; it may only claim on-time
+        // when the server clock agrees.
+        && d.isLate is bool && (d.isLate || !lateNow)
+        && d.status == (d.isLate ? 'late' : 'present')
+        && validFix(d.checkInLocation) && withinZone(d.checkInLocation, emp.workLocation)
+        && d.checkOut == null && d.checkOutLocation == null
+        && (d.selfieStoragePath == null
+            || (d.selfieStoragePath is string && d.selfieStoragePath.matches('^selfies/' + companyId + '/' + uid() + '/[^/]+$')))
+        && d.isSynced == true && d.notes == null;
+    }
+
+    function validCheckOut(companyId) {
+      let d = request.resource.data;
+      let emp = employeeDoc(companyId, uid());
+      return emp.status == 'active'
+        && companyActive(companyId)
+        && d.diff(resource.data).affectedKeys().hasOnly(['checkOut', 'checkOutLocation'])
+        && resource.data.checkIn != null
+        && resource.data.checkOut == null
+        && resource.data.date == localDate()
+        && d.checkOut == request.time
+        && validFix(d.checkOutLocation) && withinZone(d.checkOutLocation, emp.workLocation);
+    }
 
     // Registration codes. The doc id IS the code string, and reads are limited
     // to `get` (never `list`) so codes cannot be enumerated — knowing the exact
     // code is the secret. Only a super admin mints codes; an admin code is
-    // consumed (used:false → true) exactly once by the person who claims it.
+    // consumed (used:false → true) exactly once by the person it was issued to.
     match /codes/{code} {
       allow get: if signedIn();
       allow list, create, delete: if isSuperAdmin();
       allow update: if signedIn()
         && resource.data.type == 'admin'
         && resource.data.used == false
+        && (resource.data.get('intendedEmail', '') == ''
+            || resource.data.intendedEmail == request.auth.token.email.lower())
         && request.resource.data.used == true
         && request.resource.data.claimedBy == uid()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'claimedBy']);
@@ -33,16 +128,17 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if signedIn() && uid() == userId;
       allow create: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(['role', 'companyId', 'viaCode'])
         && (
           (request.resource.data.role == 'employee'
-            && request.resource.data.keys().hasOnly(['role', 'companyId', 'viaCode'])
             && codeDoc(request.resource.data.viaCode).type == 'employee'
-            && codeDoc(request.resource.data.viaCode).companyId == request.resource.data.companyId)
+            && codeDoc(request.resource.data.viaCode).companyId == request.resource.data.companyId
+            && companyActive(request.resource.data.companyId))
           || (request.resource.data.role == 'admin'
-            && request.resource.data.keys().hasOnly(['role', 'companyId', 'viaCode'])
-            && codeDoc(request.resource.data.viaCode).type == 'admin'
-            && codeDoc(request.resource.data.viaCode).claimedBy == userId
-            && codeDoc(request.resource.data.viaCode).companyId == request.resource.data.companyId)
+            && codeAfter(request.resource.data.viaCode).type == 'admin'
+            && codeAfter(request.resource.data.viaCode).used == true
+            && codeAfter(request.resource.data.viaCode).claimedBy == userId
+            && codeAfter(request.resource.data.viaCode).companyId == request.resource.data.companyId)
         );
     }
 
@@ -50,31 +146,67 @@ service cloud.firestore {
       allow read: if memberOf(companyId) || isSuperAdmin();
       // Only a super admin provisions companies.
       allow create: if isSuperAdmin();
-      // Super admin edits anything (e.g. suspend); the assigned admin edits
-      // their own company (settings, employee count, and the one-time claim
-      // that stamps adminId onto the company).
-      allow update: if isSuperAdmin() || isAdmin(companyId);
+      // Super admin edits anything (e.g. suspend). The assigned admin edits
+      // only operational fields — never status (so a suspended company can't
+      // reactivate itself), its id, or its employee code — and may stamp
+      // adminId only once, onto an unclaimed company, as themselves.
+      allow update: if isSuperAdmin()
+        || (signedIn() && roleAfter().role == 'admin' && roleAfter().companyId == companyId
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['settings', 'totalEmployees', 'adminId', 'adminName', 'adminEmail', 'phone'])
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['adminId'])
+                || (resource.data.adminId == '' && request.resource.data.adminId == uid())));
 
       match /employees/{employeeId} {
         allow read: if isAdmin(companyId) || isEmployee(companyId, employeeId);
-        // Employee self-joins by creating their own active profile.
+        // Employee self-joins (in the same batch as their employee-code role
+        // doc) with a bare profile. The work location is left for the admin to
+        // assign — an employee can never place their own geofence.
         allow create: if signedIn() && uid() == employeeId
-          && request.resource.data.status == 'active';
+          && roleAfter().role == 'employee'
+          && roleAfter().companyId == companyId
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'department', 'position', 'status', 'avatarUrl', 'workLocation', 'shift', 'fcmToken', 'joinedAt'])
+          && request.resource.data.uid == uid()
+          && validText(request.resource.data.name, 200)
+          && request.resource.data.email.lower() == request.auth.token.email.lower()
+          && request.resource.data.status == 'active'
+          && request.resource.data.workLocation == null
+          && request.resource.data.phone == null
+          && request.resource.data.department == null
+          && request.resource.data.position == null
+          && request.resource.data.avatarUrl == null
+          && request.resource.data.fcmToken == null
+          && validShift(request.resource.data.shift)
+          && request.resource.data.joinedAt == request.time;
         // Admin manages the profile; the employee may only touch their fcmToken.
-        allow update: if isAdmin(companyId)
+        allow update: if (isAdmin(companyId)
+              && request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['name', 'phone', 'department', 'position', 'workLocation', 'shift', 'status', 'avatarUrl', 'updatedAt'])
+              && validText(request.resource.data.name, 200)
+              && optionalText(request.resource.data.get('phone', null), 40)
+              && optionalText(request.resource.data.get('department', null), 200)
+              && optionalText(request.resource.data.get('position', null), 200)
+              && validZone(request.resource.data.get('workLocation', null))
+              && validShift(request.resource.data.shift)
+              && request.resource.data.status in ['active', 'inactive'])
           || (isEmployee(companyId, employeeId)
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken']));
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken'])
+              && optionalText(request.resource.data.fcmToken, 4096));
         allow delete: if isAdmin(companyId);
       }
 
-      // Attendance is validated client-side (geofence) then written directly.
+      // Attendance is written by the employee's device, so these rules are the
+      // authority: server timestamp, server-derived day and late status, the
+      // geofence against the admin-assigned work location, and one record per
+      // employee per day. A record is created once (check-in) and updated once
+      // (check-out); nothing else about it can be changed by the employee.
       match /attendance/{attendanceId} {
         allow read: if isAdmin(companyId)
           || (signedIn() && resource.data.employeeId == uid() && memberOf(companyId));
-        allow create, update: if isEmployee(companyId, request.resource.data.employeeId)
-          && request.resource.data.employeeId == uid()
-          && request.resource.data.companyId == companyId
-          && request.resource.data.status in ['present', 'late', 'absent', 'half_day'];
+        allow create: if isEmployee(companyId, request.resource.data.employeeId)
+          && validCheckIn(companyId, attendanceId);
+        allow update: if isEmployee(companyId, resource.data.employeeId)
+          && validCheckOut(companyId);
         allow delete: if isAdmin(companyId);
       }
 
@@ -82,13 +214,24 @@ service cloud.firestore {
         allow read: if isAdmin(companyId)
           || (signedIn() && resource.data.employeeId == uid() && memberOf(companyId));
         allow create: if isEmployee(companyId, request.resource.data.employeeId)
+          && companyActive(companyId)
+          && employeeDoc(companyId, uid()).status == 'active'
+          && request.resource.data.keys().hasOnly(['id', 'employeeId', 'companyId', 'employeeName', 'type', 'startDate', 'endDate', 'reason', 'status', 'createdAt', 'updatedAt', 'adminNote'])
           && request.resource.data.companyId == companyId
+          && validText(request.resource.data.employeeName, 200)
           && request.resource.data.status == 'pending'
           && request.resource.data.type in ['casual', 'sick', 'earned', 'other']
-          && request.resource.data.reason is string
-          && request.resource.data.reason.size() > 0
-          && request.resource.data.reason.size() <= 1000;
-        allow update: if isAdmin(companyId);
+          && validText(request.resource.data.reason, 1000)
+          && request.resource.data.startDate is timestamp
+          && request.resource.data.endDate is timestamp
+          && request.resource.data.endDate >= request.resource.data.startDate
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.get('adminNote', null) == null;
+        // Admin decides a leave once; only the decision fields change.
+        allow update: if isAdmin(companyId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'adminNote', 'updatedAt'])
+          && request.resource.data.status in ['approved', 'rejected']
+          && optionalText(request.resource.data.get('adminNote', null), 1000);
       }
     }
   }

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/utils/attendance_clock.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/core/widgets/avatar.dart';
@@ -57,7 +58,7 @@ class AdminDashboard extends StatelessWidget {
 
               final employees = employeesSnapshot.data ?? [];
               final allLogs = attendanceSnapshot.data ?? [];
-              final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+              final today = AttendanceClock.today();
               final todayLogs = allLogs
                   .where((log) => log.date == today)
                   .toList();

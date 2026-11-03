@@ -49,6 +49,23 @@ class UserProvider with ChangeNotifier {
   bool get isAdmin => _user?.role == 'admin';
   bool get isEmployee => _user?.role == 'employee';
 
+  /// Why the signed-in user may not use the app (deactivated employee or
+  /// suspended company), or null when access is allowed. Security Rules
+  /// enforce the same on every punch and leave request.
+  String? get blockedReason {
+    final user = _user;
+    if (user == null || isSuperAdmin) return null;
+    if (_companyModel?.status == 'suspended') {
+      return 'Your company’s PunchIn access has been suspended. '
+          'Contact your administrator.';
+    }
+    if (user.role == 'employee' && user.status != 'active') {
+      return 'Your employee account has been deactivated. '
+          'Contact your company admin.';
+    }
+    return null;
+  }
+
   Future<void> _onAuthChange(User? firebaseUser) async {
     final version = ++_authChangeVersion;
     _loading = true;
@@ -62,7 +79,9 @@ class UserProvider with ChangeNotifier {
         if (version != _authChangeVersion) return;
         _user = user;
         _companyModel = company;
-        if (user?.role == 'employee' && user?.companyId != null) {
+        if (user?.role == 'employee' &&
+            user?.companyId != null &&
+            blockedReason == null) {
           try {
             await _notifications.initialize(
               onToken: (token) =>
