@@ -23,7 +23,12 @@ class LocationService {
       return Future.error('Location permissions are permanently denied.');
     }
 
-    return await Geolocator.getCurrentPosition();
+    return await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 20),
+      ),
+    );
   }
 
   double calculateDistance(

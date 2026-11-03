@@ -99,8 +99,8 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
       context,
       MaterialPageRoute(
         builder: (_) => WorkLocationPicker(
-          initialLat: _workLocation?['latitude'] as double?,
-          initialLng: _workLocation?['longitude'] as double?,
+          initialLat: (_workLocation?['latitude'] as num?)?.toDouble(),
+          initialLng: (_workLocation?['longitude'] as num?)?.toDouble(),
           initialRadius:
               (_workLocation?['radius'] as num?)?.toDouble() ??
               widget.defaultRadius,
@@ -112,6 +112,16 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    // HH:mm strings compare chronologically. Overnight shifts aren't supported.
+    if (_shiftStart.compareTo(_shiftEnd) >= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Shift end must be after shift start.'),
+          backgroundColor: context.colors.danger,
+        ),
+      );
+      return;
+    }
     setState(() => _saving = true);
 
     try {

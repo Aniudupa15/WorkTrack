@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'dart:io';
+import 'package:attendance_app/core/constants/app_constants.dart';
 import 'package:attendance_app/core/di/injection.dart';
+import 'package:attendance_app/core/utils/attendance_clock.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
@@ -27,6 +30,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   final LocationService _locationService = sl<LocationService>();
   final AttendanceRepository _attendance = sl<AttendanceRepository>();
   LatLng? _currentLocation;
+  Position? _position;
   bool _isLoading = true;
   bool _actionLoading = false;
   AttendanceModel? _todayAttendance;
@@ -46,14 +50,17 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
       );
     }
     await _updateCurrentLocation();
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
   }
 
   Future<void> _updateCurrentLocation() async {
     try {
       final pos = await _locationService.getCurrentLocation();
       if (pos != null && mounted) {
-        setState(() => _currentLocation = LatLng(pos.latitude, pos.longitude));
+        setState(() {
+          _position = pos;
+          _currentLocation = LatLng(pos.latitude, pos.longitude);
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -97,30 +104,69 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   String _fmtDistance(double m) =>
       m >= 1000 ? '${(m / 1000).toStringAsFixed(1)} km' : '${m.round()} m';
 
-  Future<void> _checkIn() async {
-    final prov = Provider.of<UserProvider>(context, listen: false);
-    final user = prov.user!;
-    final company = prov.company!;
-
-    if (_currentLocation == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Getting location...')));
-      return;
-    }
-
+  /// Takes a fresh GPS fix and checks it is usable for a punch: assigned work
+  /// location, not a mock location, accurate enough, and inside the zone.
+  /// Returns the location payload, or null after showing why not.
+  Future<Map<String, dynamic>?> _verifiedFix() async {
+    final user = Provider.of<UserProvider>(context, listen: false).user!;
     if (user.workLatitude == null || user.workLongitude == null) {
       _showErrorDialog(
         'No Work Location',
         'Your admin has not assigned a work location yet.',
       );
-      return;
+      return null;
     }
 
+    await _updateCurrentLocation();
+    final pos = _position;
+    if (!mounted) return null;
+    if (pos == null) {
+      _showErrorDialog(
+        'Location Unavailable',
+        'Could not get your current location. Check that location is on.',
+      );
+      return null;
+    }
+    if (pos.isMocked) {
+      _showErrorDialog(
+        'Mock Location Detected',
+        'Turn off any mock-location or GPS-spoofing app to punch.',
+      );
+      return null;
+    }
+    if (pos.accuracy > AppConstants.maxLocationAccuracyMeters) {
+      _showErrorDialog(
+        'Weak GPS Signal',
+        'Your location is only accurate to ${pos.accuracy.round()} m. '
+            'Move to an open area and try again.',
+      );
+      return null;
+    }
     if (!_isNearby) {
       _showErrorDialog(
         'Outside Range',
         'You are too far from the work location.',
+      );
+      return null;
+    }
+    return {
+      'latitude': pos.latitude,
+      'longitude': pos.longitude,
+      'accuracy': pos.accuracy,
+    };
+  }
+
+  Future<void> _checkIn() async {
+    final prov = Provider.of<UserProvider>(context, listen: false);
+    final user = prov.user!;
+    final company = prov.company!;
+
+    final shiftEnd = AttendanceClock.parseMinutes(user.shiftEnd);
+    if (shiftEnd != null &&
+        AttendanceClock.minutesOfDay(AttendanceClock.now()) >= shiftEnd) {
+      _showErrorDialog(
+        'Shift Over',
+        'Your shift ended at ${user.shiftEnd}. Check-in is closed for today.',
       );
       return;
     }
@@ -128,6 +174,9 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     setState(() => _actionLoading = true);
 
     try {
+      final location = await _verifiedFix();
+      if (location == null) return;
+
       // Optional: capture selfie
       String? selfiePath;
       try {
@@ -153,10 +202,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         employeeId: user.id,
         employeeName: user.name,
         shiftStart: user.shiftStart,
-        location: {
-          'latitude': _currentLocation!.latitude,
-          'longitude': _currentLocation!.longitude,
-        },
+        location: location,
         selfieStoragePath: selfiePath,
       );
       unawaited(
@@ -202,19 +248,12 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
 
     setState(() => _actionLoading = true);
     try {
-      if (_currentLocation == null) {
-        await _updateCurrentLocation();
-        if (_currentLocation == null) {
-          throw StateError('Current location is required to check out.');
-        }
-      }
+      final location = await _verifiedFix();
+      if (location == null) return;
       final outcome = await _attendance.checkOut(
         companyId: company.id,
         employeeId: user.id,
-        location: {
-          'latitude': _currentLocation!.latitude,
-          'longitude': _currentLocation!.longitude,
-        },
+        location: location,
       );
       unawaited(
         sl<AnalyticsService>().logCheckOut(
@@ -232,7 +271,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
           company.id,
           user.id,
         );
-        setState(() {});
+        if (mounted) setState(() {});
         _showSuccessDialog('Checked Out', 'You have successfully checked out.');
       }
     } catch (e) {

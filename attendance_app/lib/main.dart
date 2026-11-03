@@ -56,8 +56,50 @@ class AuthWrapper extends StatelessWidget {
     }
 
     if (userProvider.user == null) return const LoginScreen();
+    final blocked = userProvider.blockedReason;
+    if (blocked != null) return _AccessBlockedScreen(message: blocked);
     if (userProvider.isSuperAdmin) return const SuperAdminConsole();
     if (userProvider.isAdmin) return const AdminDashboard();
     return const EmployeeDashboard();
+  }
+}
+
+class _AccessBlockedScreen extends StatelessWidget {
+  const _AccessBlockedScreen({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline_rounded, size: 56),
+                const SizedBox(height: 16),
+                Text(
+                  'Access unavailable',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(message, textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                OutlinedButton(
+                  onPressed: () => Provider.of<UserProvider>(
+                    context,
+                    listen: false,
+                  ).signOut(),
+                  child: const Text('Sign out'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

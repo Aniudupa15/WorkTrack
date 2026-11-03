@@ -1,8 +1,8 @@
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import 'package:attendance_app/core/constants/app_constants.dart';
+import 'package:attendance_app/core/utils/attendance_clock.dart';
 import 'package:attendance_app/data/models/user_model.dart';
 import 'package:attendance_app/data/models/company_model.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
@@ -110,8 +110,8 @@ class DatabaseService {
   }
 
   /// Admin registration: consumes the single-use admin [code], writes the admin
-  /// role doc, and stamps the admin onto the company. Sequential (not batched)
-  /// so each step's security rule can see the previous committed write.
+  /// role doc, and stamps the admin onto the company — in one batch (the rules
+  /// use getAfter), so a failure can never burn the code half-way through.
   Future<void> registerAdminViaCode({
     required String code,
     required String companyId,
@@ -119,17 +119,19 @@ class DatabaseService {
     required String name,
     required String email,
   }) async {
-    await _codes.doc(code).update({'used': true, 'claimedBy': uid});
-    await _users.doc(uid).set({
+    final batch = _db.batch();
+    batch.update(_codes.doc(code), {'used': true, 'claimedBy': uid});
+    batch.set(_users.doc(uid), {
       'role': 'admin',
       'companyId': companyId,
       'viaCode': code,
     });
-    await _companies.doc(companyId).update({
+    batch.update(_companies.doc(companyId), {
       'adminId': uid,
       'adminName': name,
       'adminEmail': email,
     });
+    await batch.commit();
   }
 
   /// Employee registration: creates their profile under [companyId] and their
@@ -317,10 +319,11 @@ class DatabaseService {
 
   // ── Attendance ──────────────────────────────────────────────────────────────
 
-  /// Client-side check-in. Geofence is validated in the UI before this is
-  /// called; here we compute late status from the shift and write the record
-  /// (doc id `{uid}_{date}` guarantees one per day). Works offline via
-  /// Firestore's local cache, syncing automatically on reconnect.
+  /// Check-in. The geofence is pre-checked in the UI for a friendly message,
+  /// but Security Rules are the authority: they require the server timestamp,
+  /// the server-derived day (doc id `{uid}_{date}`, one per day), the location
+  /// inside the admin-assigned zone, and only accept "on time" when the server
+  /// clock agrees.
   Future<void> performCheckIn({
     required String companyId,
     required String employeeId,
@@ -329,24 +332,34 @@ class DatabaseService {
     required Map<String, dynamic> location,
     String? selfieStoragePath,
   }) async {
-    final now = DateTime.now();
-    final date = DateFormat('yyyy-MM-dd').format(now);
-    final late = _isLate(now, shiftStart);
-    await _attendance(companyId).doc('${employeeId}_$date').set({
-      'employeeId': employeeId,
-      'companyId': companyId,
-      'employeeName': employeeName,
-      'date': date,
-      'checkIn': Timestamp.fromDate(now),
-      'checkOut': null,
-      'status': late ? 'late' : 'present',
-      'isLate': late,
-      'checkInLocation': location,
-      'checkOutLocation': null,
-      'selfieStoragePath': selfieStoragePath,
-      'isSynced': true,
-      'notes': null,
-    });
+    final date = AttendanceClock.today();
+    Future<void> write(bool late) =>
+        _attendance(companyId).doc('${employeeId}_$date').set({
+          'employeeId': employeeId,
+          'companyId': companyId,
+          'employeeName': employeeName,
+          'date': date,
+          'checkIn': FieldValue.serverTimestamp(),
+          'checkOut': null,
+          'status': late ? 'late' : 'present',
+          'isLate': late,
+          'checkInLocation': location,
+          'checkOutLocation': null,
+          'selfieStoragePath': selfieStoragePath,
+          'isSynced': true,
+          'notes': null,
+        });
+
+    final late = _isLate(shiftStart);
+    try {
+      await write(late);
+    } on FirebaseException catch (e) {
+      // Right at the grace boundary (or with a skewed device clock) the server
+      // may judge the punch late when the device didn't; it always accepts a
+      // late flag, so retry once with it.
+      if (late || e.code != 'permission-denied') rethrow;
+      await write(true);
+    }
   }
 
   Future<void> performCheckOut({
@@ -354,19 +367,16 @@ class DatabaseService {
     required String employeeId,
     required Map<String, dynamic> location,
   }) async {
-    final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final date = AttendanceClock.today();
     await _attendance(companyId).doc('${employeeId}_$date').update({
       'checkOut': FieldValue.serverTimestamp(),
       'checkOutLocation': location,
     });
   }
 
-  bool _isLate(DateTime now, String shiftStart) {
-    final parts = shiftStart.split(':');
-    if (parts.length != 2) return false;
-    final startMinutes =
-        (int.tryParse(parts[0]) ?? 9) * 60 + (int.tryParse(parts[1]) ?? 0);
-    final nowMinutes = now.hour * 60 + now.minute;
+  bool _isLate(String shiftStart) {
+    final startMinutes = AttendanceClock.parseMinutes(shiftStart) ?? 9 * 60;
+    final nowMinutes = AttendanceClock.minutesOfDay(AttendanceClock.now());
     return nowMinutes > startMinutes + AppConstants.lateGracePeriodMinutes;
   }
 
@@ -374,10 +384,9 @@ class DatabaseService {
     String companyId,
     String employeeId,
   ) async {
-    final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final snap = await _attendance(companyId)
         .where('employeeId', isEqualTo: employeeId)
-        .where('date', isEqualTo: dateStr)
+        .where('date', isEqualTo: AttendanceClock.today())
         .limit(1)
         .get();
     if (snap.docs.isEmpty) return null;

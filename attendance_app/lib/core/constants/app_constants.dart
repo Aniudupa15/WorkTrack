@@ -19,8 +19,16 @@ class AppConstants {
   static const double maxGeofenceRadiusMeters = 5000.0;
 
   /// Minutes past shift start after which a check-in is flagged late. Mirrors
-  /// the server-side grace period in `cloud_functions/index.js`.
+  /// the grace period enforced in `firestore.rules`.
   static const int lateGracePeriodMinutes = 15;
+
+  /// Company time zone as a fixed UTC offset (IST = UTC+05:30). Must match
+  /// `localNow()` in `firestore.rules`, which judges attendance days.
+  static const int attendanceUtcOffsetMinutes = 330;
+
+  /// Worst GPS accuracy (metres) accepted for a punch. Mirrors `validFix()`
+  /// in `firestore.rules`.
+  static const double maxLocationAccuracyMeters = 100.0;
 
   static const String defaultShiftStart = '09:00';
   static const String defaultShiftEnd = '18:00';

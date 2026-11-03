@@ -1,5 +1,6 @@
-import 'dart:async';
 import 'dart:io';
+
+import 'package:firebase_core/firebase_core.dart';
 
 import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/data/datasources/connectivity_service.dart';
@@ -51,20 +52,33 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
     );
   }
 
-  /// Fires a Firestore write. Online, we await the server ack and report
-  /// [CheckOutcome.synced]. Offline, the write lands in Firestore's local cache
-  /// (its Future stays pending until reconnect, when it syncs on its own), so we
-  /// don't await it and report [CheckOutcome.queuedOffline].
+  /// Fires a Firestore write and awaits the server ack.
+  ///
+  /// Punches are refused while offline: Security Rules judge the punch by the
+  /// server clock at the moment the write reaches Firestore, so a write queued
+  /// in the local cache would be stamped with the reconnect time — or rejected
+  /// on sync and silently lost.
   Future<CheckOutcome> _write(Future<void> Function() write) async {
+    if (await _connectivity.isOffline()) {
+      throw const AppException(
+        'You’re offline. Connect to the internet to punch — punch times are '
+        'verified by the server.',
+        code: 'offline',
+      );
+    }
     try {
-      final offline = await _connectivity.isOffline();
-      final pending = write();
-      if (offline) {
-        unawaited(pending.catchError((_) {}));
-        return CheckOutcome.queuedOffline;
-      }
-      await pending;
+      await write();
       return CheckOutcome.synced;
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') {
+        throw AppException(
+          'The server rejected this punch. Make sure you are inside your work '
+          'zone, within your shift, and your phone’s date and time are set '
+          'automatically.',
+          code: error.code,
+        );
+      }
+      throw ErrorMapper.map(error);
     } catch (error) {
       throw ErrorMapper.map(error);
     }
