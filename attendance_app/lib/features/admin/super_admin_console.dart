@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/widgets/app_button.dart';
+import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/core/widgets/app_page.dart';
+import 'package:attendance_app/core/widgets/metric_tile.dart';
 import 'package:attendance_app/core/widgets/avatar.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/core/widgets/entity_tile.dart';
@@ -13,7 +17,7 @@ import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/company_model.dart';
 import 'package:attendance_app/domain/repositories/company_repository.dart';
 import 'package:attendance_app/features/admin/add_company.dart';
-import 'package:attendance_app/features/shared/account_menu.dart';
+import 'package:attendance_app/features/shared/user_provider.dart';
 
 /// Super-admin home: the roster of every company, with the ability to
 /// provision new ones and suspend/activate existing ones.
@@ -24,11 +28,15 @@ class SuperAdminConsole extends StatelessWidget {
   Widget build(BuildContext context) {
     final repo = sl<CompanyRepository>();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('PunchIn Console'),
-        actions: const [
-          AccountMenu(),
-          SizedBox(width: AppSpacing.sm),
+      appBar: TabHeader(
+        title: 'Console',
+        actions: [
+          IconButton(
+            tooltip: 'Sign out',
+            icon: const Icon(Icons.logout_rounded),
+            onPressed: () =>
+                Provider.of<UserProvider>(context, listen: false).signOut(),
+          ),
         ],
       ),
       body: StreamBuilder<List<CompanyModel>>(
@@ -38,36 +46,31 @@ class SuperAdminConsole extends StatelessWidget {
             return const AppLoader();
           }
           final companies = snap.data ?? [];
+          final active = companies.where((c) => c.status == 'active').length;
           return ListView(
             padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xxl,
-              AppSpacing.md,
-              AppSpacing.xxl,
+              AppSpacing.lg,
+              AppSpacing.xs,
+              AppSpacing.lg,
               100,
             ),
             children: [
-              Text(
-                'SUPER ADMIN',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  letterSpacing: 1.8,
-                  fontWeight: FontWeight.w700,
-                  color: context.colors.textTertiary,
-                ),
+              MetricRow(
+                tiles: [
+                  MetricTile(label: 'Companies', value: '${companies.length}'),
+                  MetricTile(
+                    label: 'Active',
+                    value: '$active',
+                    dotColor: context.colors.success,
+                  ),
+                  MetricTile(
+                    label: 'Suspended',
+                    value: '${companies.length - active}',
+                    dotColor: context.colors.danger,
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Companies.',
-                style: Theme.of(context).textTheme.displaySmall,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Only super admins can provision companies. Each company’s first '
-                'admin claims it with the admin code you share.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(height: 1.5),
-              ),
-              const SizedBox(height: AppSpacing.xxl),
+              const SizedBox(height: AppSpacing.md),
               if (companies.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: AppSpacing.xxl),
@@ -77,31 +80,21 @@ class SuperAdminConsole extends StatelessWidget {
                     subtitle: 'Create the first workspace to get started.',
                   ),
                 )
-              else ...[
-                Text(
-                  '${companies.length} ${companies.length == 1 ? "COMPANY" : "COMPANIES"}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    letterSpacing: 1.4,
-                    fontWeight: FontWeight.w700,
-                    color: context.colors.textTertiary,
-                  ),
+              else
+                AppGroup(
+                  children: [
+                    for (final c in companies)
+                      EntityTile(
+                        inGroup: true,
+                        leading: Avatar(name: c.name, square: true),
+                        title: c.name,
+                        subtitle:
+                            '${c.totalEmployees} people · ${c.hasAdmin ? c.adminEmail : "admin not claimed"}',
+                        trailing: StatusBadge(status: c.status),
+                        onTap: () => _showSheet(context, repo, c),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: AppSpacing.md),
-                for (final c in companies) ...[
-                  EntityTile(
-                    leading: Avatar(name: c.name, size: 44),
-                    title: c.name,
-                    subtitle:
-                        '${c.totalEmployees} employees · ${c.hasAdmin ? c.adminEmail : "admin unassigned"}',
-                    trailing: StatusBadge(
-                      status: c.status == 'active' ? 'active' : 'absent',
-                      label: c.status,
-                    ),
-                    onTap: () => _showSheet(context, repo, c),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-              ],
             ],
           );
         },

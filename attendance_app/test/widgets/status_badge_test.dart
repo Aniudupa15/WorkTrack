@@ -11,17 +11,17 @@ Widget _host(Widget child) => MaterialApp(
 
 void main() {
   group('StatusBadge', () {
-    testWidgets('renders the status label in upper case', (tester) async {
+    testWidgets('renders the status as a sentence-case label', (tester) async {
       await tester.pumpWidget(_host(const StatusBadge(status: 'present')));
-      expect(find.text('PRESENT'), findsOneWidget);
+      expect(find.text('Present'), findsOneWidget);
     });
 
     testWidgets('prefers an explicit label over the status', (tester) async {
       await tester.pumpWidget(
         _host(const StatusBadge(status: 'present', label: 'active')),
       );
-      expect(find.text('ACTIVE'), findsOneWidget);
-      expect(find.text('PRESENT'), findsNothing);
+      expect(find.text('active'), findsOneWidget);
+      expect(find.text('Present'), findsNothing);
     });
   });
 }

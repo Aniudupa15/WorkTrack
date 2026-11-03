@@ -1,30 +1,27 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
-import '../theme/app_spacing.dart';
 import 'app_card.dart';
 
-/// A single dashboard KPI: a big number with a label and a small tinted icon
-/// chip. Designed to sit in a 2-up grid so admin/employee dashboards read as a
-/// scannable metrics board (Stripe / Rippling style) instead of a stack of
-/// full-width cards.
+/// A compact stat card: a small label (with an optional status dot) over a
+/// big tabular number. Sits three-up in a row on dashboards and summaries.
 class MetricTile extends StatelessWidget {
   const MetricTile({
     super.key,
     required this.label,
     required this.value,
-    required this.icon,
-    this.accent,
+    this.dotColor,
+    this.valueColor,
     this.onTap,
     this.footnote,
   });
 
   final String label;
   final String value;
-  final IconData icon;
 
-  /// Icon-chip tint; defaults to brand.
-  final Color? accent;
+  /// Colour of the dot before the label (status meaning); none when null.
+  final Color? dotColor;
+  final Color? valueColor;
   final VoidCallback? onTap;
 
   /// Optional small caption under the value (e.g. "of 24 staff").
@@ -33,39 +30,50 @@ class MetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final accentColor = accent ?? colors.brand;
     return AppCard(
       onTap: onTap,
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      radius: 14,
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
-            child: Icon(icon, size: 18, color: accentColor),
-          ),
-          const SizedBox(height: AppSpacing.md),
           Text(
             value,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontFamily: 'HankenGrotesk',
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-              height: 1.0,
+            style: TextStyle(
+              fontSize: 24,
+              height: 28 / 24,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
+              color: valueColor ?? colors.textPrimary,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
+          Row(
+            children: [
+              if (dotColor != null) ...[
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ),
           if (footnote != null) ...[
             const SizedBox(height: 2),
@@ -76,6 +84,26 @@ class MetricTile extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Three (or more) [MetricTile]s in an equal-width row.
+class MetricRow extends StatelessWidget {
+  const MetricRow({super.key, required this.tiles});
+
+  final List<MetricTile> tiles;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < tiles.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(child: tiles[i]),
+        ],
+      ],
     );
   }
 }

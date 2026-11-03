@@ -188,7 +188,7 @@ class _AddCompanyState extends State<AddCompany> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _label('COMPANY'),
+              _label('Company'),
               const SizedBox(height: AppSpacing.md),
               _field(
                 _nameCtrl,
@@ -203,7 +203,7 @@ class _AddCompanyState extends State<AddCompany> {
                 Icons.location_on_outlined,
               ),
               const SizedBox(height: AppSpacing.xxl),
-              _label('FIRST ADMIN'),
+              _label('First admin'),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 'This person claims the company with the admin code — PunchIn '
@@ -226,7 +226,7 @@ class _AddCompanyState extends State<AddCompany> {
                 keyboard: TextInputType.emailAddress,
               ),
               const SizedBox(height: AppSpacing.xxl),
-              _label('DEFAULTS'),
+              _label('Defaults'),
               const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
@@ -264,10 +264,9 @@ class _AddCompanyState extends State<AddCompany> {
   Widget _label(String text) => Text(
     text,
     style: TextStyle(
-      color: context.colors.textTertiary,
-      fontSize: 12,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 1.4,
+      color: context.colors.textSecondary,
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
     ),
   );
 

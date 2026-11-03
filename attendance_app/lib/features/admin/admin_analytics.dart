@@ -8,6 +8,7 @@ import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/data/datasources/report_service.dart';
@@ -90,12 +91,12 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
       _Segment('Present', present, colors.success),
       _Segment('Late', late, colors.warning),
       _Segment('Absent', absent, colors.danger),
-      _Segment('Half Day', halfDay, colors.info),
+      _Segment('Half day', halfDay, colors.info),
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Analytics'),
+      appBar: TabHeader(
+        title: 'Reports',
         actions: [
           IconButton(
             icon: const Icon(Icons.ios_share_rounded),

@@ -37,7 +37,7 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Attendance Logs'),
+        title: const Text('Attendance logs'),
         actions: [
           IconButton(
             icon: const Icon(Icons.calendar_month_rounded),
@@ -156,7 +156,7 @@ class _LogCard extends StatelessWidget {
             log.employeeName.isNotEmpty
                 ? log.employeeName
                 : log.employeeId.substring(0, 8),
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
           ),
           subtitle: Text(
             log.date,
@@ -178,7 +178,7 @@ class _LogCard extends StatelessWidget {
                   _row(
                     context,
                     Icons.login_rounded,
-                    'Check In',
+                    'Check-in',
                     log.checkIn != null
                         ? DateFormat('hh:mm a').format(log.checkIn!)
                         : '--:--',
@@ -187,7 +187,7 @@ class _LogCard extends StatelessWidget {
                   _row(
                     context,
                     Icons.logout_rounded,
-                    'Check Out',
+                    'Check-out',
                     log.checkOut != null
                         ? DateFormat('hh:mm a').format(log.checkOut!)
                         : '--:--',

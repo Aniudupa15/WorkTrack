@@ -21,9 +21,20 @@ void main() {
       expect(colors.statusColor('rejected'), colors.danger);
     });
 
-    test('unknown status falls back to info', () {
+    test('leave and half day map to info', () {
+      expect(colors.statusColor('leave'), colors.info);
       expect(colors.statusColor('half_day'), colors.info);
-      expect(colors.statusColor('whatever'), colors.info);
+    });
+
+    test('unknown status falls back to neutral grey', () {
+      expect(colors.statusColor('whatever'), colors.textSecondary);
+      expect(colors.statusSoftColor('whatever'), colors.surfaceMuted);
+    });
+
+    test('soft colours pair with their strong tone', () {
+      expect(colors.statusSoftColor('present'), colors.successSoft);
+      expect(colors.statusSoftColor('late'), colors.warningSoft);
+      expect(colors.statusSoftColor('rejected'), colors.dangerSoft);
     });
   });
 }

@@ -1,4 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -23,12 +27,32 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await _useEmulatorsIfRequested();
   await Hive.initFlutter();
   await Hive.openBox(OfflineAttendanceStore.boxName);
   final prefs = await SharedPreferences.getInstance();
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   _wireCrashReporting();
   configureDependencies(prefs);
+}
+
+/// Development only: `--dart-define=USE_FIREBASE_EMULATORS=true` points Auth,
+/// Firestore, Storage and Functions at the local Firebase emulator suite
+/// (10.0.2.2 is the host machine from an Android emulator). Never set in
+/// release builds.
+Future<void> _useEmulatorsIfRequested() async {
+  const enabled = bool.fromEnvironment('USE_FIREBASE_EMULATORS');
+  if (!enabled || kReleaseMode) return;
+  const host = String.fromEnvironment(
+    'FIREBASE_EMULATOR_HOST',
+    defaultValue: '10.0.2.2',
+  );
+  await FirebaseAuth.instance.useAuthEmulator(host, 9099);
+  FirebaseFirestore.instance.useFirestoreEmulator(host, 8085);
+  await FirebaseStorage.instance.useStorageEmulator(host, 9199);
+  FirebaseFunctions.instanceFor(
+    region: 'asia-south1',
+  ).useFunctionsEmulator(host, 5001);
 }
 
 /// Routes uncaught Flutter framework and platform (async) errors to

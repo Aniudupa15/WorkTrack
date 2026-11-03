@@ -9,7 +9,7 @@ import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/widgets/app_button.dart';
-import 'package:attendance_app/core/widgets/app_card.dart';
+import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/core/widgets/app_chip.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/data/models/leave_model.dart';
@@ -109,12 +109,11 @@ class _LeaveRequestState extends State<LeaveRequest> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    final dateFormat = DateFormat('dd MMM yyyy');
+    final dateFormat = DateFormat('EEE, d MMM');
     final days = _endDate.difference(_startDate).inDays + 1;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Request Leave')),
+      appBar: AppBar(title: const Text('Request time off')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.xl,
@@ -127,7 +126,7 @@ class _LeaveRequestState extends State<LeaveRequest> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _label('LEAVE TYPE'),
+              _label('Leave type'),
               const SizedBox(height: AppSpacing.md),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -143,7 +142,7 @@ class _LeaveRequestState extends State<LeaveRequest> {
                     .toList(),
               ),
               const SizedBox(height: AppSpacing.xxl),
-              _label('DURATION'),
+              _label('Dates'),
               const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
@@ -165,7 +164,7 @@ class _LeaveRequestState extends State<LeaveRequest> {
                 ],
               ),
               const SizedBox(height: AppSpacing.xxl),
-              _label('REASON'),
+              _label('Reason'),
               const SizedBox(height: AppSpacing.md),
               TextFormField(
                 controller: _reasonCtrl,
@@ -180,35 +179,16 @@ class _LeaveRequestState extends State<LeaveRequest> {
               ),
               const SizedBox(height: AppSpacing.xxl),
               // Summary before submit
-              AppCard(
-                color: colors.brandSoft,
-                border: false,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.event_available_rounded,
-                      color: colors.brand,
-                      size: 22,
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Text(
-                        'You’re requesting $days ${days > 1 ? "days" : "day"} '
-                        'of $_type leave.',
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
+              AppBanner(
+                icon: Icons.event_available_rounded,
+                child: Text(
+                  'You’re requesting $days ${days > 1 ? "days" : "day"} '
+                  'of $_type leave. It goes to your manager for approval.',
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),
               AppButton(
-                label: 'Submit request',
-                icon: Icons.send_rounded,
+                label: 'Send request',
                 loading: _submitting,
                 onPressed: _submitting ? null : _submit,
               ),
@@ -222,10 +202,9 @@ class _LeaveRequestState extends State<LeaveRequest> {
   Widget _label(String text) => Text(
     text,
     style: TextStyle(
-      color: context.colors.textTertiary,
-      fontSize: 12,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 1.4,
+      color: context.colors.textSecondary,
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
     ),
   );
 
@@ -237,7 +216,7 @@ class _LeaveRequestState extends State<LeaveRequest> {
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -259,8 +238,8 @@ class _LeaveRequestState extends State<LeaveRequest> {
                 Text(
                   value,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
                   ),
                 ),
               ],

@@ -1,44 +1,62 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
-import '../theme/app_spacing.dart';
 
-/// A compact status pill. In the editorial identity, positive/neutral states
-/// (present, approved, active) read as a crisp outlined chip, while
-/// attention states (late, pending, absent, rejected, inactive, suspended)
-/// are filled with the vermilion accent.
+/// A tinted status pill: a soft background, a dot, and the status word in the
+/// strong tone (present = green, late/pending = amber, absent/rejected = red,
+/// leave = blue). Status is never shown by colour alone — the word is always
+/// there.
 class StatusBadge extends StatelessWidget {
-  const StatusBadge({super.key, required this.status, this.label});
+  const StatusBadge({
+    super.key,
+    required this.status,
+    this.label,
+    this.dot = true,
+  });
 
   final String status;
-  final String? label;
 
-  static const _positive = {'present', 'approved', 'active', 'on_time'};
+  /// Text to show instead of the humanised [status].
+  final String? label;
+  final bool dot;
+
+  static String humanise(String status) {
+    final words = status.replaceAll('_', ' ');
+    if (words.isEmpty) return words;
+    return words[0].toUpperCase() + words.substring(1);
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final positive = _positive.contains(status);
-    final text = (label ?? status).toUpperCase();
-
+    final fg = colors.statusColor(status);
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 4,
-      ),
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: positive ? Colors.transparent : colors.danger,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: positive ? Border.all(color: colors.textPrimary) : null,
+        color: colors.statusSoftColor(status),
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: positive ? colors.textPrimary : colors.onBrand,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dot) ...[
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label ?? humanise(status),
+            style: TextStyle(
+              color: fg,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

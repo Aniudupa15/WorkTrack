@@ -10,6 +10,8 @@ import 'app_spacing.dart';
 class AppTheme {
   const AppTheme._();
 
+  static const fontFamily = 'DMSans';
+
   static ThemeData get light => _build(Brightness.light, AppColors.light);
   static ThemeData get dark => _build(Brightness.dark, AppColors.dark);
 
@@ -26,68 +28,87 @@ class AppTheme {
           error: c.danger,
         );
 
-    const family = 'HankenGrotesk';
     final baseText =
         (isDark
                 ? Typography.material2021().white
                 : Typography.material2021().black)
-            .apply(fontFamily: family);
+            .apply(fontFamily: fontFamily);
 
-    // Tight, confident tracking on large type + comfortable line-height on body
-    // — the hallmark of a polished, professional interface.
-    final textTheme = baseText.copyWith(
-      // Editorial serif for the largest headlines — the app's signature voice.
-      // Heavy grotesk display — impactful, tightly tracked editorial headlines.
-      displaySmall: baseText.displaySmall?.copyWith(
-        fontFamily: 'HankenGrotesk',
-        fontWeight: FontWeight.w800,
-        letterSpacing: -1,
-        height: 1.02,
-        color: c.textPrimary,
-      ),
-      headlineSmall: baseText.headlineSmall?.copyWith(
-        fontFamily: 'HankenGrotesk',
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.6,
-        height: 1.05,
-        color: c.textPrimary,
-      ),
-      titleLarge: baseText.titleLarge?.copyWith(
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.2,
-        color: c.textPrimary,
-      ),
-      titleMedium: baseText.titleMedium?.copyWith(
-        fontWeight: FontWeight.w600,
-        letterSpacing: -0.1,
-        color: c.textPrimary,
-      ),
-      bodyLarge: baseText.bodyLarge?.copyWith(
-        color: c.textPrimary,
-        height: 1.45,
-      ),
-      bodyMedium: baseText.bodyMedium?.copyWith(
-        color: c.textSecondary,
-        height: 1.45,
-      ),
-      bodySmall: baseText.bodySmall?.copyWith(color: c.textTertiary),
-      labelLarge: baseText.labelLarge?.copyWith(
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.2,
-      ),
+    // Design system v2 type scale: 700 headings, 600 titles, 400 body at 15px.
+    final textTheme = baseText
+        .copyWith(
+          displaySmall: TextStyle(
+            fontSize: 28,
+            height: 34 / 28,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.4,
+            color: c.textPrimary,
+          ),
+          headlineSmall: TextStyle(
+            fontSize: 22,
+            height: 28 / 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
+            color: c.textPrimary,
+          ),
+          titleLarge: TextStyle(
+            fontSize: 17,
+            height: 24 / 17,
+            fontWeight: FontWeight.w600,
+            color: c.textPrimary,
+          ),
+          titleMedium: TextStyle(
+            fontSize: 15,
+            height: 20 / 15,
+            fontWeight: FontWeight.w600,
+            color: c.textPrimary,
+          ),
+          bodyLarge: TextStyle(
+            fontSize: 15,
+            height: 22 / 15,
+            color: c.textPrimary,
+          ),
+          bodyMedium: TextStyle(
+            fontSize: 15,
+            height: 22 / 15,
+            color: c.textSecondary,
+          ),
+          bodySmall: TextStyle(
+            fontSize: 13,
+            height: 18 / 13,
+            color: c.textSecondary,
+          ),
+          labelLarge: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+          labelSmall: TextStyle(
+            fontSize: 12,
+            height: 16 / 12,
+            fontWeight: FontWeight.w500,
+            color: c.textTertiary,
+          ),
+        )
+        .apply(fontFamily: fontFamily);
+
+    final controlShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppRadius.md),
     );
+
+    OutlineInputBorder inputBorder(Color color, [double width = 1]) =>
+        OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: BorderSide(color: color, width: width),
+        );
 
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: c.background,
-      fontFamily: family,
+      fontFamily: fontFamily,
       textTheme: textTheme,
       extensions: [c],
-      splashFactory: InkSparkle.splashFactory,
-      // Smooth, iOS-style forward/back slide on every platform — reads as a
-      // more refined, considered app than the default zoom.
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: CupertinoPageTransitionsBuilder(),
@@ -95,11 +116,12 @@ class AppTheme {
         },
       ),
       appBarTheme: AppBarTheme(
-        centerTitle: false,
+        centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0.5,
         backgroundColor: c.background,
         foregroundColor: c.textPrimary,
+        surfaceTintColor: Colors.transparent,
         systemOverlayStyle: isDark
             ? SystemUiOverlayStyle.light
             : SystemUiOverlayStyle.dark,
@@ -107,10 +129,7 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: c.surface,
-        // Flat, hairline-defined — editorial cards carry a crisp border, not a
-        // shadow.
         elevation: 0,
-        shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
@@ -123,73 +142,68 @@ class AppTheme {
         filled: true,
         fillColor: c.surface,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.lg,
+          horizontal: 14,
+          vertical: 14,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          borderSide: BorderSide(color: c.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          borderSide: BorderSide(color: c.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          borderSide: BorderSide(color: c.brand, width: 2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          borderSide: BorderSide(color: c.danger),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          borderSide: BorderSide(color: c.danger, width: 2),
-        ),
+        border: inputBorder(c.border),
+        enabledBorder: inputBorder(c.border),
+        focusedBorder: inputBorder(c.brand, 1.5),
+        errorBorder: inputBorder(c.danger),
+        focusedErrorBorder: inputBorder(c.danger, 1.5),
         labelStyle: TextStyle(color: c.textSecondary),
+        floatingLabelStyle: TextStyle(color: c.brand),
         hintStyle: TextStyle(color: c.textTertiary),
-        prefixIconColor: c.textSecondary,
+        prefixIconColor: c.textTertiary,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: c.brand,
           foregroundColor: c.onBrand,
           disabledBackgroundColor: c.brand.withValues(alpha: 0.4),
-          minimumSize: const Size(double.infinity, 54),
+          minimumSize: const Size(double.infinity, 52),
           elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-          ),
+          shape: controlShape,
+          textStyle: textTheme.labelLarge,
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: c.brand,
+          foregroundColor: c.onBrand,
+          minimumSize: const Size(0, 52),
+          shape: controlShape,
           textStyle: textTheme.labelLarge,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: c.brand,
-          minimumSize: const Size(0, 50),
-          side: BorderSide(color: c.border),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-          ),
+          foregroundColor: c.textPrimary,
+          minimumSize: const Size(0, 52),
+          side: BorderSide(color: c.borderStrong),
+          shape: controlShape,
           textStyle: textTheme.labelLarge,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: c.brand),
+        style: TextButton.styleFrom(
+          foregroundColor: c.brand,
+          textStyle: textTheme.labelLarge,
+        ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: c.brand,
         foregroundColor: c.onBrand,
         elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: c.surfaceMuted,
-        selectedColor: c.brand,
+        backgroundColor: c.surface,
+        selectedColor: c.brandSoft,
         side: BorderSide(color: c.border),
-        labelStyle: TextStyle(color: c.textSecondary, fontSize: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-        ),
+        labelStyle: TextStyle(color: c.textPrimary, fontSize: 14),
+        shape: const StadiumBorder(),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: c.surface,
@@ -197,13 +211,15 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.xxl),
         ),
-        titleTextStyle: textTheme.titleLarge,
+        titleTextStyle: textTheme.headlineSmall,
         contentTextStyle: textTheme.bodyMedium,
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: c.surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
+        showDragHandle: true,
+        dragHandleColor: c.borderStrong,
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
             top: Radius.circular(AppRadius.xxl),
           ),
@@ -211,14 +227,39 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: c.surface,
-        contentTextStyle: TextStyle(color: c.textPrimary),
+        backgroundColor: c.textPrimary,
+        contentTextStyle: TextStyle(
+          color: c.surface,
+          fontFamily: fontFamily,
+          fontSize: 14,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
       ),
-      progressIndicatorTheme: ProgressIndicatorThemeData(color: c.brand),
+      switchTheme: SwitchThemeData(
+        thumbColor: const WidgetStatePropertyAll(Colors.white),
+        trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? c.brand : c.borderStrong,
+        ),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? c.brand : null,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: c.brand,
+        linearTrackColor: c.border,
+      ),
       iconTheme: IconThemeData(color: c.textSecondary),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: c.brand,
+        thumbColor: c.brand,
+        inactiveTrackColor: c.border,
+      ),
     );
   }
 }

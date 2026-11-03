@@ -53,20 +53,20 @@ class AppButton extends StatelessWidget {
       case AppButtonVariant.secondary:
         bg = colors.surface;
         fg = colors.textPrimary;
-        borderColor = colors.border;
+        borderColor = colors.borderStrong;
       case AppButtonVariant.ghost:
         bg = Colors.transparent;
         fg = colors.brand;
         borderColor = null;
       case AppButtonVariant.danger:
-        bg = colors.danger.withValues(alpha: 0.12);
+        bg = Colors.transparent;
         fg = colors.danger;
         borderColor = null;
     }
 
-    final height = small ? 40.0 : 52.0;
-    final radius = AppRadius.sm; // Aura: buttons use an 8px radius
-    final hpad = small ? AppSpacing.lg : AppSpacing.xl;
+    final height = small ? 36.0 : 52.0;
+    final radius = small ? 10.0 : AppRadius.md;
+    final hpad = small ? 14.0 : AppSpacing.lg;
 
     final content = loading
         ? SizedBox(
@@ -88,9 +88,8 @@ class AppButton extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: fg,
-                    fontSize: small ? 13 : 15,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.2,
+                    fontSize: small ? 14 : 15,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),

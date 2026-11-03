@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
-import 'package:attendance_app/core/widgets/app_button.dart';
+import 'package:attendance_app/core/utils/attendance_clock.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
+import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/core/widgets/avatar.dart';
+import 'package:attendance_app/core/widgets/entity_tile.dart';
+import 'package:attendance_app/core/widgets/section_header.dart';
+import 'package:attendance_app/features/shared/settings_screen.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
-/// Read-only view of the signed-in user's profile and, for employees, their
-/// assigned shift and work location.
+/// The signed-in user's profile: who they are, where and when they work, and
+/// account actions (privacy, licences, sign out).
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -18,136 +23,150 @@ class ProfileScreen extends StatelessWidget {
     final prov = Provider.of<UserProvider>(context);
     final user = prov.user;
     final colors = context.colors;
-    if (user == null) {
-      return const Scaffold(body: SizedBox.shrink());
-    }
+    if (user == null) return const Scaffold(body: SizedBox.shrink());
 
-    final rows = <(IconData, String, String)>[
-      (Icons.badge_outlined, 'Role', user.role),
-      if (prov.company?.name.isNotEmpty ?? false)
-        (Icons.business_outlined, 'Company', prov.company!.name),
-      if (user.role == 'admin')
-        (Icons.key_outlined, 'Company code', user.companyId ?? user.id),
-      if (user.department != null)
-        (Icons.apartment_outlined, 'Department', user.department!),
-      if (user.position != null)
-        (Icons.work_outline, 'Position', user.position!),
-      if (user.phone != null) (Icons.phone_outlined, 'Phone', user.phone!),
-      if (user.role == 'employee')
-        (
-          Icons.schedule_outlined,
-          'Shift',
-          '${user.shiftStart} – ${user.shiftEnd}',
-        ),
-      if (user.workAddress != null)
-        (Icons.place_outlined, 'Work location', user.workAddress!),
-    ];
+    final subtitle = [
+      user.department,
+      user.position,
+    ].whereType<String>().where((s) => s.isNotEmpty).join(' · ');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: Navigator.of(context).canPop()
+          ? AppBar(title: const Text('Profile'))
+          : const TabHeader(title: 'Profile'),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.xs,
+          AppSpacing.lg,
+          AppSpacing.xxl,
+        ),
         children: [
-          Center(
-            child: Column(
+          AppCard(
+            child: Row(
               children: [
-                Avatar(name: user.name, size: 88),
-                const SizedBox(height: AppSpacing.lg),
-                Text(
-                  user.name,
-                  style: Theme.of(context).textTheme.headlineSmall,
+                Avatar(name: user.name, size: 64, imageUrl: user.avatarUrl),
+                const SizedBox(width: AppSpacing.lg),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.name,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      if (subtitle.isNotEmpty)
+                        Text(
+                          subtitle,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      if (prov.company?.name.isNotEmpty ?? false)
+                        Text(
+                          prov.company!.name,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(user.email, style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(height: AppSpacing.md),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.brandSoft,
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                  ),
-                  child: Text(
-                    user.role == 'admin' ? 'Administrator' : 'Employee',
-                    style: TextStyle(
-                      color: colors.brand,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
+              ],
+            ),
+          ),
+          const SectionHeader(title: 'Details'),
+          const SizedBox(height: AppSpacing.sm),
+          AppGroup(
+            children: [
+              EntityTile(
+                inGroup: true,
+                leading: const IconChip(icon: Icons.mail_outline_rounded),
+                title: 'Email',
+                subtitle: user.email.isEmpty ? 'Not set' : user.email,
+              ),
+              if (user.phone != null)
+                EntityTile(
+                  inGroup: true,
+                  leading: const IconChip(icon: Icons.phone_outlined),
+                  title: 'Phone',
+                  subtitle: user.phone,
+                ),
+              if (user.role == 'employee') ...[
+                EntityTile(
+                  inGroup: true,
+                  leading: const IconChip(icon: Icons.location_on_outlined),
+                  title: 'Work location',
+                  subtitle: user.workAddress ?? 'Not assigned yet',
+                ),
+                EntityTile(
+                  inGroup: true,
+                  leading: const IconChip(icon: Icons.schedule_rounded),
+                  title: 'Shift',
+                  subtitle:
+                      '${AttendanceClock.formatShiftTime(user.shiftStart)} – '
+                      '${AttendanceClock.formatShiftTime(user.shiftEnd)}',
+                ),
+              ],
+              if (user.role == 'admin')
+                EntityTile(
+                  inGroup: true,
+                  leading: const IconChip(icon: Icons.verified_user_outlined),
+                  title: 'Role',
+                  subtitle: 'Company administrator',
+                ),
+            ],
+          ),
+          const SectionHeader(title: 'Account'),
+          const SizedBox(height: AppSpacing.sm),
+          AppGroup(
+            children: [
+              EntityTile(
+                inGroup: true,
+                title: 'Privacy policy',
+                chevron: true,
+                onTap: () => launchUrl(
+                  Uri.parse(SettingsScreen.privacyUrl),
+                  mode: LaunchMode.externalApplication,
+                ),
+              ),
+              EntityTile(
+                inGroup: true,
+                title: 'Open-source licences',
+                chevron: true,
+                onTap: () => showLicensePage(
+                  context: context,
+                  applicationName: 'PunchIn',
+                  applicationVersion: SettingsScreen.version,
+                ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => prov.signOut(),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: 18,
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Sign out',
+                          style: TextStyle(
+                            color: colors.danger,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.xxxl),
-          Text(
-            'ACCOUNT DETAILS',
-            style: TextStyle(
-              color: colors.textTertiary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.4,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          AppCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                for (var i = 0; i < rows.length; i++) ...[
-                  if (i > 0) Divider(height: 1, color: colors.border),
-                  _InfoRow(
-                    icon: rows[i].$1,
-                    label: rows[i].$2,
-                    value: rows[i].$3,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xxl),
-          AppButton(
-            label: 'Sign out',
-            icon: Icons.logout_rounded,
-            variant: AppButtonVariant.danger,
-            onPressed: () => prov.signOut(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: colors.textSecondary),
-          const SizedBox(width: AppSpacing.lg),
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          const Spacer(),
-          Flexible(
+          const SizedBox(height: AppSpacing.lg),
+          Center(
             child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              'PunchIn ${SettingsScreen.version}',
+              style: Theme.of(context).textTheme.labelSmall,
             ),
           ),
         ],

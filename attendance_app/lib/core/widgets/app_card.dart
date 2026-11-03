@@ -4,22 +4,21 @@ import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'pressable.dart';
 
-/// The canonical surface in the app: a bordered, rounded panel on
-/// [AppColors.surface]. Every card-shaped thing (dashboard tiles, list rows,
-/// info panels) is built from this so radius, border, padding, and press
-/// behaviour stay identical everywhere.
+/// The canonical surface in the app: a white, rounded card with a hairline
+/// border and a soft shadow on the grey screen background. Every card-shaped
+/// thing (dashboard tiles, info panels) is built from this so radius, border,
+/// padding, and press behaviour stay identical everywhere.
 ///
 /// Pass [onTap] to make it interactive — it then animates on press via
-/// [Pressable]. In light mode an optional soft shadow adds quiet depth; in dark
-/// mode the hairline border alone defines the edge (shadows read as muddy on
-/// near-black, so they're suppressed).
+/// [Pressable]. [elevated] swaps the resting shadow for the raised one used by
+/// floating panels (map overlays).
 class AppCard extends StatelessWidget {
   const AppCard({
     super.key,
     required this.child,
     this.onTap,
-    this.padding = const EdgeInsets.all(AppSpacing.xl),
-    this.radius = AppRadius.lg, // Aura: 16px "pod" containers
+    this.padding = const EdgeInsets.all(AppSpacing.lg),
+    this.radius = AppRadius.lg,
     this.color,
     this.border = true,
     this.elevated = false,
@@ -31,21 +30,21 @@ class AppCard extends StatelessWidget {
   final double radius;
   final Color? color;
   final bool border;
-
-  /// Adds a soft drop shadow in light mode for a subtle lift.
   final bool elevated;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    // Editorial cards are flat and hairline-defined — [elevated] is retained
-    // for API compatibility but no longer paints a shadow.
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final surface = Container(
       padding: padding,
       decoration: BoxDecoration(
         color: color ?? colors.surface,
         borderRadius: BorderRadius.circular(radius),
         border: border ? Border.all(color: colors.border) : null,
+        boxShadow: dark
+            ? null
+            : (elevated ? AppShadows.raised : AppShadows.card),
       ),
       child: child,
     );
@@ -55,6 +54,34 @@ class AppCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(radius),
       child: surface,
+    );
+  }
+}
+
+/// A card that stacks related rows separated by hairline dividers — the
+/// settings-list / grouped-table pattern used for most lists in the app.
+class AppGroup extends StatelessWidget {
+  const AppGroup({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) Divider(height: 1, color: colors.border),
+              children[i],
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
