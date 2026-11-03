@@ -39,10 +39,16 @@ class _LeaveManagementState extends State<LeaveManagement>
     final colors = context.colors;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Leave Management'),
+        title: const Text('Leave requests'),
         bottom: TabBar(
           controller: _tabCtrl,
           indicatorColor: colors.brand,
+          indicatorSize: TabBarIndicatorSize.label,
+          dividerColor: colors.border,
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+          ),
           labelColor: colors.textPrimary,
           unselectedLabelColor: colors.textSecondary,
           tabs: const [

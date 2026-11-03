@@ -43,10 +43,10 @@ class _AppSearchFieldState extends State<AppSearchField> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Container(
-      height: 46,
+      height: 48,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       decoration: BoxDecoration(
-        color: colors.surfaceMuted,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: colors.border),
       ),
@@ -65,7 +65,13 @@ class _AppSearchFieldState extends State<AppSearchField> {
               style: TextStyle(color: colors.textPrimary, fontSize: 15),
               decoration: InputDecoration(
                 isDense: true,
+                // Override the app-wide filled/outlined input theme: the
+                // container above is the field's only box.
+                filled: false,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
                 hintText: widget.hint,
                 hintStyle: TextStyle(color: colors.textTertiary, fontSize: 15),
               ),

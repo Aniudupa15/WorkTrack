@@ -1,25 +1,32 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:async';
-import 'dart:io';
+
 import 'package:attendance_app/core/constants/app_constants.dart';
 import 'package:attendance_app/core/di/injection.dart';
-import 'package:attendance_app/core/utils/attendance_clock.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/utils/attendance_clock.dart';
+import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
-import 'package:attendance_app/core/widgets/pressable.dart';
+import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
-import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/data/datasources/location_service.dart';
-import 'package:attendance_app/features/shared/user_provider.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
+import 'package:attendance_app/domain/repositories/attendance_repository.dart';
+import 'package:attendance_app/features/employee/punch_success.dart';
+import 'package:attendance_app/features/shared/user_provider.dart';
 
+/// Live punch screen: the work zone on a map with a bottom sheet that shows
+/// whether the employee is inside it, and the punch in / out action.
 class MarkAttendanceScreen extends StatefulWidget {
   const MarkAttendanceScreen({super.key});
   @override
@@ -29,8 +36,10 @@ class MarkAttendanceScreen extends StatefulWidget {
 class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   final LocationService _locationService = sl<LocationService>();
   final AttendanceRepository _attendance = sl<AttendanceRepository>();
+  final MapController _map = MapController();
   LatLng? _currentLocation;
   Position? _position;
+  String? _locationError;
   bool _isLoading = true;
   bool _actionLoading = false;
   AttendanceModel? _todayAttendance;
@@ -44,10 +53,14 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   Future<void> _init() async {
     final prov = Provider.of<UserProvider>(context, listen: false);
     if (prov.user != null && prov.company != null) {
-      _todayAttendance = await _attendance.getTodayAttendance(
-        prov.company!.id,
-        prov.user!.id,
-      );
+      try {
+        _todayAttendance = await _attendance.getTodayAttendance(
+          prov.company!.id,
+          prov.user!.id,
+        );
+      } catch (_) {
+        // Shown as "not punched yet"; the punch itself re-validates server-side.
+      }
     }
     await _updateCurrentLocation();
     if (mounted) setState(() => _isLoading = false);
@@ -59,28 +72,28 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
       if (pos != null && mounted) {
         setState(() {
           _position = pos;
+          _locationError = null;
           _currentLocation = LatLng(pos.latitude, pos.longitude);
         });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Location error: $e')));
-      }
+      if (mounted) setState(() => _locationError = '$e');
     }
   }
 
-  bool get _isNearby {
+  LatLng? get _workLoc {
     final user = Provider.of<UserProvider>(context, listen: false).user;
-    if (_currentLocation == null ||
-        user?.workLatitude == null ||
-        user?.workLongitude == null) {
-      return false;
-    }
+    if (user?.workLatitude == null || user?.workLongitude == null) return null;
+    return LatLng(user!.workLatitude!, user.workLongitude!);
+  }
+
+  bool get _isNearby {
+    final work = _workLoc;
+    final user = Provider.of<UserProvider>(context, listen: false).user;
+    if (_currentLocation == null || work == null || user == null) return false;
     return _locationService.isWithinRadius(
       _currentLocation!,
-      LatLng(user!.workLatitude!, user.workLongitude!),
+      work,
       user.workRadius,
     );
   }
@@ -88,17 +101,9 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   /// Straight-line distance in metres from the employee to the work location,
   /// or null when either point is unknown.
   double? get _distanceMeters {
-    final user = Provider.of<UserProvider>(context, listen: false).user;
-    if (_currentLocation == null ||
-        user?.workLatitude == null ||
-        user?.workLongitude == null) {
-      return null;
-    }
-    return const Distance().as(
-      LengthUnit.Meter,
-      _currentLocation!,
-      LatLng(user!.workLatitude!, user.workLongitude!),
-    );
+    final work = _workLoc;
+    if (_currentLocation == null || work == null) return null;
+    return const Distance().as(LengthUnit.Meter, _currentLocation!, work);
   }
 
   String _fmtDistance(double m) =>
@@ -108,11 +113,10 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   /// location, not a mock location, accurate enough, and inside the zone.
   /// Returns the location payload, or null after showing why not.
   Future<Map<String, dynamic>?> _verifiedFix() async {
-    final user = Provider.of<UserProvider>(context, listen: false).user!;
-    if (user.workLatitude == null || user.workLongitude == null) {
-      _showErrorDialog(
-        'No Work Location',
-        'Your admin has not assigned a work location yet.',
+    if (_workLoc == null) {
+      _showError(
+        'No work location yet',
+        'Your admin hasn’t assigned a work location to you yet.',
       );
       return null;
     }
@@ -121,34 +125,29 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     final pos = _position;
     if (!mounted) return null;
     if (pos == null) {
-      _showErrorDialog(
-        'Location Unavailable',
-        'Could not get your current location. Check that location is on.',
+      _showError(
+        'Location unavailable',
+        'We couldn’t get your location. Check that location is turned on.',
       );
       return null;
     }
     if (pos.isMocked) {
-      _showErrorDialog(
-        'Mock Location Detected',
-        'Turn off any mock-location or GPS-spoofing app to punch.',
+      _showError(
+        'Fake GPS detected',
+        'Turn off any mock-location or GPS-spoofing app to punch in.',
       );
       return null;
     }
     if (pos.accuracy > AppConstants.maxLocationAccuracyMeters) {
-      _showErrorDialog(
-        'Weak GPS Signal',
+      _showError(
+        'Weak GPS signal',
         'Your location is only accurate to ${pos.accuracy.round()} m. '
-            'Move to an open area and try again.',
+            'Step near a window or into an open area and try again.',
       );
       return null;
     }
-    if (!_isNearby) {
-      _showErrorDialog(
-        'Outside Range',
-        'You are too far from the work location.',
-      );
-      return null;
-    }
+    // Outside the zone is shown in the sheet itself; nothing more to say.
+    if (!_isNearby) return null;
     return {
       'latitude': pos.latitude,
       'longitude': pos.longitude,
@@ -156,84 +155,86 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     };
   }
 
-  Future<void> _checkIn() async {
+  Future<void> _punch() async {
     final prov = Provider.of<UserProvider>(context, listen: false);
     final user = prov.user!;
     final company = prov.company!;
+    final checkingOut = _todayAttendance?.checkIn != null;
 
-    final shiftEnd = AttendanceClock.parseMinutes(user.shiftEnd);
-    if (shiftEnd != null &&
-        AttendanceClock.minutesOfDay(AttendanceClock.now()) >= shiftEnd) {
-      _showErrorDialog(
-        'Shift Over',
-        'Your shift ended at ${user.shiftEnd}. Check-in is closed for today.',
-      );
-      return;
+    if (!checkingOut) {
+      final shiftEnd = AttendanceClock.parseMinutes(user.shiftEnd);
+      if (shiftEnd != null &&
+          AttendanceClock.minutesOfDay(AttendanceClock.now()) >= shiftEnd) {
+        _showError(
+          'Shift is over',
+          'Your shift ended at ${user.shiftEnd}. Punch-in is closed for today.',
+        );
+        return;
+      }
     }
 
     setState(() => _actionLoading = true);
-
     try {
       final location = await _verifiedFix();
       if (location == null) return;
 
-      // Optional: capture selfie
-      String? selfiePath;
-      try {
-        final picker = ImagePicker();
-        final photo = await picker.pickImage(
-          source: ImageSource.camera,
-          preferredCameraDevice: CameraDevice.front,
-          maxWidth: 640,
+      var withSelfie = false;
+      if (checkingOut) {
+        await _attendance.checkOut(
+          companyId: company.id,
+          employeeId: user.id,
+          location: location,
         );
-        if (photo != null) {
-          selfiePath = await _attendance.uploadSelfie(
-            company.id,
-            user.id,
-            File(photo.path),
+        unawaited(sl<AnalyticsService>().logCheckOut(offline: false));
+      } else {
+        String? selfiePath;
+        try {
+          final photo = await ImagePicker().pickImage(
+            source: ImageSource.camera,
+            preferredCameraDevice: CameraDevice.front,
+            maxWidth: 640,
           );
+          if (photo != null) {
+            selfiePath = await _attendance.uploadSelfie(
+              company.id,
+              user.id,
+              File(photo.path),
+            );
+          }
+        } catch (_) {
+          // Camera unavailable or cancelled — punch without a selfie.
         }
-      } catch (_) {
-        // Camera not available or user cancelled — proceed without selfie
+        withSelfie = selfiePath != null;
+        await _attendance.checkIn(
+          companyId: company.id,
+          employeeId: user.id,
+          employeeName: user.name,
+          shiftStart: user.shiftStart,
+          location: location,
+          selfieStoragePath: selfiePath,
+        );
+        unawaited(sl<AnalyticsService>().logCheckIn(offline: false));
       }
 
-      final outcome = await _attendance.checkIn(
-        companyId: company.id,
-        employeeId: user.id,
-        employeeName: user.name,
-        shiftStart: user.shiftStart,
-        location: location,
-        selfieStoragePath: selfiePath,
-      );
-      unawaited(
-        sl<AnalyticsService>().logCheckIn(
-          offline: outcome == CheckOutcome.queuedOffline,
+      final record = await _attendance.getTodayAttendance(company.id, user.id);
+      if (!mounted || record == null) return;
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PunchSuccessScreen(
+            record: record,
+            checkedOut: checkingOut,
+            locationName: user.workAddress ?? 'Work location',
+            distanceMeters: _distanceMeters,
+            withSelfie: withSelfie,
+          ),
         ),
       );
-      if (outcome == CheckOutcome.queuedOffline) {
-        _showSuccessDialog(
-          'Saved Offline',
-          "You're offline — your check-in is saved and will sync "
-              'automatically when a connection is available.',
-        );
-      } else {
-        _todayAttendance = await _attendance.getTodayAttendance(
-          company.id,
-          user.id,
-        );
-        if (mounted) setState(() {});
-        _showSuccessDialog('Checked In', 'Your attendance has been recorded.');
-      }
     } catch (e) {
       if (mounted) {
-        final message = e is AppException
-            ? e.message
-            : 'Check-in failed. Please try again.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: context.colors.danger,
-          ),
+        _showError(
+          checkingOut ? 'Couldn’t punch out' : 'Couldn’t punch in',
+          e is AppException ? e.message : 'Something went wrong. Try again.',
         );
       }
     } finally {
@@ -241,306 +242,11 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     }
   }
 
-  Future<void> _checkOut() async {
-    final prov = Provider.of<UserProvider>(context, listen: false);
-    final user = prov.user!;
-    final company = prov.company!;
-
-    setState(() => _actionLoading = true);
-    try {
-      final location = await _verifiedFix();
-      if (location == null) return;
-      final outcome = await _attendance.checkOut(
-        companyId: company.id,
-        employeeId: user.id,
-        location: location,
-      );
-      unawaited(
-        sl<AnalyticsService>().logCheckOut(
-          offline: outcome == CheckOutcome.queuedOffline,
-        ),
-      );
-      if (outcome == CheckOutcome.queuedOffline) {
-        _showSuccessDialog(
-          'Saved Offline',
-          "You're offline — your check-out is saved and will sync "
-              'automatically when a connection is available.',
-        );
-      } else {
-        _todayAttendance = await _attendance.getTodayAttendance(
-          company.id,
-          user.id,
-        );
-        if (mounted) setState(() {});
-        _showSuccessDialog('Checked Out', 'You have successfully checked out.');
-      }
-    } catch (e) {
-      if (mounted) {
-        final message = e is AppException
-            ? e.message
-            : 'Check-out failed. Please try again.';
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
-      }
-    } finally {
-      if (mounted) setState(() => _actionLoading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final user = Provider.of<UserProvider>(context).user;
-    if (user == null || _isLoading) {
-      return const Scaffold(body: AppLoader());
-    }
-
-    final hasWorkLoc = user.workLatitude != null && user.workLongitude != null;
-    final workLoc = hasWorkLoc
-        ? LatLng(user.workLatitude!, user.workLongitude!)
-        : const LatLng(20.5937, 78.9629);
-
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text('Live Check-in'),
-        backgroundColor: Colors.transparent,
-      ),
-      body: Stack(
-        children: [
-          FlutterMap(
-            options: MapOptions(
-              initialCenter: _currentLocation ?? workLoc,
-              initialZoom: hasWorkLoc ? 16.0 : 5.0,
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.punchin.app',
-              ),
-              if (hasWorkLoc)
-                CircleLayer(
-                  circles: [
-                    CircleMarker(
-                      point: workLoc,
-                      color:
-                          (_isNearby
-                                  ? context.colors.success
-                                  : context.colors.danger)
-                              .withValues(alpha: 0.16),
-                      borderStrokeWidth: 2,
-                      borderColor: _isNearby
-                          ? context.colors.success
-                          : context.colors.danger,
-                      useRadiusInMeter: true,
-                      radius: user.workRadius,
-                    ),
-                  ],
-                ),
-              MarkerLayer(
-                markers: [
-                  if (hasWorkLoc)
-                    Marker(
-                      point: workLoc,
-                      width: 50,
-                      height: 50,
-                      child: _buildMarker(Icons.business, context.colors.brand),
-                    ),
-                  if (_currentLocation != null)
-                    Marker(
-                      point: _currentLocation!,
-                      width: 50,
-                      height: 50,
-                      child: _buildMarker(
-                        Icons.person_pin_circle,
-                        context.colors.success,
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-          Positioned(
-            bottom: 40,
-            left: 20,
-            right: 20,
-            child: _buildActionPanel(),
-          ),
-          Positioned(
-            top: 100,
-            right: 20,
-            child: FloatingActionButton.small(
-              heroTag: 'refresh_loc',
-              onPressed: _updateCurrentLocation,
-              backgroundColor: context.colors.surface,
-              foregroundColor: context.colors.textPrimary,
-              child: const Icon(Icons.my_location_rounded),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMarker(IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: [BoxShadow(color: color.withAlpha(100), blurRadius: 10)],
-      ),
-      child: Icon(icon, color: AppColors.onColor(color), size: 22),
-    );
-  }
-
-  Widget _buildActionPanel() {
-    final colors = context.colors;
-    final text = Theme.of(context).textTheme;
-    final isNearby = _isNearby;
-    final statusColor = isNearby ? colors.success : colors.warning;
-    final distance = _distanceMeters;
-
-    final String subtitle;
-    if (distance == null) {
-      subtitle = 'Locating you…';
-    } else if (isNearby) {
-      subtitle = 'You’re ${_fmtDistance(distance)} from the centre';
-    } else {
-      subtitle = '${_fmtDistance(distance)} away · move closer to check in';
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.98),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.14),
-            blurRadius: 28,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              _LivePulse(color: statusColor, active: isNearby),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isNearby ? 'Within range' : 'Out of range',
-                      style: text.titleMedium,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: text.bodySmall?.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          if (_actionLoading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-              child: AppLoader(),
-            )
-          else if (_todayAttendance == null)
-            _actionBtn('Confirm check-in', colors.brand, _checkIn)
-          else if (_todayAttendance!.checkOut == null)
-            _actionBtn('Complete check-out', colors.danger, _checkOut)
-          else
-            _completionStatus(),
-        ],
-      ),
-    );
-  }
-
-  Widget _actionBtn(String label, Color color, VoidCallback onPressed) {
-    final fg = AppColors.onColor(color);
-    return Pressable(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        height: 56,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.35),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              label.contains('out')
-                  ? Icons.logout_rounded
-                  : Icons.check_circle_rounded,
-              color: fg,
-              size: 20,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              label,
-              style: TextStyle(
-                color: fg,
-                fontSize: 15,
-                letterSpacing: 0.2,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _completionStatus() {
-    final colors = context.colors;
-    return Column(
-      children: [
-        Icon(Icons.verified_rounded, color: colors.success, size: 48),
-        const SizedBox(height: 8),
-        Text('Duty Completed', style: Theme.of(context).textTheme.titleLarge),
-        if (_todayAttendance != null)
-          Text(
-            _todayAttendance!.workDurationFormatted,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-      ],
-    );
-  }
-
-  void _showErrorDialog(String title, String message) {
-    showDialog(
+  void _showError(String title, String message) {
+    showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.error_outline, color: context.colors.danger),
-            const SizedBox(width: 12),
-            Expanded(child: Text(title)),
-          ],
-        ),
+        title: Text(title),
         content: Text(message),
         actions: [
           TextButton(
@@ -552,22 +258,122 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     );
   }
 
-  void _showSuccessDialog(String title, String message) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.check_circle, color: context.colors.success),
-            const SizedBox(width: 12),
-            Expanded(child: Text(title)),
-          ],
-        ),
-        content: Text(message),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('GREAT'),
+  @override
+  Widget build(BuildContext context) {
+    final user = Provider.of<UserProvider>(context).user;
+    if (user == null || _isLoading) {
+      return const Scaffold(body: AppLoader());
+    }
+    final colors = context.colors;
+    final work = _workLoc;
+    final inside = _isNearby;
+    final zoneColor = _currentLocation == null || inside
+        ? colors.brand
+        : colors.danger;
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _map,
+            options: MapOptions(
+              initialCenter:
+                  work ?? _currentLocation ?? const LatLng(20.5937, 78.9629),
+              initialZoom: work != null ? 16.5 : 5.0,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: AppConstants.osmTileUrl,
+                userAgentPackageName: AppConstants.packageName,
+              ),
+              if (work != null)
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: work,
+                      useRadiusInMeter: true,
+                      radius: user.workRadius,
+                      color: zoneColor.withValues(alpha: 0.12),
+                      borderColor: zoneColor,
+                      borderStrokeWidth: 2,
+                    ),
+                  ],
+                ),
+              if (work != null && _currentLocation != null && !inside)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: [_currentLocation!, work],
+                      color: colors.brand,
+                      strokeWidth: 2,
+                      pattern: StrokePattern.dashed(segments: const [6, 6]),
+                    ),
+                  ],
+                ),
+              MarkerLayer(
+                markers: [
+                  if (work != null)
+                    Marker(
+                      point: work,
+                      width: 40,
+                      height: 40,
+                      child: _OfficePin(color: colors.brand),
+                    ),
+                  if (_currentLocation != null)
+                    Marker(
+                      point: _currentLocation!,
+                      width: 40,
+                      height: 40,
+                      child: const _MeDot(),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Row(
+                children: [
+                  _FloatingIcon(
+                    icon: Icons.arrow_back_rounded,
+                    tooltip: 'Back',
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  const Spacer(),
+                  _FloatingIcon(
+                    icon: Icons.my_location_rounded,
+                    tooltip: 'Refresh location',
+                    color: colors.brand,
+                    onTap: () async {
+                      await _updateCurrentLocation();
+                      if (_currentLocation != null) {
+                        _map.move(_currentLocation!, _map.camera.zoom);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: _PunchSheet(
+              loading: _actionLoading,
+              today: _todayAttendance,
+              hasWork: work != null,
+              located: _currentLocation != null,
+              locationError: _locationError,
+              inside: inside,
+              distance: _distanceMeters,
+              accuracy: _position?.accuracy,
+              placeName: user.workAddress ?? 'your work location',
+              shiftStart: user.shiftStart,
+              shiftEnd: user.shiftEnd,
+              fmtDistance: _fmtDistance,
+              onPunch: _punch,
+              onRetry: _updateCurrentLocation,
+            ),
           ),
         ],
       ),
@@ -575,70 +381,342 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
   }
 }
 
-/// A location dot that emits a soft, repeating "radar" pulse when [active]
-/// (i.e. the employee is inside the geofence) — a subtle live signal that the
-/// GPS lock is good, the way a maps app animates your position.
-class _LivePulse extends StatefulWidget {
-  const _LivePulse({required this.color, required this.active});
+class _PunchSheet extends StatelessWidget {
+  const _PunchSheet({
+    required this.loading,
+    required this.today,
+    required this.hasWork,
+    required this.located,
+    required this.locationError,
+    required this.inside,
+    required this.distance,
+    required this.accuracy,
+    required this.placeName,
+    required this.shiftStart,
+    required this.shiftEnd,
+    required this.fmtDistance,
+    required this.onPunch,
+    required this.onRetry,
+  });
 
-  final Color color;
-  final bool active;
-
-  @override
-  State<_LivePulse> createState() => _LivePulseState();
-}
-
-class _LivePulseState extends State<_LivePulse>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1800),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
+  final bool loading;
+  final AttendanceModel? today;
+  final bool hasWork;
+  final bool located;
+  final String? locationError;
+  final bool inside;
+  final double? distance;
+  final double? accuracy;
+  final String placeName;
+  final String shiftStart;
+  final String shiftEnd;
+  final String Function(double) fmtDistance;
+  final VoidCallback onPunch;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 44,
-      height: 44,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (widget.active)
-            AnimatedBuilder(
-              animation: _c,
-              builder: (context, _) {
-                final t = _c.value;
-                return Container(
-                  width: 24 + 20 * t,
-                  height: 24 + 20 * t,
+    final colors = context.colors;
+    final checkedIn = today?.checkIn != null;
+    final done = today?.checkOut != null;
+    final now = AttendanceClock.now();
+    final start = AttendanceClock.parseMinutes(shiftStart) ?? 540;
+    final late =
+        AttendanceClock.minutesOfDay(now) >
+        start + AppConstants.lateGracePeriodMinutes;
+    final end = AttendanceClock.parseMinutes(shiftEnd) ?? 1080;
+    // Punch-in closes when the shift ends (the server rejects it too).
+    final closed = !checkedIn && AttendanceClock.minutesOfDay(now) >= end;
+    final finished = done || closed;
+
+    late final IconData icon;
+    late final Color fg;
+    late final Color bg;
+    late final String title;
+    late final String subtitle;
+    if (done) {
+      (icon, fg, bg) = (
+        Icons.check_rounded,
+        colors.success,
+        colors.successSoft,
+      );
+      title = 'Done for today';
+      subtitle = 'Worked ${today!.workDurationFormatted}';
+    } else if (closed) {
+      (icon, fg, bg) = (
+        Icons.schedule_rounded,
+        colors.warning,
+        colors.warningSoft,
+      );
+      title = 'Your shift is over';
+      subtitle =
+          'Punch-in closed at ${AttendanceClock.formatMinutes(end)}. '
+          'See you tomorrow.';
+    } else if (!hasWork) {
+      (icon, fg, bg) = (
+        Icons.location_off_outlined,
+        colors.warning,
+        colors.warningSoft,
+      );
+      title = 'No work location yet';
+      subtitle = 'Ask your admin to assign one before you can punch in.';
+    } else if (!located) {
+      (icon, fg, bg) = (
+        Icons.gps_not_fixed_rounded,
+        colors.warning,
+        colors.warningSoft,
+      );
+      title = locationError == null ? 'Finding you…' : 'Location is off';
+      subtitle = locationError ?? 'Getting a GPS fix.';
+    } else if (inside) {
+      (icon, fg, bg) = (
+        Icons.check_rounded,
+        colors.success,
+        colors.successSoft,
+      );
+      title = 'You’re inside the zone';
+      subtitle = '$placeName · ${fmtDistance(distance ?? 0)} from centre';
+    } else {
+      (icon, fg, bg) = (
+        Icons.wrong_location_outlined,
+        colors.danger,
+        colors.dangerSoft,
+      );
+      title = 'You’re not at your work location';
+      subtitle =
+          '${fmtDistance(distance ?? 0)} from $placeName. Move inside the circle to punch.';
+    }
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadius.xxl),
+        ),
+        boxShadow: AppShadows.raised,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: widget.color.withValues(alpha: (1 - t) * 0.28),
+                    color: colors.borderStrong,
+                    borderRadius: BorderRadius.circular(999),
                   ),
-                );
-              },
-            ),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: widget.color.withValues(alpha: 0.16),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              widget.active
-                  ? Icons.location_on_rounded
-                  : Icons.location_off_rounded,
-              color: widget.color,
-              size: 20,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: bg,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: fg, size: 22),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        Text(
+                          subtitle,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (located && hasWork && !finished) ...[
+                const SizedBox(height: AppSpacing.lg),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: Row(
+                    children: [
+                      _Stat('Time', DateFormat('h:mm a').format(now)),
+                      _Stat(
+                        'Status',
+                        checkedIn ? 'Checked in' : (late ? 'Late' : 'On time'),
+                        color: checkedIn
+                            ? null
+                            : (late ? colors.warning : colors.success),
+                      ),
+                      _Stat(
+                        'GPS',
+                        accuracy == null ? '—' : '±${accuracy!.round()} m',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              if (finished)
+                AppButton(
+                  label: 'Back to home',
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => Navigator.pop(context),
+                )
+              else if (located && hasWork && !inside) ...[
+                const AppBanner(
+                  icon: Icons.tips_and_updates_outlined,
+                  tone: BannerTone.warning,
+                  child: Text(
+                    'Still stuck? Turn off fake-GPS apps and set your phone’s '
+                    'date & time to automatic.',
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppButton(label: 'Try again', onPressed: onRetry),
+              ] else
+                SizedBox(
+                  height: 60,
+                  child: AppButton(
+                    label: checkedIn ? 'Punch out' : 'Punch in',
+                    icon: checkedIn
+                        ? Icons.logout_rounded
+                        : Icons.login_rounded,
+                    loading: loading,
+                    onPressed: (located && inside && !loading) ? onPunch : null,
+                  ),
+                ),
+              if (!finished) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Time is recorded by our server, not your phone',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat(this.label, this.value, {this.color});
+
+  final String label;
+  final String value;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              color: color ?? context.colors.textPrimary,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FloatingIcon extends StatelessWidget {
+  const _FloatingIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.color,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Material(
+      color: colors.surface,
+      shape: CircleBorder(side: BorderSide(color: colors.border)),
+      elevation: 2,
+      shadowColor: Colors.black26,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onTap,
+        icon: Icon(icon, color: color ?? colors.textPrimary),
+      ),
+    );
+  }
+}
+
+class _OfficePin extends StatelessWidget {
+  const _OfficePin({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: AppShadows.raised,
+      ),
+      child: const Icon(Icons.business_rounded, size: 18, color: Colors.white),
+    );
+  }
+}
+
+class _MeDot extends StatelessWidget {
+  const _MeDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 20,
+        height: 20,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2563EB),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 3),
+          boxShadow: const [
+            BoxShadow(color: Color(0x2E2563EB), spreadRadius: 8),
+          ],
+        ),
       ),
     );
   }

@@ -1,120 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
+import 'package:attendance_app/core/widgets/entity_tile.dart';
+import 'package:attendance_app/core/widgets/section_header.dart';
 
-/// App settings. The app is locked to the Aura "Deep Noir" dark identity, so
-/// this is the About surface: privacy policy, open-source licenses, and version.
+/// About the app: privacy policy, open-source licences, and version.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   // Hosted on GitHub Pages (docs/ folder). Update if the Pages URL changes.
-  static const _privacyUrl =
+  static const privacyUrl =
       'https://aniudupa15.github.io/WorkTrack/privacy-policy.html';
-  static const _version = '1.0.8 (9)';
+  static const version = '1.2.0';
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const Text('About')),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-          _SectionLabel('ABOUT'),
-          const SizedBox(height: AppSpacing.md),
-          AppCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                _AboutTile(
-                  icon: Icons.shield_outlined,
-                  label: 'Privacy policy',
-                  onTap: () => launchUrl(
-                    Uri.parse(_privacyUrl),
-                    mode: LaunchMode.externalApplication,
-                  ),
+          const SectionHeader(title: 'About'),
+          const SizedBox(height: AppSpacing.sm),
+          AppGroup(
+            children: [
+              EntityTile(
+                inGroup: true,
+                leading: const IconChip(icon: Icons.shield_outlined),
+                title: 'Privacy policy',
+                chevron: true,
+                onTap: () => launchUrl(
+                  Uri.parse(privacyUrl),
+                  mode: LaunchMode.externalApplication,
                 ),
-                Divider(height: 1, color: colors.border),
-                _AboutTile(
-                  icon: Icons.description_outlined,
-                  label: 'Open-source licenses',
-                  onTap: () => showLicensePage(
-                    context: context,
-                    applicationName: 'PunchIn',
-                    applicationVersion: _version,
-                  ),
+              ),
+              EntityTile(
+                inGroup: true,
+                leading: const IconChip(icon: Icons.description_outlined),
+                title: 'Open-source licences',
+                chevron: true,
+                onTap: () => showLicensePage(
+                  context: context,
+                  applicationName: 'PunchIn',
+                  applicationVersion: version,
                 ),
-                Divider(height: 1, color: colors.border),
-                _AboutTile(
-                  icon: Icons.info_outline_rounded,
-                  label: 'Version',
-                  trailingText: _version,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xxl),
-          Center(
-            child: Text(
-              'PunchIn',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+              ),
+              const EntityTile(
+                inGroup: true,
+                leading: IconChip(icon: Icons.info_outline_rounded),
+                title: 'Version',
+                trailing: Text(version),
+              ),
+            ],
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: TextStyle(
-        color: context.colors.textTertiary,
-        fontSize: 12,
-        letterSpacing: 1.4,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class _AboutTile extends StatelessWidget {
-  const _AboutTile({
-    required this.icon,
-    required this.label,
-    this.onTap,
-    this.trailingText,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-  final String? trailingText;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return ListTile(
-      leading: Icon(icon, size: 22, color: colors.textSecondary),
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-      trailing: trailingText != null
-          ? Text(
-              trailingText!,
-              style: TextStyle(color: colors.textTertiary, fontSize: 13),
-            )
-          : Icon(Icons.chevron_right_rounded, color: colors.textTertiary),
-      onTap: onTap,
     );
   }
 }

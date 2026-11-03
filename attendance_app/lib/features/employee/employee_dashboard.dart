@@ -2,286 +2,375 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import 'package:attendance_app/core/constants/app_constants.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/utils/attendance_clock.dart';
+import 'package:attendance_app/core/widgets/app_bottom_nav.dart';
+import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
-import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/core/widgets/avatar.dart';
 import 'package:attendance_app/core/widgets/entity_tile.dart';
+import 'package:attendance_app/core/widgets/metric_tile.dart';
 import 'package:attendance_app/core/widgets/section_header.dart';
+import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
+import 'package:attendance_app/features/employee/leave_request.dart';
 import 'package:attendance_app/features/employee/mark_attendance.dart';
 import 'package:attendance_app/features/employee/my_attendance.dart';
 import 'package:attendance_app/features/employee/my_leaves.dart';
-import 'package:attendance_app/features/shared/account_menu.dart';
+import 'package:attendance_app/features/shared/profile_screen.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
-class EmployeeDashboard extends StatelessWidget {
+/// The employee app shell: Home / Attendance / Leaves / Profile tabs.
+class EmployeeDashboard extends StatefulWidget {
   const EmployeeDashboard({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
-    final attendanceRepo = sl<AttendanceRepository>();
-    final colors = context.colors;
+  State<EmployeeDashboard> createState() => _EmployeeDashboardState();
+}
 
+class _EmployeeDashboardState extends State<EmployeeDashboard> {
+  int _tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Workspace'),
-        actions: const [
-          AccountMenu(),
-          SizedBox(width: AppSpacing.sm),
+      body: IndexedStack(
+        index: _tab,
+        children: [
+          _HomeTab(onOpenTab: (i) => setState(() => _tab = i)),
+          const MyAttendanceScreen(),
+          const MyLeaves(),
+          const ProfileScreen(),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ProfileHeader(provider: userProvider),
-            const SizedBox(height: AppSpacing.xxxl),
-            const SectionHeader(
-              title: "Today's Journey",
-              icon: Icons.today_rounded,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            _TodayStatus(repo: attendanceRepo, provider: userProvider),
-            const SizedBox(height: 40),
-            const SectionHeader(
-              title: 'Quick Actions',
-              icon: Icons.bolt_rounded,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            _ActionCard(
-              title: 'Mark Attendance',
-              subtitle: 'Check-in or Check-out for today',
-              icon: Icons.location_on_rounded,
-              color: colors.brand,
-              builder: () => const MarkAttendanceScreen(),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            _ActionCard(
-              title: 'Attendance History',
-              subtitle: 'View your past check-in records',
-              icon: Icons.history_rounded,
-              color: colors.info,
-              builder: () => const MyAttendanceScreen(),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            _ActionCard(
-              title: 'My Leaves',
-              subtitle: 'Request and track leave applications',
-              icon: Icons.event_busy_rounded,
-              color: colors.warning,
-              builder: () => const MyLeaves(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.provider});
-
-  final UserProvider provider;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = Theme.of(context).textTheme;
-    final name = provider.user?.name ?? '';
-    final firstName = name.isNotEmpty ? name.split(' ').first : 'there';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'WELCOME BACK',
-          style: text.bodySmall?.copyWith(
-            letterSpacing: 2.5,
-            fontWeight: FontWeight.w700,
-            color: colors.textTertiary,
+      bottomNavigationBar: AppBottomNav(
+        currentIndex: _tab,
+        onTap: (i) => setState(() => _tab = i),
+        items: const [
+          AppNavItem(
+            icon: Icons.home_outlined,
+            activeIcon: Icons.home_rounded,
+            label: 'Home',
           ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          'Hello, $firstName.',
-          style: text.displaySmall?.copyWith(fontSize: 38),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Icon(Icons.schedule_rounded, size: 15, color: colors.textTertiary),
-            const SizedBox(width: 6),
-            Text(
-              'Shift ${provider.user?.shiftStart} – ${provider.user?.shiftEnd}',
-              style: text.bodyMedium,
-            ),
-          ],
-        ),
-      ],
+          AppNavItem(
+            icon: Icons.calendar_month_outlined,
+            activeIcon: Icons.calendar_month_rounded,
+            label: 'Attendance',
+          ),
+          AppNavItem(
+            icon: Icons.beach_access_outlined,
+            activeIcon: Icons.beach_access_rounded,
+            label: 'Leaves',
+          ),
+          AppNavItem(
+            icon: Icons.person_outline_rounded,
+            activeIcon: Icons.person_rounded,
+            label: 'Profile',
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _TodayStatus extends StatelessWidget {
-  const _TodayStatus({required this.repo, required this.provider});
+class _HomeTab extends StatefulWidget {
+  const _HomeTab({required this.onOpenTab});
 
-  final AttendanceRepository repo;
-  final UserProvider provider;
+  final ValueChanged<int> onOpenTab;
+
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  final _repo = sl<AttendanceRepository>();
+  late Future<AttendanceModel?> _today;
+
+  @override
+  void initState() {
+    super.initState();
+    _today = _loadToday();
+  }
+
+  Future<AttendanceModel?> _loadToday() {
+    final prov = Provider.of<UserProvider>(context, listen: false);
+    return _repo.getTodayAttendance(
+      prov.company?.id ?? '',
+      prov.user?.id ?? '',
+    );
+  }
+
+  Future<void> _openPunch() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const MarkAttendanceScreen()),
+    );
+    if (mounted) setState(() => _today = _loadToday());
+  }
+
+  String get _greeting {
+    final h = AttendanceClock.now().hour;
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final prov = Provider.of<UserProvider>(context);
+    final user = prov.user!;
     final colors = context.colors;
-    return FutureBuilder<AttendanceModel?>(
-      future: repo.getTodayAttendance(
-        provider.company?.id ?? '',
-        provider.user?.id ?? '',
-      ),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(height: 120, child: AppLoader());
-        }
-        final attendance = snapshot.data;
-        final isCheckedIn = attendance != null;
-        final isCheckedOut = attendance?.checkOut != null;
+    final firstName = user.name.split(' ').first;
 
-        return AppCard(
-          elevated: true,
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          radius: AppRadius.xxl,
-          child: Row(
-            children: [
-              _StatusItem(
-                label: 'Check In',
-                active: isCheckedIn,
-                time: attendance?.checkIn,
-                color: colors.success,
-              ),
-              Expanded(
-                child: Container(
-                  height: 2,
-                  margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        isCheckedIn ? colors.success : colors.border,
-                        isCheckedOut ? colors.success : colors.border,
-                      ],
-                    ),
+    return SafeArea(
+      bottom: false,
+      child: RefreshIndicator(
+        onRefresh: () async {
+          setState(() => _today = _loadToday());
+          await _today;
+        },
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.xxl,
+          ),
+          children: [
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: () => widget.onOpenTab(3),
+                  child: Avatar(name: user.name, imageUrl: user.avatarUrl),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        DateFormat('EEE, d MMM').format(AttendanceClock.now()),
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                      Text(
+                        '$_greeting, $firstName',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ],
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            FutureBuilder<AttendanceModel?>(
+              future: _today,
+              builder: (context, snap) => _ShiftCard(
+                loading: snap.connectionState == ConnectionState.waiting,
+                today: snap.data,
+                onPunch: _openPunch,
               ),
-              _StatusItem(
-                label: 'Check Out',
-                active: isCheckedOut,
-                time: attendance?.checkOut,
-                color: colors.danger,
+            ),
+            SectionHeader(
+              title: DateFormat('MMMM').format(AttendanceClock.now()),
+              strong: true,
+              actionLabel: 'View all',
+              onAction: () => widget.onOpenTab(1),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            StreamBuilder<List<AttendanceModel>>(
+              stream: _repo.watchEmployeeHistory(
+                prov.company?.id ?? '',
+                user.id,
               ),
+              builder: (context, snap) {
+                final month = DateFormat(
+                  'yyyy-MM',
+                ).format(AttendanceClock.now());
+                final logs = (snap.data ?? const <AttendanceModel>[])
+                    .where((l) => l.date.startsWith(month))
+                    .toList();
+                final present = logs.where((l) => l.checkIn != null).length;
+                final late = logs.where((l) => l.isLate).length;
+                final absent = logs.where((l) => l.status == 'absent').length;
+                return MetricRow(
+                  tiles: [
+                    MetricTile(
+                      label: 'Present',
+                      value: '$present',
+                      dotColor: colors.success,
+                    ),
+                    MetricTile(
+                      label: 'Late',
+                      value: '$late',
+                      dotColor: colors.warning,
+                    ),
+                    MetricTile(
+                      label: 'Absent',
+                      value: '$absent',
+                      dotColor: colors.danger,
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
+            EntityTile(
+              leading: IconChip(
+                icon: Icons.event_available_rounded,
+                color: colors.info,
+                background: colors.infoSoft,
+              ),
+              title: 'Plan time off',
+              subtitle: 'Request casual, sick or earned leave',
+              chevron: true,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LeaveRequest()),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Today's shift with the punch call-to-action, in the state the day is in:
+/// not in yet → checked in → done.
+class _ShiftCard extends StatelessWidget {
+  const _ShiftCard({
+    required this.loading,
+    required this.today,
+    required this.onPunch,
+  });
+
+  final bool loading;
+  final AttendanceModel? today;
+  final VoidCallback onPunch;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = Provider.of<UserProvider>(context).user!;
+    final colors = context.colors;
+    final time = DateFormat('h:mm a');
+    final checkedIn = today?.checkIn != null;
+    final done = today?.checkOut != null;
+    final startMin = AttendanceClock.parseMinutes(user.shiftStart) ?? 540;
+    final endMin = AttendanceClock.parseMinutes(user.shiftEnd) ?? 1080;
+    final graceEnd = startMin + AppConstants.lateGracePeriodMinutes;
+    final nowMin = AttendanceClock.minutesOfDay(AttendanceClock.now());
+    const fmt = AttendanceClock.formatShiftTime;
+
+    final Widget pill;
+    final String caption;
+    if (done) {
+      pill = const StatusBadge(status: 'present', label: 'Done for today');
+      caption = 'Worked ${today!.workDurationFormatted}';
+    } else if (checkedIn) {
+      pill = StatusBadge(
+        status: today!.isLate ? 'late' : 'present',
+        label: 'In since ${time.format(today!.checkIn!)}',
+      );
+      caption = 'Shift ends at ${fmt(user.shiftEnd)}';
+    } else if (nowMin >= endMin) {
+      pill = const StatusBadge(status: 'absent', label: 'Not punched');
+      caption = 'Your shift has ended — punch-in is closed for today';
+    } else {
+      pill = const StatusBadge(status: 'pending', label: 'Not in yet');
+      caption = nowMin <= graceEnd
+          ? 'On time until ${AttendanceClock.formatMinutes(graceEnd)}'
+          : 'You’ll be marked late';
+    }
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Today’s shift',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    Text(
+                      '${fmt(user.shiftStart)} – ${fmt(user.shiftEnd)}',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!loading) pill,
             ],
           ),
-        );
-      },
-    );
-  }
-}
-
-class _StatusItem extends StatelessWidget {
-  const _StatusItem({
-    required this.label,
-    required this.active,
-    required this.time,
-    required this.color,
-  });
-
-  final String label;
-  final bool active;
-  final DateTime? time;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: active ? color.withValues(alpha: 0.12) : colors.surfaceMuted,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            active
-                ? Icons.check_circle_rounded
-                : Icons.radio_button_off_rounded,
-            color: active ? color : colors.textTertiary,
-            size: 28,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        ),
-        Text(
-          time != null ? DateFormat('hh:mm a').format(time!) : '--:--',
-          style: TextStyle(fontSize: 12, color: colors.textTertiary),
-        ),
-      ],
-    );
-  }
-}
-
-class _ActionCard extends StatelessWidget {
-  const _ActionCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-    required this.builder,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-  final Widget Function() builder;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return AppCard(
-      onTap: () =>
-          Navigator.push(context, MaterialPageRoute(builder: (_) => builder())),
-      child: Row(
-        children: [
-          IconChip(icon: icon, color: color, size: 44),
-          const SizedBox(width: AppSpacing.lg),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: AppSpacing.lg),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: colors.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Row(
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
+                Icon(Icons.location_on_outlined, size: 18, color: colors.brand),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    user.workAddress ??
+                        (user.workLatitude != null
+                            ? 'Work location assigned'
+                            : 'No work location assigned yet'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(color: colors.textTertiary, fontSize: 13),
                 ),
               ],
             ),
           ),
-          Icon(
-            Icons.arrow_forward_ios_rounded,
-            size: 15,
-            color: colors.textTertiary,
+          const SizedBox(height: AppSpacing.lg),
+          if (loading)
+            const SizedBox(
+              height: 60,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else
+            SizedBox(
+              height: 60,
+              child: AppButton(
+                label: done
+                    ? 'See today'
+                    : (checkedIn ? 'Punch out' : 'Punch in'),
+                icon: done
+                    ? Icons.check_circle_outline_rounded
+                    : (checkedIn ? Icons.logout_rounded : Icons.login_rounded),
+                variant: done
+                    ? AppButtonVariant.secondary
+                    : AppButtonVariant.primary,
+                onPressed: onPunch,
+              ),
+            ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            caption,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelSmall,
           ),
         ],
       ),

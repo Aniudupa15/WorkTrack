@@ -6,7 +6,10 @@ import 'package:share_plus/share_plus.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/widgets/app_button.dart';
+import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/app_chip.dart';
+import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/core/widgets/app_search_field.dart';
 import 'package:attendance_app/core/widgets/avatar.dart';
@@ -134,7 +137,21 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
     final companyId = prov.company?.id ?? '';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Employees')),
+      appBar: TabHeader(
+        title: 'Team',
+        actions: [
+          AppButton(
+            label: 'Add',
+            size: AppButtonSize.small,
+            expand: false,
+            onPressed: () => _showInviteSheet(
+              context,
+              companyId,
+              prov.company?.name ?? 'us',
+            ),
+          ),
+        ],
+      ),
       body: StreamBuilder<List<UserModel>>(
         stream: sl<EmployeeRepository>().watchEmployees(companyId),
         builder: (context, snap) {
@@ -213,32 +230,30 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
                         title: 'No matches',
                         subtitle: 'Try a different name, role, or filter.',
                       )
-                    : ListView.separated(
+                    : ListView(
                         padding: const EdgeInsets.fromLTRB(
                           AppSpacing.lg,
                           0,
                           AppSpacing.lg,
-                          100,
+                          AppSpacing.xxl,
                         ),
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: AppSpacing.md),
-                        itemBuilder: (ctx, i) => _EmployeeCard(
-                          employee: filtered[i],
-                          companyId: companyId,
-                          company: prov.company,
-                        ),
+                        children: [
+                          AppGroup(
+                            children: [
+                              for (final e in filtered)
+                                _EmployeeCard(
+                                  employee: e,
+                                  companyId: companyId,
+                                  company: prov.company,
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
               ),
             ],
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =>
-            _showInviteSheet(context, companyId, prov.company?.name ?? 'us'),
-        icon: const Icon(Icons.person_add_alt_1_rounded),
-        label: const Text('Invite'),
       ),
     );
   }
@@ -257,17 +272,17 @@ class _EmployeeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final role = employee.department != null
-        ? '${employee.department}${employee.position != null ? " · ${employee.position}" : ""}'
-        : employee.email;
+    final parts = [
+      employee.workAddress ??
+          (employee.workLatitude == null ? 'No location assigned' : null),
+      employee.department,
+    ].whereType<String>().where((s) => s.isNotEmpty);
     return EntityTile(
-      leading: Avatar(name: employee.name, size: 44),
+      inGroup: true,
+      leading: Avatar(name: employee.name, imageUrl: employee.avatarUrl),
       title: employee.name,
-      subtitle: role,
-      trailing: StatusBadge(
-        status: employee.status == 'active' ? 'present' : 'absent',
-        label: employee.status,
-      ),
+      subtitle: parts.isEmpty ? employee.email : parts.join(' · '),
+      trailing: StatusBadge(status: employee.status),
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(

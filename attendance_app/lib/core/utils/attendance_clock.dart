@@ -20,6 +20,18 @@ class AttendanceClock {
 
   static int minutesOfDay(DateTime t) => t.hour * 60 + t.minute;
 
+  /// Formats minutes past midnight as a 12-hour time, e.g. `9:15 AM`.
+  static String formatMinutes(int minutes) => DateFormat(
+    'h:mm a',
+  ).format(DateTime(2000, 1, 1, minutes ~/ 60, minutes % 60));
+
+  /// Formats an `HH:mm` shift time for display (`18:00` → `6:00 PM`); returns
+  /// the input unchanged if it can't be parsed.
+  static String formatShiftTime(String hhmm) {
+    final m = parseMinutes(hhmm);
+    return m == null ? hhmm : formatMinutes(m);
+  }
+
   /// Parses `HH:mm` into minutes past midnight, or null if malformed.
   static int? parseMinutes(String hhmm) {
     final parts = hhmm.split(':');

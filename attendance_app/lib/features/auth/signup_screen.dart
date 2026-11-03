@@ -81,12 +81,8 @@ class _SignupScreenState extends State<SignupScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'JOIN WITH A COMPANY CODE',
-                  style: text.bodySmall?.copyWith(
-                    letterSpacing: 1.6,
-                    fontWeight: FontWeight.w700,
-                    color: context.colors.textTertiary,
-                  ),
+                  'Join with a company code',
+                  style: text.bodySmall?.copyWith(fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(

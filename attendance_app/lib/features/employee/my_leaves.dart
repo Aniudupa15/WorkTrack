@@ -5,169 +5,173 @@ import 'package:provider/provider.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/utils/attendance_clock.dart';
+import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
+import 'package:attendance_app/core/widgets/app_chip.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
+import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
+import 'package:attendance_app/core/widgets/entity_tile.dart';
+import 'package:attendance_app/core/widgets/metric_tile.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/leave_model.dart';
 import 'package:attendance_app/domain/repositories/leave_repository.dart';
 import 'package:attendance_app/features/employee/leave_request.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
-class MyLeaves extends StatelessWidget {
+/// The employee's leave requests with days taken this year per type and a
+/// status filter.
+class MyLeaves extends StatefulWidget {
   const MyLeaves({super.key});
+
+  @override
+  State<MyLeaves> createState() => _MyLeavesState();
+}
+
+class _MyLeavesState extends State<MyLeaves> {
+  String _filter = 'all';
+
+  void _request() => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => const LeaveRequest()),
+  );
 
   @override
   Widget build(BuildContext context) {
     final prov = Provider.of<UserProvider>(context);
     final companyId = prov.company?.id ?? '';
     final uid = prov.user?.id ?? '';
+    final colors = context.colors;
+    final requestButton = AppButton(
+      label: 'Request',
+      size: AppButtonSize.small,
+      expand: false,
+      onPressed: _request,
+    );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Leaves')),
+      appBar: Navigator.of(context).canPop()
+          ? AppBar(
+              title: const Text('Leaves'),
+              actions: [
+                requestButton,
+                const SizedBox(width: AppSpacing.md),
+              ],
+            )
+          : TabHeader(title: 'Leaves', actions: [requestButton]),
       body: StreamBuilder<List<LeaveModel>>(
         stream: sl<LeaveRepository>().watchEmployeeLeaves(companyId, uid),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const AppLoader();
           }
-          final leaves = snap.data ?? [];
+          final leaves = snap.data ?? const <LeaveModel>[];
           if (leaves.isEmpty) {
             return EmptyState(
               icon: Icons.beach_access_rounded,
               title: 'No leave requests yet',
               subtitle: 'Request time off and track its status here.',
-              action: FilledButton.tonalIcon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LeaveRequest()),
-                ),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Request leave'),
+              action: AppButton(
+                label: 'Request leave',
+                expand: false,
+                onPressed: _request,
               ),
             );
           }
-          return ListView.separated(
+
+          final year = AttendanceClock.now().year;
+          int taken(String type) => leaves
+              .where(
+                (l) =>
+                    l.type == type &&
+                    l.status == 'approved' &&
+                    l.startDate.year == year,
+              )
+              .fold(0, (sum, l) => sum + l.durationDays);
+          final shown = _filter == 'all'
+              ? leaves
+              : leaves.where((l) => l.status == _filter).toList();
+
+          return ListView(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
+              AppSpacing.xs,
               AppSpacing.lg,
-              AppSpacing.lg,
-              100,
+              AppSpacing.xxl,
             ),
-            itemCount: leaves.length,
-            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-            itemBuilder: (ctx, i) => _LeaveCard(leave: leaves[i]),
+            children: [
+              Text(
+                'Days taken in $year',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              MetricRow(
+                tiles: [
+                  MetricTile(
+                    label: 'Casual',
+                    value: '${taken('casual')}',
+                    dotColor: colors.info,
+                  ),
+                  MetricTile(
+                    label: 'Sick',
+                    value: '${taken('sick')}',
+                    dotColor: colors.info,
+                  ),
+                  MetricTile(
+                    label: 'Earned',
+                    value: '${taken('earned')}',
+                    dotColor: colors.info,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              AppSegmented<String>(
+                segments: const {
+                  'all': 'All',
+                  'pending': 'Pending',
+                  'approved': 'Approved',
+                  'rejected': 'Rejected',
+                },
+                selected: _filter,
+                onChanged: (v) => setState(() => _filter = v),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              if (shown.isEmpty)
+                const AppCard(child: Text('Nothing here.'))
+              else
+                AppGroup(
+                  children: [for (final l in shown) _LeaveRow(leave: l)],
+                ),
+            ],
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const LeaveRequest()),
-        ),
-        child: const Icon(Icons.add),
       ),
     );
   }
 }
 
-class _LeaveCard extends StatelessWidget {
-  const _LeaveCard({required this.leave});
+class _LeaveRow extends StatelessWidget {
+  const _LeaveRow({required this.leave});
 
   final LeaveModel leave;
 
-  IconData get _statusIcon {
-    switch (leave.status) {
-      case 'approved':
-        return Icons.check_circle;
-      case 'rejected':
-        return Icons.cancel;
-      default:
-        return Icons.hourglass_empty;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    final statusColor = colors.statusColor(leave.status);
-    final dateFormat = DateFormat('d MMM');
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: Icon(_statusIcon, color: statusColor, size: 18),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Text(
-                '${leave.type[0].toUpperCase()}${leave.type.substring(1)} leave',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
-              ),
-              const Spacer(),
-              StatusBadge(status: leave.status),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: colors.surfaceMuted,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.calendar_today_rounded,
-                  size: 16,
-                  color: colors.textSecondary,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    '${dateFormat.format(leave.startDate)} → ${dateFormat.format(leave.endDate)}',
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${leave.durationDays} ${leave.durationDays == 1 ? "day" : "days"}',
-                  style: TextStyle(
-                    color: colors.brand,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(leave.reason, style: Theme.of(context).textTheme.bodyMedium),
-          if (leave.adminNote != null && leave.adminNote!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Admin: ${leave.adminNote}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.textSecondary,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ],
-      ),
+    final d = DateFormat('d MMM');
+    final range = leave.durationDays == 1
+        ? d.format(leave.startDate)
+        : '${d.format(leave.startDate)} – ${d.format(leave.endDate)}';
+    final days =
+        '${leave.durationDays} ${leave.durationDays == 1 ? 'day' : 'days'}';
+    final note = (leave.adminNote ?? '').isNotEmpty
+        ? '\nNote: ${leave.adminNote}'
+        : '';
+    return EntityTile(
+      inGroup: true,
+      title: '$range · ${StatusBadge.humanise(leave.type)}',
+      subtitle: '$days · ${leave.reason}$note',
+      trailing: StatusBadge(status: leave.status),
     );
   }
 }

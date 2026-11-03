@@ -165,7 +165,7 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _label('PROFILE'),
+              _label('Profile'),
               const SizedBox(height: AppSpacing.md),
               _field(
                 _nameCtrl,
@@ -199,7 +199,7 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
               const SizedBox(height: AppSpacing.md),
               _field(_posCtrl, 'Position (optional)', Icons.badge_outlined),
               const SizedBox(height: AppSpacing.xxl),
-              _label('SCHEDULE'),
+              _label('Shift'),
               const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
@@ -221,7 +221,7 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
                 ],
               ),
               const SizedBox(height: AppSpacing.xxl),
-              _label('WORK LOCATION'),
+              _label('Work location'),
               const SizedBox(height: AppSpacing.md),
               _locationCard(colors),
               const SizedBox(height: AppSpacing.xxxl),
@@ -241,10 +241,9 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
   Widget _label(String text) => Text(
     text,
     style: TextStyle(
-      color: context.colors.textTertiary,
-      fontSize: 12,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 1.4,
+      color: context.colors.textSecondary,
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
     ),
   );
 
