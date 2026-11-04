@@ -1,0 +1,42 @@
+/// Self-serve company signup, joining a team, and inviting people.
+abstract interface class OnboardingRepository {
+  /// Makes the signed-in (email) user the admin of a new company on a trial.
+  Future<void> registerCompany({
+    required String companyName,
+    required String adminName,
+    required Map<String, dynamic> location,
+    required String shiftStart,
+    required String shiftEnd,
+    String? teamSize,
+  });
+
+  /// Joins the signed-in user to a company by a phone invite (no [code]) or by
+  /// the company's join [code]. Returns the new employee status: `active`, or
+  /// `pending` when the company approves joiners.
+  Future<String> claimJoin({String? code, String? name});
+
+  /// Invites people by phone. Each row: name, phone, and optionally
+  /// department, position, location (site names joined by `;`), shiftStart,
+  /// shiftEnd.
+  Future<ImportResult> importEmployees(
+    String companyId,
+    List<Map<String, dynamic>> rows,
+  );
+
+  /// Replaces the company's join code; returns the new one.
+  Future<String> resetJoinCode(String companyId);
+}
+
+class ImportResult {
+  const ImportResult({
+    required this.created,
+    required this.updated,
+    required this.errors,
+  });
+
+  final int created;
+  final int updated;
+
+  /// Row index (into the submitted rows) → why it was skipped.
+  final Map<int, String> errors;
+}

@@ -22,5 +22,15 @@ abstract interface class EmployeeRepository {
 
   Future<List<UserModel>> getEmployeesOnce(String companyId);
 
+  Stream<List<UserModel>> watchPendingEmployees(String companyId);
+
+  /// Approves (`active`) or declines (`inactive`) a pending joiner.
+  Future<void> setStatus(String companyId, String employeeId, String status);
+
+  /// Unclaimed phone invites: maps with name, phone, department, ….
+  Stream<List<Map<String, dynamic>>> watchInvites(String companyId);
+
+  Future<void> deleteInvite(String phone);
+
   Future<void> saveFcmToken(String companyId, String employeeId, String token);
 }

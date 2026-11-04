@@ -70,6 +70,14 @@ class ErrorMapper {
         return 'An account already exists for that email.';
       case 'weak-password':
         return 'Please choose a stronger password.';
+      case 'invalid-phone-number':
+        return 'That phone number doesn’t look right.';
+      case 'invalid-verification-code':
+        return 'That code is incorrect. Check the SMS and try again.';
+      case 'session-expired':
+        return 'That code has expired. Send a new one.';
+      case 'quota-exceeded':
+        return 'Too many codes sent. Try again in a little while.';
       case 'too-many-requests':
         return 'Too many attempts. Please try again later.';
       case 'network-request-failed':

@@ -172,6 +172,25 @@ await t('self-join onto a non-main site rejected', () => assertFails(joinWith(['
 await t('self-join onto two sites rejected', () => assertFails(joinWith(['s1', 's2'], 's1')));
 await t('self-join onto the main site succeeds', () => assertSucceeds(joinWith(['s1'], 's1')));
 
+console.log('Invites / pending joiners');
+await seedSites();
+await env.withSecurityRulesDisabled(async (ctx) => {
+  const db = ctx.firestore();
+  await setDoc(doc(db, 'invites', '+919800000001'), { companyId: C, name: 'Inv', phone: '+919800000001' });
+  await setDoc(doc(db, 'invites', '+919800000002'), { companyId: 'other', name: 'Else', phone: '+919800000002' });
+});
+await t('admin lists own company invites', () => assertSucceeds(getDocs(query(collection(adm(), 'invites'), where('companyId', '==', C)))));
+await t('admin cannot read another company invite', () => assertFails(getDocs(query(collection(adm(), 'invites'), where('companyId', '==', 'other')))));
+await t('admin withdraws own invite', () => assertSucceeds(deleteDoc(doc(adm(), 'invites', '+919800000001'))));
+await t('admin cannot write invites directly', () => assertFails(setDoc(doc(adm(), 'invites', '+919800000003'), { companyId: C, name: 'X' })));
+await t('employee cannot read invites', () => assertFails(getDocs(query(collection(empDb(), 'invites'), where('companyId', '==', C)))));
+await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'companies', C, 'employees', E), { status: 'pending' }));
+await t('pending joiner cannot punch', () => assertFails(setDoc(attRef(empDb()), rec({ locationId: 's1' }))));
+await t('pending joiner cannot approve themselves', () => assertFails(updateDoc(doc(empDb(), 'companies', C, 'employees', E), { status: 'active' })));
+await t('admin approves a pending joiner', () => assertSucceeds(updateDoc(doc(adm(), 'companies', C, 'employees', E), { status: 'active', updatedAt: serverTimestamp() })));
+await t('client cannot create a company', () => assertFails(setDoc(doc(adm(), 'companies', 'mine'), { companyName: 'X', adminId: 'adm1' })));
+await t('admin cannot grant itself a paid plan', () => assertFails(updateDoc(doc(adm(), 'companies', C), { plan: 'business' })));
+
 console.log(`\n${pass} passed, ${failN} failed`);
 await env.cleanup();
 process.exit(failN ? 1 : 0);

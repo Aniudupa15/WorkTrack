@@ -25,6 +25,21 @@ abstract interface class AuthRepository {
     required String code,
   });
 
+  /// Creates an email account for a new company admin (the company itself is
+  /// set up next, by OnboardingRepository.registerCompany) and sends a
+  /// verification email.
+  Future<void> createAdminAccount({
+    required String name,
+    required String email,
+    required String password,
+  });
+
+  /// Texts a sign-in code to [phone] (E.164). Returns the verification id, or
+  /// null if the device verified the SMS by itself and is already signed in.
+  Future<String?> sendPhoneCode(String phone, {bool resend = false});
+
+  Future<void> confirmPhoneCode(String verificationId, String code);
+
   /// Resolves the role document under `users/{uid}` into a full [UserModel],
   /// reading the company (admins) or employee (employees) profile.
   Future<UserModel?> resolveUser(String uid);

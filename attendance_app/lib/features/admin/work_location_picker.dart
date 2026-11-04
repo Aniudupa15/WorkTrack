@@ -122,7 +122,7 @@ class _WorkLocationPickerState extends State<WorkLocationPicker> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Scaffold(
-      appBar: AppBar(title: const Text('Pick Work Location')),
+      appBar: AppBar(title: const Text('Place on map')),
       body: Stack(
         children: [
           FlutterMap(

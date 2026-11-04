@@ -2,7 +2,6 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
-const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { randomBytes } = require("crypto");
@@ -34,26 +33,10 @@ function dateForZone(now = new Date()) {
 function timeForZone(now = new Date()) {
   return new Intl.DateTimeFormat("en-GB", { timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
 }
-function distanceMeters(a, b) {
-  const rad = (n) => (n * Math.PI) / 180;
-  const dLat = rad(b.latitude - a.latitude), dLng = rad(b.longitude - a.longitude);
-  const x = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.latitude)) * Math.cos(rad(b.latitude)) * Math.sin(dLng / 2) ** 2;
-  return 6371000 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-}
 function location(value) {
   if (!value || !Number.isFinite(value.latitude) || !Number.isFinite(value.longitude) || Math.abs(value.latitude) > 90 || Math.abs(value.longitude) > 180) fail("invalid-argument", "A valid location is required");
   if (value.accuracy != null && (!Number.isFinite(value.accuracy) || value.accuracy < 0 || value.accuracy > 100)) fail("invalid-argument", "Location accuracy is insufficient");
   return { latitude: value.latitude, longitude: value.longitude, ...(value.accuracy != null ? { accuracy: value.accuracy } : {}) };
-}
-// Accepts an offline-captured instant (epoch ms or ISO string) and rejects
-// times that are in the future or unreasonably old (stale queue).
-function capturedInstant(value) {
-  const ms = typeof value === "number" ? value : Date.parse(value);
-  if (!Number.isFinite(ms)) fail("invalid-argument", "Invalid capture time");
-  const now = Date.now();
-  if (ms > now + 5 * 60 * 1000) fail("invalid-argument", "Capture time is in the future");
-  if (ms < now - 7 * 24 * 60 * 60 * 1000) fail("invalid-argument", "Capture time is too old to sync");
-  return new Date(ms);
 }
 async function caller(request) {
   if (!request.auth) fail("unauthenticated", "Sign-in is required");
@@ -67,94 +50,258 @@ async function admin(request, companyId) {
   return user;
 }
 
-exports.registerCompany = onCall(CALLABLE_OPTIONS, async (request) => {
-  const user = await caller(request).catch((error) => { if (error.code === "permission-denied") return { uid: request.auth.uid }; throw error; });
-  const companyName = requiredText(request.data?.companyName, "company name");
-  const adminName = requiredText(request.data?.adminName, "administrator name");
-  const email = requiredText(request.auth.token.email, "authenticated email", 320);
-  const companyRef = db.collection("companies").doc(user.uid);
-  await db.runTransaction(async (transaction) => {
-    if ((await transaction.get(companyRef)).exists || (await transaction.get(db.collection("users").doc(user.uid))).exists) fail("already-exists", "This account is already registered");
-    transaction.set(companyRef, { companyId: user.uid, companyName, adminId: user.uid, adminName, adminEmail: email, phone: null, createdAt: FieldValue.serverTimestamp(), totalEmployees: 0, settings: { defaultRadius: 100, defaultShiftStart: "09:00", defaultShiftEnd: "18:00" } });
-    transaction.set(db.collection("users").doc(user.uid), { role: "admin", companyId: user.uid });
-  });
-  return { companyId: user.uid };
-});
+// ── Onboarding ────────────────────────────────────────────────────────────────
+// Companies, joins and invites are written ONLY here (admin SDK); Security
+// Rules give clients no way to create them. Billing fields set at signup
+// (plan, trialEndsAt) are likewise server-owned.
 
-exports.onEmployeeCreated = onCall(CALLABLE_OPTIONS, async (request) => {
-  const companyId = requiredText(request.data?.companyId, "company id", 128);
-  await admin(request, companyId);
-  const name = requiredText(request.data?.name, "name");
-  const email = requiredText(request.data?.email, "email", 320).toLowerCase();
-  if (!/^\S+@\S+\.\S+$/.test(email)) fail("invalid-argument", "Invalid email");
-  const shift = request.data?.shift || { start: "09:00", end: "18:00" };
-  if (!validTime(shift.start) || !validTime(shift.end) || shift.start >= shift.end) fail("invalid-argument", "Invalid shift");
-  const workLocation = request.data?.workLocation == null ? null : { ...location(request.data.workLocation), radius: Number(request.data.workLocation.radius) };
-  if (workLocation && (!Number.isFinite(workLocation.radius) || workLocation.radius < 10 || workLocation.radius > 5000)) fail("invalid-argument", "Invalid work-location radius");
-  const password = `${randomBytes(24).toString("base64url")}Aa1!`;
-  let authUser;
-  try { authUser = await getAuth().createUser({ email, password, displayName: name }); }
-  catch (error) { console.error("employee creation failed", { companyId, code: error.code }); fail(error.code === "auth/email-already-exists" ? "already-exists" : "internal", "Unable to create employee account"); }
-  try {
-    const batch = db.batch();
-    batch.set(db.collection("companies").doc(companyId).collection("employees").doc(authUser.uid), { uid: authUser.uid, name, email, phone: optionalText(request.data?.phone, "phone", 40), department: optionalText(request.data?.department, "department"), position: optionalText(request.data?.position, "position"), status: "active", avatarUrl: null, workLocation, shift, fcmToken: null, joinedAt: FieldValue.serverTimestamp() });
-    batch.set(db.collection("users").doc(authUser.uid), { role: "employee", companyId });
-    batch.update(db.collection("companies").doc(companyId), { totalEmployees: FieldValue.increment(1) });
-    await batch.commit();
-    await getAuth().generatePasswordResetLink(email);
-    return { uid: authUser.uid };
-  } catch (error) {
-    await getAuth().deleteUser(authUser.uid).catch(() => undefined);
-    console.error("employee provisioning rollback", { companyId, uid: authUser.uid, code: error.code });
-    fail("internal", "Unable to provision employee");
+const TRIAL_DAYS = 14;
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const MAX_IMPORT_ROWS = 500;
+const MAX_SITES_PER_EMPLOYEE = 10;
+
+function shortCode(length = 6) {
+  const bytes = randomBytes(length);
+  return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
+}
+
+// A join code nobody else holds (codes/{code} is the registry).
+async function freshCode(transaction) {
+  for (let i = 0; i < 8; i++) {
+    const code = shortCode();
+    if (!(await transaction.get(db.collection("codes").doc(code))).exists) return code;
   }
+  fail("internal", "Could not allocate a join code");
+}
+
+// Indian numbers by default: "98450 12345" → "+919845012345".
+function normalizePhone(value) {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  let digits = String(value).replace(/[\s\-().]/g, "");
+  if (digits.startsWith("+")) return /^\+[1-9]\d{7,14}$/.test(digits) ? digits : null;
+  if (/^0\d{10}$/.test(digits)) digits = digits.slice(1);
+  if (/^[6-9]\d{9}$/.test(digits)) return `+91${digits}`;
+  if (/^91[6-9]\d{9}$/.test(digits)) return `+${digits}`;
+  return null;
+}
+
+function zoneOf(site) {
+  return { latitude: site.latitude, longitude: site.longitude, radius: site.radius, address: site.address || site.name };
+}
+
+function siteInput(value) {
+  const loc = location(value);
+  const radius = Number(value.radius);
+  if (!Number.isFinite(radius) || radius < 10 || radius > 5000) fail("invalid-argument", "Invalid zone radius");
+  return {
+    name: requiredText(value.name ?? "Head office", "location name", 100),
+    address: optionalText(value.address, "address", 500),
+    latitude: loc.latitude, longitude: loc.longitude, radius, isMain: true,
+  };
+}
+
+function shiftInput(start, end, fallback = { start: "09:00", end: "18:00" }) {
+  const shift = { start: start || fallback.start, end: end || fallback.end };
+  if (!validTime(shift.start) || !validTime(shift.end) || shift.start >= shift.end) fail("invalid-argument", "Invalid shift");
+  return shift;
+}
+
+// Self-serve company signup: the signed-in (email) user becomes the admin of a
+// new company on a free trial, with its main site and an employee join code.
+exports.registerCompany = onCall(CALLABLE_OPTIONS, async (request) => {
+  if (!request.auth) fail("unauthenticated", "Sign-in is required");
+  const uid = request.auth.uid;
+  const email = requiredText(request.auth.token.email, "account email", 320).toLowerCase();
+  const companyName = requiredText(request.data?.companyName, "company name", 120);
+  const adminName = requiredText(request.data?.adminName, "your name", 200);
+  const site = siteInput(request.data?.location);
+  const shift = shiftInput(request.data?.shiftStart, request.data?.shiftEnd);
+  const teamSize = optionalText(request.data?.teamSize, "team size", 20);
+
+  const companyRef = db.collection("companies").doc();
+  const roleRef = db.collection("users").doc(uid);
+  const siteRef = companyRef.collection("locations").doc();
+  const code = await db.runTransaction(async (transaction) => {
+    if ((await transaction.get(roleRef)).exists) fail("already-exists", "This account already belongs to a company");
+    const joinCode = await freshCode(transaction);
+    transaction.set(companyRef, {
+      companyId: companyRef.id, companyName, adminId: uid, adminName, adminEmail: email,
+      phone: null, address: site.address, status: "active", employeeCode: joinCode,
+      createdBy: uid, createdAt: FieldValue.serverTimestamp(), totalEmployees: 0, teamSize,
+      plan: "trial", trialEndsAt: Timestamp.fromMillis(Date.now() + TRIAL_DAYS * 86400000),
+      settings: { defaultRadius: site.radius, defaultShiftStart: shift.start, defaultShiftEnd: shift.end, approveJoiners: false },
+    });
+    transaction.set(siteRef, { ...site, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+    transaction.set(db.collection("codes").doc(joinCode), { companyId: companyRef.id, type: "employee", createdAt: FieldValue.serverTimestamp() });
+    transaction.set(roleRef, { role: "admin", companyId: companyRef.id, viaCode: "self-serve" });
+    return joinCode;
+  });
+  console.log(JSON.stringify({ event: "register_company", companyId: companyRef.id, uid }));
+  return { companyId: companyRef.id, employeeCode: code };
 });
 
-exports.updateEmployee = onCall(CALLABLE_OPTIONS, async (request) => {
+// An unprovisioned, signed-in user joins a company: by a phone invite the
+// admin created (matched on the caller's verified phone number), or by the
+// company's join code (typed or scanned from its QR). Code joiners wait for
+// approval when the company asks for it; invited people are pre-approved.
+exports.claimJoin = onCall(CALLABLE_OPTIONS, async (request) => {
+  if (!request.auth) fail("unauthenticated", "Sign-in is required");
+  const uid = request.auth.uid;
+  const phone = request.auth.token.phone_number || null;
+  const email = request.auth.token.email ? String(request.auth.token.email).toLowerCase() : null;
+  const code = request.data?.code ? requiredText(request.data.code, "code", 20).toUpperCase() : null;
+  const roleRef = db.collection("users").doc(uid);
+
+  const result = await db.runTransaction(async (transaction) => {
+    if ((await transaction.get(roleRef)).exists) fail("already-exists", "You’re already part of a company");
+    const inviteRef = phone ? db.collection("invites").doc(phone) : null;
+    const invite = inviteRef ? await transaction.get(inviteRef) : null;
+
+    let companyId;
+    if (code) {
+      const codeDoc = await transaction.get(db.collection("codes").doc(code));
+      if (!codeDoc.exists || codeDoc.data().type !== "employee") fail("not-found", "That code isn’t valid. Check it with your admin.");
+      companyId = codeDoc.data().companyId;
+    } else if (invite?.exists) {
+      companyId = invite.data().companyId;
+    } else {
+      fail("not-found", "We couldn’t find an invite for this number. Enter your company code instead.");
+    }
+    const companyRef = db.collection("companies").doc(companyId);
+    const company = await transaction.get(companyRef);
+    if (!company.exists || (company.data().status || "active") !== "active") fail("failed-precondition", "This company isn’t accepting new members right now");
+
+    // An invite counts only for the company being joined.
+    const inv = invite?.exists && invite.data().companyId === companyId ? invite.data() : null;
+    const name = inv?.name || requiredText(request.data?.name, "your name", 200);
+    const settings = company.data().settings || {};
+
+    let locationIds = (inv?.locationIds || []).slice(0, MAX_SITES_PER_EMPLOYEE);
+    let primaryId = inv?.primaryLocationId || locationIds[0] || null;
+    let primary = null;
+    if (primaryId) {
+      const doc = await transaction.get(companyRef.collection("locations").doc(primaryId));
+      primary = doc.exists ? doc.data() : null;
+    }
+    if (!primary) {
+      const main = await transaction.get(companyRef.collection("locations").where("isMain", "==", true).limit(1));
+      if (!main.empty) {
+        primary = main.docs[0].data();
+        primaryId = main.docs[0].id;
+        if (!locationIds.includes(primaryId)) locationIds = [primaryId, ...locationIds].slice(0, MAX_SITES_PER_EMPLOYEE);
+      } else {
+        primaryId = null;
+        locationIds = [];
+      }
+    }
+
+    const status = inv || !settings.approveJoiners ? "active" : "pending";
+    transaction.set(companyRef.collection("employees").doc(uid), {
+      uid, name, email: email || "", phone, department: inv?.department || null, position: inv?.position || null,
+      status, avatarUrl: null, workLocation: primary ? zoneOf(primary) : null,
+      locationIds, primaryLocationId: primaryId,
+      shift: inv?.shift || { start: settings.defaultShiftStart || "09:00", end: settings.defaultShiftEnd || "18:00" },
+      fcmToken: null, joinedAt: FieldValue.serverTimestamp(),
+    });
+    transaction.set(roleRef, { role: "employee", companyId, viaCode: code || "invite" });
+    transaction.update(companyRef, { totalEmployees: FieldValue.increment(1) });
+    if (inv) transaction.delete(inviteRef);
+    return { companyId, status };
+  });
+  console.log(JSON.stringify({ event: "claim_join", uid, companyId: result.companyId, status: result.status, via: code ? "code" : "invite" }));
+  return result;
+});
+
+// Admin invites people by phone — one from a form or up to 500 from an
+// uploaded sheet. Each row becomes invites/{E.164 phone}; the person joins by
+// signing in with that number. Rows are validated independently so one bad
+// row never sinks the rest.
+exports.importEmployees = onCall(CALLABLE_OPTIONS, async (request) => {
+  const companyId = requiredText(request.data?.companyId, "company id", 128);
+  const user = await admin(request, companyId);
+  const rows = request.data?.rows;
+  if (!Array.isArray(rows) || rows.length === 0 || rows.length > MAX_IMPORT_ROWS) fail("invalid-argument", `Send between 1 and ${MAX_IMPORT_ROWS} people`);
+
+  const companyRef = db.collection("companies").doc(companyId);
+  const company = (await companyRef.get()).data() || {};
+  const settings = company.settings || {};
+  const sites = (await companyRef.collection("locations").get()).docs.map((d) => ({ id: d.id, ...d.data() }));
+  const byName = new Map(sites.map((s) => [s.name.trim().toLowerCase(), s]));
+  const main = sites.find((s) => s.isMain) || sites[0] || null;
+  const fallbackShift = { start: settings.defaultShiftStart || "09:00", end: settings.defaultShiftEnd || "18:00" };
+
+  const errors = [];
+  const valid = [];
+  const seen = new Set();
+  rows.forEach((row, index) => {
+    try {
+      const name = requiredText(row?.name, "name", 200);
+      const phone = normalizePhone(row?.phone);
+      if (!phone) fail("invalid-argument", "Invalid phone number");
+      if (seen.has(phone)) fail("invalid-argument", "Phone number repeated in this list");
+      seen.add(phone);
+      const names = String(row?.location ?? "").split(/[;|]/).map((s) => s.trim()).filter(Boolean);
+      const picked = [];
+      for (const n of names) {
+        const site = byName.get(n.toLowerCase());
+        if (!site) fail("invalid-argument", `Unknown location “${n}”`);
+        if (!picked.includes(site.id)) picked.push(site.id);
+      }
+      if (!picked.length && main) picked.push(main.id);
+      if (picked.length > MAX_SITES_PER_EMPLOYEE) fail("invalid-argument", "More than 10 locations");
+      valid.push({
+        index, phone,
+        invite: {
+          companyId, name, phone,
+          department: optionalText(row?.department, "department"),
+          position: optionalText(row?.position, "position"),
+          locationIds: picked, primaryLocationId: picked[0] || null,
+          shift: shiftInput(row?.shiftStart, row?.shiftEnd, fallbackShift),
+          invitedBy: user.uid, createdAt: FieldValue.serverTimestamp(),
+        },
+      });
+    } catch (error) {
+      errors.push({ row: index, message: error.message || "Invalid row" });
+    }
+  });
+
+  let created = 0, updated = 0;
+  for (let i = 0; i < valid.length; i += 100) {
+    const chunk = valid.slice(i, i + 100);
+    const refs = chunk.map((v) => db.collection("invites").doc(v.phone));
+    const existing = await db.getAll(...refs);
+    const members = await Promise.all(chunk.map((v) => companyRef.collection("employees").where("phone", "==", v.phone).limit(1).get()));
+    const batch = db.batch();
+    chunk.forEach((v, k) => {
+      if (!members[k].empty) { errors.push({ row: v.index, message: "Already on your team" }); return; }
+      const other = existing[k].exists && existing[k].data().companyId !== companyId;
+      if (other) { errors.push({ row: v.index, message: "Invited by another company" }); return; }
+      if (existing[k].exists) updated++; else created++;
+      batch.set(refs[k], v.invite);
+    });
+    await batch.commit();
+  }
+  errors.sort((a, b) => a.row - b.row);
+  console.log(JSON.stringify({ event: "import_employees", companyId, created, updated, errors: errors.length }));
+  return { created, updated, errors };
+});
+
+// Admin replaces the company's join code (e.g. after it leaked). The old code
+// stops working immediately; existing members are unaffected.
+exports.resetJoinCode = onCall(CALLABLE_OPTIONS, async (request) => {
   const companyId = requiredText(request.data?.companyId, "company id", 128);
   await admin(request, companyId);
-  const employeeId = requiredText(request.data?.employeeId, "employee id", 128);
-  const shift = request.data?.shift;
-  if (!shift || !validTime(shift.start) || !validTime(shift.end) || shift.start >= shift.end) fail("invalid-argument", "Invalid shift");
-  const workLocation = request.data?.workLocation == null ? null : { ...location(request.data.workLocation), radius: Number(request.data.workLocation.radius) };
-  if (workLocation && (!Number.isFinite(workLocation.radius) || workLocation.radius < 10 || workLocation.radius > 5000)) fail("invalid-argument", "Invalid work-location radius");
-  await db.collection("companies").doc(companyId).collection("employees").doc(employeeId).update({ name: requiredText(request.data?.name, "name"), phone: optionalText(request.data?.phone, "phone", 40), department: optionalText(request.data?.department, "department"), position: optionalText(request.data?.position, "position"), shift, workLocation, updatedAt: FieldValue.serverTimestamp() });
-  return { updated: true };
-});
-
-exports.onCheckIn = onCall(CALLABLE_OPTIONS, async (request) => {
-  const user = await caller(request); const companyId = requiredText(request.data?.companyId, "company id", 128);
-  if (user.role !== "employee" || user.companyId !== companyId) fail("permission-denied", "Employee access is required");
-  const currentLocation = location(request.data?.location); const now = new Date(); const date = dateForZone(now); const ref = db.collection("companies").doc(companyId).collection("attendance").doc(`${user.uid}_${date}`);
-  await db.runTransaction(async (transaction) => {
-    const employee = await transaction.get(db.collection("companies").doc(companyId).collection("employees").doc(user.uid));
-    if (!employee.exists || employee.data().status !== "active") fail("permission-denied", "Your employee account is inactive");
-    const assigned = employee.data().workLocation;
-    if (!assigned) fail("failed-precondition", "No work location is assigned");
-    const allowed = Number(assigned.radius) || 100;
-    if (distanceMeters(currentLocation, assigned) > allowed) fail("permission-denied", "You are outside the work location radius");
-    if ((await transaction.get(ref)).exists) fail("already-exists", "You have already checked in today");
-    const [hour, minute] = (employee.data().shift?.start || "09:00").split(":").map(Number);
-    const [nowHour, nowMinute] = timeForZone(now).split(":").map(Number);
-    const isLate = nowHour * 60 + nowMinute > hour * 60 + minute + 15;
-    const selfieStoragePath = request.data?.selfieStoragePath;
-    if (selfieStoragePath != null && (typeof selfieStoragePath !== "string" || !selfieStoragePath.startsWith(`selfies/${companyId}/${user.uid}/`))) fail("invalid-argument", "Invalid selfie path");
-    transaction.set(ref, { employeeId: user.uid, companyId, employeeName: employee.data().name, date, checkIn: Timestamp.fromDate(now), checkOut: null, status: isLate ? "late" : "present", isLate, checkInLocation: currentLocation, checkOutLocation: null, selfieStoragePath: selfieStoragePath || null, isSynced: true, notes: null });
+  const companyRef = db.collection("companies").doc(companyId);
+  const code = await db.runTransaction(async (transaction) => {
+    const company = await transaction.get(companyRef);
+    const old = company.data()?.employeeCode;
+    const next = await freshCode(transaction);
+    transaction.set(db.collection("codes").doc(next), { companyId, type: "employee", createdAt: FieldValue.serverTimestamp() });
+    if (old) transaction.delete(db.collection("codes").doc(old));
+    transaction.update(companyRef, { employeeCode: next });
+    return next;
   });
-  return { attendanceId: ref.id };
-});
-
-exports.onCheckOut = onCall(CALLABLE_OPTIONS, async (request) => {
-  const user = await caller(request); const companyId = requiredText(request.data?.companyId, "company id", 128);
-  if (user.role !== "employee" || user.companyId !== companyId) fail("permission-denied", "Employee access is required");
-  const currentLocation = location(request.data?.location); const ref = db.collection("companies").doc(companyId).collection("attendance").doc(`${user.uid}_${dateForZone()}`);
-  await db.runTransaction(async (transaction) => {
-    const record = await transaction.get(ref);
-    if (!record.exists || !record.data().checkIn) fail("failed-precondition", "Check in before checking out");
-    if (record.data().checkOut) fail("already-exists", "You have already checked out today");
-    transaction.update(ref, { checkOut: FieldValue.serverTimestamp(), checkOutLocation: currentLocation });
-  });
-  return { attendanceId: ref.id };
+  return { employeeCode: code };
 });
 
 exports.autoMarkAbsent = onSchedule({ schedule: "59 23 * * *", timeZone: TIME_ZONE, region: CALLABLE_OPTIONS.region }, async () => {
@@ -175,62 +322,6 @@ exports.onLeaveStatusChanged = onDocumentUpdated("companies/{companyId}/leaves/{
   const employee = await db.collection("companies").doc(event.params.companyId).collection("employees").doc(after.employeeId).get();
   if (employee.exists && employee.data().fcmToken) await getMessaging().send({ token: employee.data().fcmToken, notification: { title: `Leave ${after.status}`, body: after.adminNote || `Your ${after.type} leave has been ${after.status}.` } }).catch((error) => console.error("leave notification failed", { code: error.code }));
   await db.collection("notifications").add({ type: "leave_status", companyId: event.params.companyId, employeeId: after.employeeId, message: `Leave ${after.status} for ${after.employeeName}`, createdAt: FieldValue.serverTimestamp(), read: false });
-});
-
-// Replays attendance events captured while the device was offline. Each event
-// is validated server-side against the stored work location and the captured
-// instant, so geofence and late-status remain server-authoritative even though
-// the action happened earlier on the device. Per-event results let the client
-// clear exactly what synced and retry the rest.
-exports.syncOfflineAttendance = onCall(CALLABLE_OPTIONS, async (request) => {
-  const user = await caller(request);
-  const companyId = requiredText(request.data?.companyId, "company id", 128);
-  if (user.role !== "employee" || user.companyId !== companyId) fail("permission-denied", "Employee access is required");
-  const events = request.data?.events;
-  if (!Array.isArray(events) || events.length === 0 || events.length > 100) fail("invalid-argument", "A batch of 1-100 events is required");
-
-  const employeeRef = db.collection("companies").doc(companyId).collection("employees").doc(user.uid);
-  const employeeSnap = await employeeRef.get();
-  if (!employeeSnap.exists || employeeSnap.data().status !== "active") fail("permission-denied", "Your employee account is inactive");
-  const employee = employeeSnap.data();
-  const assigned = employee.workLocation;
-  const shiftStart = employee.shift?.start || "09:00";
-
-  const results = [];
-  for (const event of events) {
-    const clientId = typeof event?.clientId === "string" ? event.clientId : null;
-    try {
-      const type = event?.type;
-      if (type !== "checkIn" && type !== "checkOut") fail("invalid-argument", "Invalid event type");
-      const capturedAt = capturedInstant(event?.capturedAt);
-      const currentLocation = location(event?.location);
-      const date = dateForZone(capturedAt);
-      const ref = db.collection("companies").doc(companyId).collection("attendance").doc(`${user.uid}_${date}`);
-      const outcome = await db.runTransaction(async (transaction) => {
-        const existing = await transaction.get(ref);
-        if (type === "checkIn") {
-          if (!assigned) fail("failed-precondition", "No work location is assigned");
-          if (distanceMeters(currentLocation, assigned) > (Number(assigned.radius) || 100)) fail("permission-denied", "Outside the work location radius");
-          if (existing.exists) return "duplicate";
-          const [hour, minute] = shiftStart.split(":").map(Number);
-          const [capturedHour, capturedMinute] = timeForZone(capturedAt).split(":").map(Number);
-          const isLate = capturedHour * 60 + capturedMinute > hour * 60 + minute + 15;
-          transaction.set(ref, { employeeId: user.uid, companyId, employeeName: employee.name, date, checkIn: Timestamp.fromDate(capturedAt), checkOut: null, status: isLate ? "late" : "present", isLate, checkInLocation: currentLocation, checkOutLocation: null, selfieStoragePath: null, isSynced: true, notes: "Synced from offline" });
-          return "created";
-        }
-        if (!existing.exists || !existing.data().checkIn) fail("failed-precondition", "No matching check-in to check out from");
-        if (existing.data().checkOut) return "duplicate";
-        transaction.update(ref, { checkOut: Timestamp.fromDate(capturedAt), checkOutLocation: currentLocation });
-        return "updated";
-      });
-      results.push({ clientId, status: outcome });
-    } catch (error) {
-      // A single bad event never fails the batch; the client keeps/retries it.
-      results.push({ clientId, status: "error", code: error.code || "internal", message: error.message || "Sync failed" });
-    }
-  }
-  console.log(JSON.stringify({ event: "sync_offline_attendance", companyId, uid: user.uid, count: events.length }));
-  return { results };
 });
 
 // Fires every 5 minutes and nudges employees: a check-in reminder in the 5-min

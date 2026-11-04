@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
@@ -22,94 +20,8 @@ import 'package:attendance_app/data/models/user_model.dart';
 import 'package:attendance_app/domain/repositories/employee_repository.dart';
 import 'package:attendance_app/domain/repositories/location_repository.dart';
 import 'package:attendance_app/features/admin/add_edit_employee.dart';
+import 'package:attendance_app/features/admin/invite_screen.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
-
-/// Shows the company code employees use to self-join, with copy + share.
-Future<void> _showInviteSheet(
-  BuildContext context,
-  String companyId,
-  String companyName,
-) {
-  final colors = context.colors;
-  final message =
-      'Join $companyName on PunchIn.\n\n1. Install PunchIn\n2. Tap "Create Account" → "Join Company"\n3. Enter this company code:\n$companyId';
-  return showModalBottomSheet(
-    context: context,
-    showDragHandle: true,
-    builder: (context) => Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.xxl,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Invite employees',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Share this company code. Employees enter it when creating their account to join $companyName.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: colors.surfaceMuted,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: SelectableText(
-                    companyId,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.copy_rounded),
-                  tooltip: 'Copy code',
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: companyId));
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Code copied')),
-                      );
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => SharePlus.instance.share(
-                ShareParams(
-                  text: message,
-                  subject: 'Join $companyName on PunchIn',
-                ),
-              ),
-              icon: const Icon(Icons.share_rounded),
-              label: const Text('Share invite'),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
 
 class EmployeeManagement extends StatefulWidget {
   const EmployeeManagement({super.key});
@@ -155,7 +67,6 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
     String companyId,
     List<LocationModel> sites,
   ) {
-    final siteNames = {for (final s in sites) s.id: s.name};
     return Scaffold(
       appBar: TabHeader(
         title: 'Team',
@@ -164,138 +75,149 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
             label: 'Add',
             size: AppButtonSize.small,
             expand: false,
-            onPressed: () => _showInviteSheet(
-              context,
-              companyId,
-              prov.company?.name ?? 'us',
-            ),
+            onPressed: () => _openInvite(context),
           ),
         ],
       ),
-      body: StreamBuilder<List<UserModel>>(
-        stream: sl<EmployeeRepository>().watchEmployees(companyId),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const AppLoader();
-          }
-          final employees = snap.data ?? [];
-          if (employees.isEmpty) {
-            return EmptyState(
-              icon: Icons.people_outline,
-              title: 'No employees yet',
-              subtitle:
-                  'Share your company code and staff will appear here as they join.',
-              action: FilledButton.tonalIcon(
-                onPressed: () => _showInviteSheet(
-                  context,
-                  companyId,
-                  prov.company?.name ?? 'us',
-                ),
-                icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                label: const Text('Invite employees'),
+      body: Column(
+        children: [
+          _PendingJoiners(companyId: companyId),
+          Expanded(child: _directory(context, prov, companyId, sites)),
+        ],
+      ),
+    );
+  }
+
+  void _openInvite(BuildContext context) => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => const InviteScreen()),
+  );
+
+  Widget _directory(
+    BuildContext context,
+    UserProvider prov,
+    String companyId,
+    List<LocationModel> sites,
+  ) {
+    final siteNames = {for (final s in sites) s.id: s.name};
+    return StreamBuilder<List<UserModel>>(
+      stream: sl<EmployeeRepository>().watchEmployees(companyId),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const AppLoader();
+        }
+        final employees = snap.data ?? [];
+        if (employees.isEmpty) {
+          return EmptyState(
+            icon: Icons.people_outline,
+            title: 'No employees yet',
+            subtitle:
+                'Invite people by phone or share your company code. They '
+                'appear here as they join.',
+            action: FilledButton.tonalIcon(
+              onPressed: () => _openInvite(context),
+              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+              label: const Text('Invite employees'),
+            ),
+          );
+        }
+
+        final activeCount = employees.where((e) => e.status == 'active').length;
+        final filtered = employees.where(_matches).toList();
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.sm,
+                AppSpacing.lg,
+                AppSpacing.md,
               ),
-            );
-          }
-
-          final activeCount = employees
-              .where((e) => e.status == 'active')
-              .length;
-          final filtered = employees.where(_matches).toList();
-
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                  AppSpacing.lg,
-                  AppSpacing.md,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AppSearchField(
-                      hint: 'Search name, email, or role',
-                      onChanged: (v) => setState(() => _query = v),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppSearchField(
+                    hint: 'Search name, email, or role',
+                    onChanged: (v) => setState(() => _query = v),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  AppChipBar(
+                    children: [
+                      AppChip(
+                        label: 'All',
+                        count: employees.length,
+                        selected: _filter == 'all',
+                        onTap: () => setState(() => _filter = 'all'),
+                      ),
+                      AppChip(
+                        label: 'Active',
+                        count: activeCount,
+                        selected: _filter == 'active',
+                        onTap: () => setState(() => _filter = 'active'),
+                      ),
+                      AppChip(
+                        label: 'Inactive',
+                        count: employees.length - activeCount,
+                        selected: _filter == 'inactive',
+                        onTap: () => setState(() => _filter = 'inactive'),
+                      ),
+                    ],
+                  ),
+                  if (sites.length > 1) ...[
+                    const SizedBox(height: AppSpacing.sm),
                     AppChipBar(
                       children: [
                         AppChip(
-                          label: 'All',
-                          count: employees.length,
-                          selected: _filter == 'all',
-                          onTap: () => setState(() => _filter = 'all'),
+                          label: 'All locations',
+                          icon: Icons.location_on_outlined,
+                          selected: _site == null,
+                          onTap: () => setState(() => _site = null),
                         ),
-                        AppChip(
-                          label: 'Active',
-                          count: activeCount,
-                          selected: _filter == 'active',
-                          onTap: () => setState(() => _filter = 'active'),
-                        ),
-                        AppChip(
-                          label: 'Inactive',
-                          count: employees.length - activeCount,
-                          selected: _filter == 'inactive',
-                          onTap: () => setState(() => _filter = 'inactive'),
+                        for (final s in sites)
+                          AppChip(
+                            label: s.name,
+                            selected: _site == s.id,
+                            onTap: () => setState(() => _site = s.id),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.search_off_rounded,
+                      title: 'No matches',
+                      subtitle: 'Try a different name, role, or filter.',
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        0,
+                        AppSpacing.lg,
+                        AppSpacing.xxl,
+                      ),
+                      children: [
+                        AppGroup(
+                          children: [
+                            for (final e in filtered)
+                              _EmployeeCard(
+                                employee: e,
+                                companyId: companyId,
+                                company: prov.company,
+                                siteNames: siteNames,
+                              ),
+                          ],
                         ),
                       ],
                     ),
-                    if (sites.length > 1) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      AppChipBar(
-                        children: [
-                          AppChip(
-                            label: 'All locations',
-                            icon: Icons.location_on_outlined,
-                            selected: _site == null,
-                            onTap: () => setState(() => _site = null),
-                          ),
-                          for (final s in sites)
-                            AppChip(
-                              label: s.name,
-                              selected: _site == s.id,
-                              onTap: () => setState(() => _site = s.id),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Expanded(
-                child: filtered.isEmpty
-                    ? const EmptyState(
-                        icon: Icons.search_off_rounded,
-                        title: 'No matches',
-                        subtitle: 'Try a different name, role, or filter.',
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.lg,
-                          0,
-                          AppSpacing.lg,
-                          AppSpacing.xxl,
-                        ),
-                        children: [
-                          AppGroup(
-                            children: [
-                              for (final e in filtered)
-                                _EmployeeCard(
-                                  employee: e,
-                                  companyId: companyId,
-                                  company: prov.company,
-                                  siteNames: siteNames,
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-              ),
-            ],
-          );
-        },
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -351,6 +273,74 @@ class _EmployeeCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// People who joined with the company code while "Approve new joiners" is on.
+class _PendingJoiners extends StatelessWidget {
+  const _PendingJoiners({required this.companyId});
+
+  final String companyId;
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = sl<EmployeeRepository>();
+    return StreamBuilder<List<UserModel>>(
+      stream: repo.watchPendingEmployees(companyId),
+      builder: (context, snap) {
+        final pending = snap.data ?? const <UserModel>[];
+        if (pending.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Waiting for approval (${pending.length})',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppGroup(
+                children: [
+                  for (final e in pending)
+                    EntityTile(
+                      inGroup: true,
+                      leading: Avatar(name: e.name),
+                      title: e.name,
+                      subtitle: e.phone ?? e.email,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: () =>
+                                repo.setStatus(companyId, e.id, 'inactive'),
+                            child: Text(
+                              'Decline',
+                              style: TextStyle(color: context.colors.danger),
+                            ),
+                          ),
+                          AppButton(
+                            label: 'Approve',
+                            size: AppButtonSize.small,
+                            expand: false,
+                            onPressed: () =>
+                                repo.setStatus(companyId, e.id, 'active'),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

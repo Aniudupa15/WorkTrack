@@ -11,6 +11,8 @@ import 'package:attendance_app/features/auth/login_screen.dart';
 import 'package:attendance_app/features/admin/admin_dashboard.dart';
 import 'package:attendance_app/features/admin/super_admin_console.dart';
 import 'package:attendance_app/features/employee/employee_dashboard.dart';
+import 'package:attendance_app/features/onboarding/company_setup_screen.dart';
+import 'package:attendance_app/features/onboarding/join_team_screen.dart';
 
 Future<void> main() async {
   await bootstrap();
@@ -55,9 +57,19 @@ class AuthWrapper extends StatelessWidget {
       return const Scaffold(body: AppLoader());
     }
 
+    if (userProvider.needsOnboarding) {
+      return userProvider.signedInWithPhone
+          ? const JoinTeamScreen()
+          : const CompanySetupScreen();
+    }
     if (userProvider.user == null) return const LoginScreen();
     final blocked = userProvider.blockedReason;
-    if (blocked != null) return _AccessBlockedScreen(message: blocked);
+    if (blocked != null) {
+      return _AccessBlockedScreen(
+        message: blocked,
+        pending: userProvider.isPendingApproval,
+      );
+    }
     if (userProvider.isSuperAdmin) return const SuperAdminConsole();
     if (userProvider.isAdmin) return const AdminDashboard();
     return const EmployeeDashboard();
@@ -65,9 +77,12 @@ class AuthWrapper extends StatelessWidget {
 }
 
 class _AccessBlockedScreen extends StatelessWidget {
-  const _AccessBlockedScreen({required this.message});
+  const _AccessBlockedScreen({required this.message, this.pending = false});
 
   final String message;
+
+  /// Waiting for approval rather than locked out: friendlier, with a refresh.
+  final bool pending;
 
   @override
   Widget build(BuildContext context) {
@@ -79,15 +94,30 @@ class _AccessBlockedScreen extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.lock_outline_rounded, size: 56),
+                Icon(
+                  pending
+                      ? Icons.hourglass_top_rounded
+                      : Icons.lock_outline_rounded,
+                  size: 56,
+                ),
                 const SizedBox(height: 16),
                 Text(
-                  'Access unavailable',
+                  pending ? 'Waiting for approval' : 'Access unavailable',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(message, textAlign: TextAlign.center),
                 const SizedBox(height: 24),
+                if (pending) ...[
+                  FilledButton(
+                    onPressed: () => Provider.of<UserProvider>(
+                      context,
+                      listen: false,
+                    ).completeOnboarding(),
+                    child: const Text('Check again'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 OutlinedButton(
                   onPressed: () => Provider.of<UserProvider>(
                     context,

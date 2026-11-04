@@ -91,6 +91,43 @@ class AuthRepositoryImpl implements AuthRepository {
     );
   }
 
+  @override
+  Future<void> createAdminAccount({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final credential = await _auth.createAccount(email.trim(), password);
+      await credential.user?.updateDisplayName(name.trim());
+      // Best effort: the account works before the address is confirmed.
+      await _auth.sendEmailVerification().catchError((_) {});
+    } catch (error) {
+      throw ErrorMapper.map(error);
+    }
+  }
+
+  @override
+  Future<String?> sendPhoneCode(String phone, {bool resend = false}) async {
+    try {
+      return await _auth.sendPhoneCode(
+        phone,
+        resendToken: resend ? _auth.resendToken : null,
+      );
+    } catch (error) {
+      throw ErrorMapper.map(error);
+    }
+  }
+
+  @override
+  Future<void> confirmPhoneCode(String verificationId, String code) async {
+    try {
+      await _auth.confirmPhoneCode(verificationId, code);
+    } catch (error) {
+      throw ErrorMapper.map(error);
+    }
+  }
+
   /// Creates the auth account, then runs [provision] to write the Firestore
   /// documents. If provisioning fails, the half-created account is deleted so a
   /// broken account can't linger.

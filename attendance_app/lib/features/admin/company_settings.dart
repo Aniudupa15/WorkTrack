@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/utils/attendance_clock.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/core/widgets/avatar.dart';
 import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/section_header.dart';
+import 'package:attendance_app/domain/repositories/company_repository.dart';
 import 'package:attendance_app/features/admin/attendance_logs.dart';
+import 'package:attendance_app/features/admin/invite_screen.dart';
 import 'package:attendance_app/features/admin/leave_management.dart';
 import 'package:attendance_app/features/admin/locations_screen.dart';
 import 'package:attendance_app/features/shared/profile_screen.dart';
@@ -63,39 +65,40 @@ class CompanySettingsScreen extends StatelessWidget {
               ],
             ),
           ),
-          if ((company?.employeeCode ?? '').isNotEmpty) ...[
-            const SectionHeader(title: 'Invite code'),
-            const SizedBox(height: AppSpacing.sm),
-            AppCard(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      company!.employeeCode,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 3,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: () {
-                      Clipboard.setData(
-                        ClipboardData(text: company.employeeCode),
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Invite code copied')),
-                      );
-                    },
-                    icon: const Icon(Icons.copy_rounded, size: 18),
-                    label: const Text('Copy'),
-                  ),
-                ],
+          const SectionHeader(title: 'Joining'),
+          const SizedBox(height: AppSpacing.sm),
+          AppGroup(
+            children: [
+              EntityTile(
+                inGroup: true,
+                leading: const IconChip(icon: Icons.qr_code_2_rounded),
+                title: 'Invite people',
+                subtitle: (company?.employeeCode ?? '').isEmpty
+                    ? 'QR code, phone invites, upload a list'
+                    : 'Company code ${company!.employeeCode} · QR · '
+                          'phone invites',
+                chevron: true,
+                onTap: () => open(const InviteScreen()),
               ),
-            ),
-          ],
+              SwitchListTile(
+                value: company?.settings['approveJoiners'] == true,
+                onChanged: company == null
+                    ? null
+                    : (v) async {
+                        await sl<CompanyRepository>().updateSettings(
+                          company.id,
+                          {...company.settings, 'approveJoiners': v},
+                        );
+                        await prov.refreshUser();
+                      },
+                title: const Text('Approve new joiners'),
+                subtitle: const Text(
+                  'People joining with the code wait for your OK. Phone '
+                  'invites join straight away.',
+                ),
+              ),
+            ],
+          ),
           const SectionHeader(title: 'Workspace'),
           const SizedBox(height: AppSpacing.sm),
           AppGroup(

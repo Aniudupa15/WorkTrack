@@ -59,6 +59,20 @@ class UserProvider with ChangeNotifier {
   bool get isAdmin => _user?.role == 'admin';
   bool get isEmployee => _user?.role == 'employee';
 
+  /// Joined with the company code and waiting for the admin's approval.
+  bool get isPendingApproval =>
+      _user?.role == 'employee' && _user?.status == 'pending';
+
+  /// Signed in but not yet part of a company: a new admin who still has to
+  /// set their company up, or a phone sign-in that still has to join a team.
+  bool get needsOnboarding =>
+      !_loading && _user == null && _auth.currentUser != null;
+
+  /// The unprovisioned sign-in used a phone number (→ join a team) rather
+  /// than an email (→ set up a company).
+  bool get signedInWithPhone =>
+      (_auth.currentUser?.phoneNumber ?? '').isNotEmpty;
+
   /// Why the signed-in user may not use the app (deactivated employee or
   /// suspended company), or null when access is allowed. Security Rules
   /// enforce the same on every punch and leave request.
@@ -68,6 +82,10 @@ class UserProvider with ChangeNotifier {
     if (_companyModel?.status == 'suspended') {
       return 'Your company’s PunchIn access has been suspended. '
           'Contact your administrator.';
+    }
+    if (user.role == 'employee' && user.status == 'pending') {
+      return 'You’ve asked to join ${_companyModel?.name ?? 'your company'}. '
+          'Your admin needs to approve you before you can punch in.';
     }
     if (user.role == 'employee' && user.status != 'active') {
       return 'Your employee account has been deactivated. '
@@ -144,6 +162,10 @@ class UserProvider with ChangeNotifier {
     );
     await refreshUser();
   }
+
+  /// Re-resolves the session after onboarding wrote the user's role (company
+  /// created or team joined), running the same setup as a fresh sign-in.
+  Future<void> completeOnboarding() => _onAuthChange(_auth.currentUser);
 
   Future<void> refreshUser() async {
     final uid = _auth.currentUser?.uid;
