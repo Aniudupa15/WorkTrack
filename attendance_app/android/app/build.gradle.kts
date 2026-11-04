@@ -60,6 +60,10 @@ android {
 
     buildTypes {
         release {
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             // We don't obfuscate, so there is no R8 mapping file to upload;
             // disabling this avoids the Crashlytics mapping-upload task while
             // keeping SDK crash reporting fully functional.

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import 'package:attendance_app/core/billing/entitlements.dart';
+import 'package:attendance_app/features/billing/paywall.dart';
 import 'package:provider/provider.dart';
 
 import 'package:attendance_app/core/di/injection.dart';
@@ -88,10 +91,17 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
     );
   }
 
-  void _openInvite(BuildContext context) => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => const InviteScreen()),
-  );
+  void _openInvite(BuildContext context) {
+    final company = Provider.of<UserProvider>(context, listen: false).company;
+    if (!Entitlements.of(company).canAddPeople(company?.activeEmployees ?? 0)) {
+      showPaywall(context, PaywallReason.morePeople);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const InviteScreen()),
+    );
+  }
 
   Widget _directory(
     BuildContext context,

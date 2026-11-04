@@ -1,7 +1,7 @@
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { doc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, Timestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, Timestamp, collection, query, where, getDocs } from 'firebase/firestore';
 
 const env = await initializeTestEnvironment({ projectId: 'demo-punchin', firestore: { rules: readFileSync(fileURLToPath(new URL('../../firestore.rules', import.meta.url)), 'utf8'), host: '127.0.0.1', port: 8085 } });
 const C = 'co1', E = 'emp1', ZONE = { latitude: 12.9716, longitude: 77.5946, radius: 100, address: 'HQ' };
@@ -190,6 +190,42 @@ await t('pending joiner cannot approve themselves', () => assertFails(updateDoc(
 await t('admin approves a pending joiner', () => assertSucceeds(updateDoc(doc(adm(), 'companies', C, 'employees', E), { status: 'active', updatedAt: serverTimestamp() })));
 await t('client cannot create a company', () => assertFails(setDoc(doc(adm(), 'companies', 'mine'), { companyName: 'X', adminId: 'adm1' })));
 await t('admin cannot grant itself a paid plan', () => assertFails(updateDoc(doc(adm(), 'companies', C), { plan: 'business' })));
+
+console.log('Plans / billing');
+const istDay = (daysAgo) => new Date(Date.now() + 330 * 60000 - daysAgo * 86400000).toISOString().slice(0, 10);
+async function seedPlan(fields) {
+  await seedSites();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await updateDoc(doc(db, 'companies', C), fields);
+    for (const d of [0, 10, 45]) await setDoc(doc(db, 'companies', C, 'attendance', `${E}_${istDay(d)}`), { employeeId: E, companyId: C, date: istDay(d), status: 'present' });
+    await setDoc(doc(db, 'companies', C, 'employees', 'gone'), { uid: 'gone', name: 'Gone', status: 'inactive', shift: { start: '09:00', end: '18:00' } });
+  });
+}
+const att = (db) => collection(db, 'companies', C, 'attendance');
+const reactivate = () => updateDoc(doc(adm(), 'companies', C, 'employees', 'gone'), { status: 'active', updatedAt: serverTimestamp() });
+await seedPlan({ plan: 'free', activeEmployees: 5 });
+await t('Free admin: last 30 days readable', () => assertSucceeds(getDocs(query(att(adm()), where('date', '>=', istDay(29))))));
+await t('Free admin: today’s logs readable', () => assertSucceeds(getDocs(query(att(adm()), where('date', '==', istDay(0))))));
+await t('Free admin: 45-day-old record refused', () => assertFails(getDoc(doc(att(adm()), `${E}_${istDay(45)}`))));
+await t('Free admin: unbounded history query refused', () => assertFails(getDocs(att(adm()))));
+await t('Free employee still reads own old record', () => assertSucceeds(getDoc(doc(att(empDb()), `${E}_${istDay(45)}`))));
+await t('Free company at 5 cannot reactivate a sixth', () => assertFails(reactivate()));
+await seedPlan({ plan: 'free', activeEmployees: 4 });
+await t('Free company at 4 can reactivate one', () => assertSucceeds(reactivate()));
+await seedPlan({ plan: 'trial', trialEndsAt: Timestamp.fromDate(new Date(Date.now() + 5 * 86400000)), activeEmployees: 9 });
+await t('trial: full history and no headcount cap', async () => { await assertSucceeds(getDocs(att(adm()))); await assertSucceeds(reactivate()); });
+await seedPlan({ plan: 'trial', trialEndsAt: Timestamp.fromDate(new Date(Date.now() - 86400000)), activeEmployees: 9 });
+await t('expired trial behaves as Free', () => assertFails(getDocs(att(adm()))));
+await seedPlan({ plan: 'pro', billingStatus: 'active', activeEmployees: 40 });
+await t('active Pro: full history', () => assertSucceeds(getDocs(att(adm()))));
+await seedPlan({ plan: 'pro', billingStatus: 'halted', activeEmployees: 40 });
+await t('halted Pro behaves as Free', () => assertFails(getDocs(att(adm()))));
+await seedPlan({ activeEmployees: 40 });
+await t('pre-billing company is unrestricted', async () => { await assertSucceeds(getDocs(att(adm()))); await assertSucceeds(reactivate()); });
+for (const [field, value] of [['seats', 999], ['billingStatus', 'active'], ['trialEndsAt', Timestamp.fromDate(new Date('2030-01-01'))], ['activeEmployees', 0], ['subscriptionId', 'sub_x']]) {
+  await t(`admin cannot write ${field}`, () => assertFails(updateDoc(doc(adm(), 'companies', C), { [field]: value })));
+}
 
 console.log(`\n${pass} passed, ${failN} failed`);
 await env.cleanup();

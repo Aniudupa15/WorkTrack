@@ -1,5 +1,8 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+
+import 'package:attendance_app/core/billing/entitlements.dart';
+import 'package:attendance_app/features/billing/paywall.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -37,10 +40,13 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
 
   Future<void> _loadData() async {
     setState(() => _loading = true);
-    final companyId =
-        Provider.of<UserProvider>(context, listen: false).company?.id ?? '';
+    final company = Provider.of<UserProvider>(context, listen: false).company;
     final ym = DateFormat('yyyy-MM').format(_selectedMonth);
-    _records = await _attendance.getAttendanceForMonth(companyId, ym);
+    _records = await _attendance.getAttendanceForMonth(
+      company?.id ?? '',
+      ym,
+      since: Entitlements.of(company).historySince,
+    );
     if (mounted) setState(() => _loading = false);
   }
 
@@ -55,6 +61,12 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
   }
 
   Future<void> _exportCsv() async {
+    final ent = Entitlements.of(
+      Provider.of<UserProvider>(context, listen: false).company,
+    );
+    if (!ent.hasPro) {
+      return showPaywall(context, PaywallReason.export);
+    }
     if (_records.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Nothing to export for this month.')),

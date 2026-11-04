@@ -21,7 +21,44 @@ cd attendance_app
 
 ## 1. Deploy the Firebase backend
 
-The client depends on Cloud Functions, Security Rules, indexes, and Storage rules.
+PunchIn v2 needs the **Blaze** plan (Cloud Functions, phone sign-in, scheduled jobs).
+
+### 1a. One-time setup in the Firebase console
+
+- **Authentication → Sign-in method:** enable **Email/Password** and **Phone**.
+- **Project settings → Your apps → Android:** add the app's **SHA-1 and SHA-256** (from Play Console → App integrity, plus your upload key) so phone sign-in works.
+
+### 1b. Razorpay (billing)
+
+1. In the Razorpay dashboard (start in **Test mode**), create four **Subscription plans**. The amount is the
+   per-seat price **including 18% GST**; the app sends the seat count as the subscription quantity.
+
+   | Plan | Period | Amount per seat (₹, incl. GST) |
+   |---|---|---|
+   | Pro monthly | monthly, every 1 | 46.02 |
+   | Pro yearly | yearly, every 1 | 441.32 |
+   | Business monthly | monthly, every 1 | 93.22 |
+   | Business yearly | yearly, every 1 | 894.44 |
+
+   (Per-seat prices before GST: Pro ₹39/mo or ₹374/yr, Business ₹79/mo or ₹758/yr — the same numbers as
+   `lib/core/billing/entitlements.dart` and `PRICES` in `cloud_functions/index.js`. Change all three together.)
+2. Copy `cloud_functions/.env.example` to `cloud_functions/.env` and fill in the four plan ids.
+3. Set the secrets (you'll be prompted for each value; they never go in the repo):
+
+   ```bash
+   firebase functions:secrets:set RAZORPAY_KEY_ID
+   firebase functions:secrets:set RAZORPAY_KEY_SECRET
+   firebase functions:secrets:set RAZORPAY_WEBHOOK_SECRET
+   ```
+4. After the first deploy, add a webhook in Razorpay → **Settings → Webhooks**:
+   - URL: `https://asia-south1-trackin-df4d8.cloudfunctions.net/razorpayWebhook`
+   - Secret: the same value as `RAZORPAY_WEBHOOK_SECRET`
+   - Events: all `subscription.*` events.
+5. Switch to **Live mode** keys and plans only after a test-mode purchase works end to end.
+
+### 1c. Deploy
+
+Rules, functions and the new app version depend on each other — deploy them together.
 
 ```bash
 cd attendance_app
@@ -29,11 +66,30 @@ npm --prefix cloud_functions install
 firebase deploy --only firestore:rules,firestore:indexes,storage,functions
 ```
 
-- **Rules**: `firestore.rules`, `storage.rules` — all identity/attendance/employee writes are server-owned.
-- **Indexes**: `firestore.indexes.json` — composite indexes required by the history/leave queries.
-- **Functions**: `cloud_functions/index.js` — 10 functions (register/employee/check-in-out/reminders/auto-absent/offline-sync/leave hooks). Scheduled functions require the Blaze plan.
+- **Rules**: `firestore.rules`, `storage.rules` — punches are verified against the server clock and the employee's
+  assigned sites; companies, joins, invites and billing fields are written only by functions; Free companies are held
+  to 5 people and 30 days of admin history.
+- **Functions**: `cloud_functions/index.js` — onboarding (`registerCompany`, `claimJoin`, `importEmployees`,
+  `resetJoinCode`), billing (`createSubscription`, `verifySubscription`, `cancelSubscription`, `listInvoices`,
+  `razorpayWebhook`, `onEmployeeWritten`), reminders, auto-absent and leave hooks.
+- Companies created before billing have no `plan` field and stay unrestricted ("Classic"). Set `plan: "trial"` and a
+  `trialEndsAt` on them in the console if you want to move them onto billing.
 
 Verify: `firebase functions:list` and `firebase functions:log`.
+
+### Local testing
+
+```bash
+cd attendance_app
+firebase emulators:start --only auth,firestore,storage,functions --project trackin-df4d8
+node cloud_functions/scripts/seed-emulator.js        # demo company
+node test/functions/functions.test.mjs               # onboarding + billing (fake Razorpay)
+npm --prefix test/rules install && npm --prefix test/rules test
+flutter run --dart-define=USE_FIREBASE_EMULATORS=true
+```
+
+Under the emulator, `cloud_functions/.secret.local` (git-ignored) holds `rzp_fake_…` keys that switch billing to a
+built-in fake, so no Razorpay account is touched.
 
 ---
 

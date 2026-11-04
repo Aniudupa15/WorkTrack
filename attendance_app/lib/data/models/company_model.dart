@@ -15,6 +15,17 @@ class CompanyModel {
   // settings: {defaultRadius, defaultShiftStart, defaultShiftEnd}
   final Map<String, dynamic> settings;
 
+  // Billing — written only by Cloud Functions. `plan` is null for companies
+  // created before billing (unrestricted). See Entitlements.
+  final String? plan; // trial | free | pro | business
+  final String? cycle; // monthly | yearly
+  final int seats;
+  final String? billingStatus; // Razorpay subscription status
+  final DateTime? trialEndsAt;
+  final DateTime? currentPeriodEnd;
+  final bool cancelAtPeriodEnd;
+  final int activeEmployees;
+
   CompanyModel({
     required this.id,
     required this.companyName,
@@ -28,6 +39,14 @@ class CompanyModel {
     this.createdAt,
     this.totalEmployees = 0,
     Map<String, dynamic>? settings,
+    this.plan,
+    this.cycle,
+    this.seats = 0,
+    this.billingStatus,
+    this.trialEndsAt,
+    this.currentPeriodEnd,
+    this.cancelAtPeriodEnd = false,
+    this.activeEmployees = 0,
   }) : settings =
            settings ??
            {
@@ -64,6 +83,14 @@ class CompanyModel {
       settings: map['settings'] != null
           ? Map<String, dynamic>.from(map['settings'] as Map)
           : null,
+      plan: map['plan'] as String?,
+      cycle: map['cycle'] as String?,
+      seats: (map['seats'] as num?)?.toInt() ?? 0,
+      billingStatus: map['billingStatus'] as String?,
+      trialEndsAt: (map['trialEndsAt'] as Timestamp?)?.toDate(),
+      currentPeriodEnd: (map['currentPeriodEnd'] as Timestamp?)?.toDate(),
+      cancelAtPeriodEnd: map['cancelAtPeriodEnd'] == true,
+      activeEmployees: (map['activeEmployees'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -96,9 +123,20 @@ class CompanyModel {
       adminName: adminName,
       adminEmail: adminEmail,
       phone: phone,
+      address: address,
+      status: status,
+      employeeCode: employeeCode,
       createdAt: createdAt,
       totalEmployees: totalEmployees ?? this.totalEmployees,
       settings: settings ?? this.settings,
+      plan: plan,
+      cycle: cycle,
+      seats: seats,
+      billingStatus: billingStatus,
+      trialEndsAt: trialEndsAt,
+      currentPeriodEnd: currentPeriodEnd,
+      cancelAtPeriodEnd: cancelAtPeriodEnd,
+      activeEmployees: activeEmployees,
     );
   }
 }

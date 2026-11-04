@@ -5,6 +5,8 @@
 //     "node test/functions/functions.test.mjs"
 // Uses fresh emails / phone numbers each run, so it never needs a wipe.
 
+import { createHmac } from 'node:crypto';
+
 const PROJECT = process.env.GCLOUD_PROJECT || 'trackin-df4d8';
 const AUTH = 'http://127.0.0.1:9099';
 const FS = `http://127.0.0.1:8085/v1/projects/${PROJECT}/databases/(default)/documents`;
@@ -170,6 +172,68 @@ await t('reset retires the old code', async () => {
   eq(await read(`codes/${co.employeeCode}`), null, 'old code doc');
   eq((await read(`companies/${co.companyId}`)).employeeCode, employeeCode, 'company code');
   await rejects(call('claimJoin', { code: co.employeeCode, name: 'Late' }, await phoneUser(freshPhone())), 'NOT_FOUND');
+});
+
+console.log('billing');
+const KEY_SECRET = 'fake_key_secret_for_emulator';
+const WEBHOOK_SECRET = 'fake_webhook_secret_for_emulator';
+const sign = (secret, payload) => createHmac('sha256', secret).update(payload).digest('hex');
+async function webhook(event, entity, secret = WEBHOOK_SECRET) {
+  const body = JSON.stringify({ event, payload: { subscription: { entity } } });
+  const res = await fetch(`${FN}/razorpayWebhook`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Razorpay-Signature': sign(secret, body) }, body });
+  return res.status;
+}
+let subId;
+await t('non-admin cannot subscribe', () => rejects(call('createSubscription', { companyId: co.companyId, plan: 'pro', cycle: 'yearly', seats: 5 }, ravi), 'PERMISSION_DENIED'));
+await t('unknown plan rejected', () => rejects(call('createSubscription', { companyId: co.companyId, plan: 'gold', cycle: 'yearly', seats: 5 }, boss), 'INVALID_ARGUMENT'));
+await t('fewer seats than people rejected', () => rejects(call('createSubscription', { companyId: co.companyId, plan: 'pro', cycle: 'yearly', seats: 1 }, boss), 'INVALID_ARGUMENT'));
+await t('trial company subscribes; first charge waits for trial end', async () => {
+  const r = await call('createSubscription', { companyId: co.companyId, plan: 'pro', cycle: 'yearly', seats: 5 }, boss);
+  subId = r.subscriptionId;
+  eq([r.fake, r.subscriptionId.startsWith('sub_fake_')], [true, true], 'fake sub');
+  const c = await read(`companies/${co.companyId}`);
+  eq(c.pendingSubscription.id, subId, 'pending'); eq(c.plan, 'trial', 'still trial');
+  if (Math.abs(r.startsAt - Date.parse(c.trialEndsAt)) > 1000) throw new Error('start not at trial end');
+});
+await t('forged checkout signature rejected', () => rejects(call('verifySubscription', { companyId: co.companyId, paymentId: 'pay_1', subscriptionId: subId, signature: 'deadbeef' }, boss), 'PERMISSION_DENIED'));
+await t('verified checkout switches the company to Pro', async () => {
+  await call('verifySubscription', { companyId: co.companyId, paymentId: 'pay_1', subscriptionId: subId, signature: sign(KEY_SECRET, `pay_1|${subId}`) }, boss);
+  const c = await read(`companies/${co.companyId}`);
+  eq([c.plan, c.cycle, c.seats, c.billingStatus, c.subscriptionId, c.pendingSubscription], ['pro', 'yearly', 5, 'authenticated', subId, undefined], 'company');
+});
+await t('webhook with a bad signature is refused', async () => eq(await webhook('subscription.activated', { id: subId, status: 'active', notes: { companyId: co.companyId, plan: 'business', cycle: 'yearly' } }, 'wrong'), 400, 'status'));
+await t('webhook activates and records the period end', async () => {
+  eq(await webhook('subscription.activated', { id: subId, status: 'active', quantity: 6, current_end: 1893456000, notes: { companyId: co.companyId, plan: 'pro', cycle: 'yearly' } }), 200, 'status');
+  const c = await read(`companies/${co.companyId}`);
+  eq([c.billingStatus, c.seats, c.currentPeriodEnd.slice(0, 10)], ['active', 6, '2030-01-01'], 'company');
+});
+await t('webhook for someone else’s subscription changes nothing', async () => {
+  await webhook('subscription.cancelled', { id: 'sub_other', status: 'cancelled', notes: { companyId: co.companyId, plan: 'pro', cycle: 'yearly' } });
+  eq((await read(`companies/${co.companyId}`)).billingStatus, 'active', 'status');
+});
+await t('halted subscription drops the company to Free', async () => {
+  await webhook('subscription.halted', { id: subId, status: 'halted', notes: { companyId: co.companyId, plan: 'pro', cycle: 'yearly' } });
+  const c = await read(`companies/${co.companyId}`);
+  eq([c.plan, c.billingStatus], ['free', 'halted'], 'company');
+});
+await t('cancel needs a live subscription', () => rejects(call('cancelSubscription', { companyId: co.companyId }, boss), 'FAILED_PRECONDITION'));
+
+console.log('free plan limits');
+const heads = async () => (await (await fetch(`${FS}:runAggregationQuery`.replace('/documents:', `/documents/companies/${co.companyId}:`), { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: 'employees' }], where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'IN', value: { arrayValue: { values: [{ stringValue: 'active' }, { stringValue: 'pending' }] } } } } }, aggregations: [{ alias: 'n', count: {} }] } }) })).json())[0].result.aggregateFields.n.integerValue;
+const before = Number(await heads());
+const p1 = freshPhone(), p2 = freshPhone(), p3 = freshPhone();
+await t('Free company can only invite up to 5 people', async () => {
+  const r = await call('importEmployees', { companyId: co.companyId, rows: [p1, p2, p3].map((phone, i) => ({ name: `Free ${i}`, phone })) }, boss);
+  eq(r.created, 5 - before, 'created'); eq(r.errors.length, 3 - (5 - before), 'refused');
+});
+await t('joining past 5 on Free is refused', async () => {
+  for (const p of [p1, p2].slice(0, 5 - before)) await call('claimJoin', {}, await phoneUser(p));
+  const code = (await read(`companies/${co.companyId}`)).employeeCode;
+  await rejects(call('claimJoin', { code, name: 'Sixth' }, await phoneUser(freshPhone())), 'RESOURCE_EXHAUSTED');
+});
+await t('trigger keeps activeEmployees in step', async () => {
+  for (let i = 0; i < 20 && (await read(`companies/${co.companyId}`)).activeEmployees !== 5; i++) await new Promise((r) => setTimeout(r, 500));
+  eq((await read(`companies/${co.companyId}`)).activeEmployees, 5, 'activeEmployees');
 });
 
 console.log(`\n${pass} passed, ${failN} failed`);

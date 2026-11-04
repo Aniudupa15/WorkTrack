@@ -45,6 +45,7 @@ class UserProvider with ChangeNotifier {
   CompanyModel? _companyModel;
   List<LocationModel> _sites = const [];
   bool _loading = true;
+  bool _sessionError = false;
   StreamSubscription<User?>? _authSubscription;
   int _authChangeVersion = 0;
 
@@ -66,7 +67,11 @@ class UserProvider with ChangeNotifier {
   /// Signed in but not yet part of a company: a new admin who still has to
   /// set their company up, or a phone sign-in that still has to join a team.
   bool get needsOnboarding =>
-      !_loading && _user == null && _auth.currentUser != null;
+      !_loading && !_sessionError && _user == null && _auth.currentUser != null;
+
+  /// Signed in, but the account couldn't be loaded (e.g. offline at start).
+  /// Never treated as "no company yet".
+  bool get sessionError => _sessionError && _auth.currentUser != null;
 
   /// The unprovisioned sign-in used a phone number (→ join a team) rather
   /// than an email (→ set up a company).
@@ -97,6 +102,7 @@ class UserProvider with ChangeNotifier {
   Future<void> _onAuthChange(User? firebaseUser) async {
     final version = ++_authChangeVersion;
     _loading = true;
+    _sessionError = false;
     notifyListeners();
     if (firebaseUser != null) {
       try {
@@ -135,6 +141,7 @@ class UserProvider with ChangeNotifier {
         _user = null;
         _companyModel = null;
         _sites = const [];
+        _sessionError = true;
       }
     } else {
       _user = null;

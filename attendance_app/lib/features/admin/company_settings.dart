@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/billing/entitlements.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/utils/attendance_clock.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
@@ -13,6 +14,7 @@ import 'package:attendance_app/core/widgets/section_header.dart';
 import 'package:attendance_app/domain/repositories/company_repository.dart';
 import 'package:attendance_app/features/admin/attendance_logs.dart';
 import 'package:attendance_app/features/admin/invite_screen.dart';
+import 'package:attendance_app/features/billing/billing_screen.dart';
 import 'package:attendance_app/features/admin/leave_management.dart';
 import 'package:attendance_app/features/admin/locations_screen.dart';
 import 'package:attendance_app/features/shared/profile_screen.dart';
@@ -96,6 +98,20 @@ class CompanySettingsScreen extends StatelessWidget {
                   'People joining with the code wait for your OK. Phone '
                   'invites join straight away.',
                 ),
+              ),
+            ],
+          ),
+          const SectionHeader(title: 'Plan'),
+          const SizedBox(height: AppSpacing.sm),
+          AppGroup(
+            children: [
+              EntityTile(
+                inGroup: true,
+                leading: const IconChip(icon: Icons.workspace_premium_outlined),
+                title: 'Plan & billing',
+                subtitle: _planLine(Entitlements.of(company)),
+                chevron: true,
+                onTap: () => openBilling(context),
               ),
             ],
           ),
@@ -186,4 +202,11 @@ class CompanySettingsScreen extends StatelessWidget {
       ),
     );
   }
+
+  static String _planLine(Entitlements e) => switch (e.tier) {
+    Tier.trial => 'Pro trial · ${e.trialDaysLeft} days left',
+    Tier.free => e.trialEnded ? 'Free · trial ended' : 'Free',
+    Tier.legacy => 'Classic · no limits',
+    _ => e.paymentDue ? '${e.planName} · payment due' : e.planName,
+  };
 }

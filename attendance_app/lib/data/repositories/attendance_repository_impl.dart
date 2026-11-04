@@ -128,15 +128,22 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
   Stream<List<AttendanceModel>> watchAllLogs(
     String companyId, {
     String? dateFilter,
-  }) => _db.getAllAttendanceLogs(companyId, dateFilter: dateFilter);
+    String? since,
+  }) =>
+      _db.getAllAttendanceLogs(companyId, dateFilter: dateFilter, since: since);
 
   @override
   Future<List<AttendanceModel>> getAttendanceForMonth(
     String companyId,
-    String yearMonth,
-  ) async {
+    String yearMonth, {
+    String? since,
+  }) async {
     try {
-      return await _db.getAttendanceForMonth(companyId, yearMonth);
+      return await _db.getAttendanceForMonth(
+        companyId,
+        yearMonth,
+        since: since,
+      );
     } catch (error) {
       throw ErrorMapper.map(error);
     }
