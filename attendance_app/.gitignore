@@ -46,3 +46,6 @@ app.*.map.json
 
 # Rules test dependencies
 /test/rules/node_modules/
+
+# Emulator-only function secrets (never commit real keys)
+/cloud_functions/.secret.local

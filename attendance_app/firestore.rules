@@ -16,6 +16,18 @@ service cloud.firestore {
     function codeDoc(code) { return get(/databases/$(database)/documents/codes/$(code)).data; }
     function codeAfter(code) { return getAfter(/databases/$(database)/documents/codes/$(code)).data; }
     function companyDoc(companyId) { return get(/databases/$(database)/documents/companies/$(companyId)).data; }
+    // ── Plans ───────────────────────────────────────────────────────────────
+    // Mirrors effectiveTier() in the functions. Companies from before billing
+    // (no `plan`) are unrestricted.
+    function onFreeTier(c) {
+      let plan = c.get('plan', null);
+      return plan == 'free'
+        || (plan == 'trial' && c.trialEndsAt < request.time)
+        || ((plan == 'pro' || plan == 'business')
+            && !(c.get('billingStatus', '') in ['authenticated', 'active', 'pending']));
+    }
+    // Oldest attendance day a Free company's admin may read (30 days).
+    function historyCutoff() { return localDateOf(request.time - duration.value(30, 'd')); }
     function companyActive(companyId) { return companyDoc(companyId).get('status', 'active') == 'active'; }
     function employeeDoc(companyId, employeeId) {
       return get(/databases/$(database)/documents/companies/$(companyId)/employees/$(employeeId)).data;
@@ -44,6 +56,10 @@ service cloud.firestore {
     function pad2(n) { return n < 10 ? '0' + string(n) : string(n); }
     function localDate() {
       let t = localNow();
+      return string(t.year()) + '-' + pad2(t.month()) + '-' + pad2(t.day());
+    }
+    function localDateOf(ts) {
+      let t = ts + duration.value(330, 'm');
       return string(t.year()) + '-' + pad2(t.month()) + '-' + pad2(t.day());
     }
     function localMinutes() { let t = localNow(); return t.hours() * 60 + t.minutes(); }
@@ -248,7 +264,11 @@ service cloud.firestore {
               && validZone(request.resource.data.get('workLocation', null))
               && validAssignment(request.resource.data)
               && validShift(request.resource.data.shift)
-              && request.resource.data.status in ['active', 'inactive'])
+              && request.resource.data.status in ['active', 'inactive']
+              // A Free company stays within 5 people.
+              && (request.resource.data.status != 'active' || resource.data.status == 'active'
+                  || !onFreeTier(companyDoc(companyId))
+                  || companyDoc(companyId).get('activeEmployees', 0) < 5))
           || (isEmployee(companyId, employeeId)
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken'])
               && optionalText(request.resource.data.fcmToken, 4096));
@@ -261,7 +281,8 @@ service cloud.firestore {
       // employee per day. A record is created once (check-in) and updated once
       // (check-out); nothing else about it can be changed by the employee.
       match /attendance/{attendanceId} {
-        allow read: if isAdmin(companyId)
+        allow read: if (isAdmin(companyId)
+              && (!onFreeTier(companyDoc(companyId)) || resource.data.date >= historyCutoff()))
           || (signedIn() && resource.data.employeeId == uid() && memberOf(companyId));
         allow create: if isEmployee(companyId, request.resource.data.employeeId)
           && validCheckIn(companyId, attendanceId);

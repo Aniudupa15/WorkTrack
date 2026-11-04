@@ -54,13 +54,16 @@ abstract interface class AttendanceRepository {
     String employeeId,
   );
 
+  /// [since] limits a Free company's admin to recent history.
   Stream<List<AttendanceModel>> watchAllLogs(
     String companyId, {
     String? dateFilter,
+    String? since,
   });
 
   Future<List<AttendanceModel>> getAttendanceForMonth(
     String companyId,
-    String yearMonth,
-  );
+    String yearMonth, {
+    String? since,
+  });
 }

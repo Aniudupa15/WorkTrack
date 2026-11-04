@@ -57,6 +57,14 @@ class AuthWrapper extends StatelessWidget {
       return const Scaffold(body: AppLoader());
     }
 
+    if (userProvider.sessionError) {
+      return const _AccessBlockedScreen(
+        message:
+            'We couldn’t load your account. Check your internet '
+            'connection and try again.',
+        retry: true,
+      );
+    }
     if (userProvider.needsOnboarding) {
       return userProvider.signedInWithPhone
           ? const JoinTeamScreen()
@@ -77,12 +85,19 @@ class AuthWrapper extends StatelessWidget {
 }
 
 class _AccessBlockedScreen extends StatelessWidget {
-  const _AccessBlockedScreen({required this.message, this.pending = false});
+  const _AccessBlockedScreen({
+    required this.message,
+    this.pending = false,
+    this.retry = false,
+  });
 
   final String message;
 
   /// Waiting for approval rather than locked out: friendlier, with a refresh.
   final bool pending;
+
+  /// Loading failed: offer to try again instead of a lock.
+  final bool retry;
 
   @override
   Widget build(BuildContext context) {
@@ -97,24 +112,30 @@ class _AccessBlockedScreen extends StatelessWidget {
                 Icon(
                   pending
                       ? Icons.hourglass_top_rounded
+                      : retry
+                      ? Icons.cloud_off_rounded
                       : Icons.lock_outline_rounded,
                   size: 56,
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  pending ? 'Waiting for approval' : 'Access unavailable',
+                  pending
+                      ? 'Waiting for approval'
+                      : retry
+                      ? 'Couldn’t load your account'
+                      : 'Access unavailable',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(message, textAlign: TextAlign.center),
                 const SizedBox(height: 24),
-                if (pending) ...[
+                if (pending || retry) ...[
                   FilledButton(
                     onPressed: () => Provider.of<UserProvider>(
                       context,
                       listen: false,
                     ).completeOnboarding(),
-                    child: const Text('Check again'),
+                    child: Text(retry ? 'Try again' : 'Check again'),
                   ),
                   const SizedBox(height: 12),
                 ],

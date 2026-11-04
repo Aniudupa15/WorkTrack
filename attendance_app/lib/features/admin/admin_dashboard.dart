@@ -24,6 +24,8 @@ import 'package:attendance_app/features/admin/attendance_logs.dart';
 import 'package:attendance_app/features/admin/company_settings.dart';
 import 'package:attendance_app/features/admin/employee_management.dart';
 import 'package:attendance_app/features/admin/invite_screen.dart';
+import 'package:attendance_app/features/billing/billing_screen.dart';
+import 'package:attendance_app/features/billing/paywall.dart';
 import 'package:attendance_app/features/admin/leave_management.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
@@ -144,6 +146,7 @@ class _TodayTab extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.lg),
+                  PlanBanner(onOpenBilling: () => openBilling(context)),
                   _TodayCard(
                     total: employees.length,
                     onTime: onTime,

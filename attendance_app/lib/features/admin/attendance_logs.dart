@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import 'package:attendance_app/core/billing/entitlements.dart';
+import 'package:attendance_app/features/billing/paywall.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -29,6 +32,11 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
   final _attendance = sl<AttendanceRepository>();
   DateTime? _selectedDate;
   String _searchQuery = '';
+
+  /// Oldest day a Free company may see, or null.
+  String? get _since => Entitlements.of(
+    Provider.of<UserProvider>(context, listen: false).company,
+  ).historySince;
   String? _site;
   late final Stream<List<LocationModel>> _sites = sl<LocationRepository>()
       .watchLocations(
@@ -53,7 +61,9 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
               final picked = await showDatePicker(
                 context: context,
                 initialDate: _selectedDate ?? DateTime.now(),
-                firstDate: DateTime(2020),
+                firstDate: _since == null
+                    ? DateTime(2020)
+                    : DateTime.parse(_since!),
                 lastDate: DateTime.now(),
               );
               if (picked != null) setState(() => _selectedDate = picked);
@@ -78,6 +88,27 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
               onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
             ),
           ),
+          if (_since != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                0,
+                AppSpacing.xl,
+                AppSpacing.md,
+              ),
+              child: GestureDetector(
+                onTap: () => showPaywall(context, PaywallReason.history),
+                child: Text(
+                  'Showing the last ${Pricing.freeHistoryDays} days on the '
+                  'Free plan · Upgrade for full history',
+                  style: TextStyle(
+                    color: context.colors.brandStrong,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
           StreamBuilder<List<LocationModel>>(
             stream: _sites,
             builder: (context, snap) {
@@ -120,6 +151,7 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
               stream: _attendance.watchAllLogs(
                 companyId,
                 dateFilter: dateFilter,
+                since: _since,
               ),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {

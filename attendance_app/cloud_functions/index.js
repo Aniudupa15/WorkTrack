@@ -1,10 +1,11 @@
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
-const { randomBytes } = require("crypto");
+const { randomBytes, createHmac, timingSafeEqual } = require("crypto");
 
 initializeApp();
 const db = getFirestore();
@@ -49,6 +50,243 @@ async function admin(request, companyId) {
   if (user.role !== "admin" || user.companyId !== companyId) fail("permission-denied", "Administrator access is required");
   return user;
 }
+
+// ── Billing (Razorpay Subscriptions) ─────────────────────────────────────────
+// Companies pay per employee seat. Plan, seats and billing status live on the
+// company doc and are written ONLY here (checkout verification, the signed
+// webhook, seat sync); Security Rules keep clients out of them.
+//
+// Secrets (set by the account owner, never in code):
+//   firebase functions:secrets:set RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET
+// Plan ids (create the four plans in the Razorpay dashboard — amounts are the
+// per-seat prices below incl. 18% GST — then put the ids in cloud_functions/.env):
+//   RAZORPAY_PLAN_PRO_MONTHLY, RAZORPAY_PLAN_PRO_YEARLY,
+//   RAZORPAY_PLAN_BUSINESS_MONTHLY, RAZORPAY_PLAN_BUSINESS_YEARLY
+
+const RAZORPAY_KEY_ID = defineSecret("RAZORPAY_KEY_ID");
+const RAZORPAY_KEY_SECRET = defineSecret("RAZORPAY_KEY_SECRET");
+const RAZORPAY_WEBHOOK_SECRET = defineSecret("RAZORPAY_WEBHOOK_SECRET");
+// Read at call time from cloud_functions/.env (loaded into process.env).
+const planId = (plan, cycle) => process.env[`RAZORPAY_PLAN_${plan.toUpperCase()}_${cycle.toUpperCase()}`] || "";
+
+// Per-seat prices in rupees, before GST. Keep in sync with lib/core/billing/pricing.dart.
+const PRICES = { pro: { monthly: 39, yearly: 374 }, business: { monthly: 79, yearly: 758 } };
+const FREE_EMPLOYEE_LIMIT = 5;
+const LIVE_STATUSES = ["authenticated", "active", "pending"];
+const BILLING_SECRETS = [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET];
+
+// What the company may use right now. Companies created before billing have
+// no `plan` and stay unlimited ("legacy") until the owner decides otherwise.
+function effectiveTier(company, now = Date.now()) {
+  const plan = company?.plan;
+  if (!plan) return "legacy";
+  if (plan === "trial") return company.trialEndsAt?.toMillis() > now ? "trial" : "free";
+  if (plan === "pro" || plan === "business") return LIVE_STATUSES.includes(company.billingStatus) ? plan : "free";
+  return "free";
+}
+
+// Active + pending employees, the number a Free company is capped on.
+async function headcount(companyRef) {
+  const snap = await companyRef.collection("employees").where("status", "in", ["active", "pending"]).count().get();
+  return snap.data().count;
+}
+
+async function assertRoomForOneMore(companyRef, company) {
+  if (effectiveTier(company) !== "free") return;
+  if ((await headcount(companyRef)) >= FREE_EMPLOYEE_LIMIT) {
+    fail("resource-exhausted", `The Free plan includes up to ${FREE_EMPLOYEE_LIMIT} people. Ask your admin to upgrade to add more.`);
+  }
+}
+
+// Razorpay REST client. Under the Functions emulator a key id starting with
+// "rzp_fake_" switches to an in-memory fake so billing can be tested end to
+// end without Razorpay; it can never activate in production.
+function razorpay() {
+  const keyId = RAZORPAY_KEY_ID.value();
+  const keySecret = RAZORPAY_KEY_SECRET.value();
+  if (!keyId || !keySecret) fail("failed-precondition", "Payments aren’t set up yet");
+  if (process.env.FUNCTIONS_EMULATOR === "true" && keyId.startsWith("rzp_fake_")) {
+    return {
+      keyId, fake: true,
+      createSubscription: async (body) => ({ id: `sub_fake_${randomBytes(6).toString("hex")}`, status: "created", ...body }),
+      updateSubscription: async (id, body) => ({ id, ...body }),
+      cancelSubscription: async (id) => ({ id, status: "active" }),
+      invoices: async () => ({ items: [] }),
+    };
+  }
+  const auth = `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`;
+  async function call(method, path, body) {
+    const res = await fetch(`https://api.razorpay.com/v1${path}`, { method, headers: { Authorization: auth, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error("razorpay error", { path, status: res.status, code: json?.error?.code });
+      fail("internal", json?.error?.description || "The payment provider rejected the request");
+    }
+    return json;
+  }
+  return {
+    keyId, fake: false,
+    createSubscription: (body) => call("POST", "/subscriptions", body),
+    updateSubscription: (id, body) => call("PATCH", `/subscriptions/${id}`, body),
+    cancelSubscription: (id) => call("POST", `/subscriptions/${id}/cancel`, { cancel_at_cycle_end: 1 }),
+    invoices: (id) => call("GET", `/invoices?subscription_id=${encodeURIComponent(id)}&count=24`),
+  };
+}
+
+function hmac(secret, payload) {
+  return createHmac("sha256", secret).update(payload).digest("hex");
+}
+function safeEqual(a, b) {
+  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+function billingInput(data) {
+  const plan = data?.plan, cycle = data?.cycle, seats = Number(data?.seats);
+  if (!["pro", "business"].includes(plan)) fail("invalid-argument", "Choose Pro or Business");
+  if (!["monthly", "yearly"].includes(cycle)) fail("invalid-argument", "Choose monthly or yearly billing");
+  if (!Number.isInteger(seats) || seats < 1 || seats > 10000) fail("invalid-argument", "Invalid number of seats");
+  return { plan, cycle, seats };
+}
+
+// Admin starts (or changes) a subscription. During the trial the first charge
+// is scheduled for the trial's end, so nothing is due today; the customer
+// still authorises the UPI AutoPay / card mandate in Razorpay Checkout.
+exports.createSubscription = onCall({ ...CALLABLE_OPTIONS, secrets: BILLING_SECRETS }, async (request) => {
+  const companyId = requiredText(request.data?.companyId, "company id", 128);
+  await admin(request, companyId);
+  const { plan, cycle, seats } = billingInput(request.data);
+  const companyRef = db.collection("companies").doc(companyId);
+  const company = (await companyRef.get()).data();
+  const active = await headcount(companyRef);
+  if (seats < active) fail("invalid-argument", `You have ${active} people — buy at least ${active} seats`);
+
+  const rp = razorpay();
+  const plan_id = rp.fake ? `plan_fake_${plan}_${cycle}` : planId(plan, cycle);
+  if (!plan_id) fail("failed-precondition", "This plan isn’t available yet");
+  const trialEnd = company.plan === "trial" ? company.trialEndsAt?.toMillis() : null;
+  const startAt = trialEnd && trialEnd > Date.now() + 60000 ? Math.floor(trialEnd / 1000) : undefined;
+
+  // Changing plan on a live subscription: cancel the old one at period end.
+  if (company.subscriptionId && LIVE_STATUSES.includes(company.billingStatus)) {
+    await rp.cancelSubscription(company.subscriptionId).catch(() => undefined);
+  }
+  const sub = await rp.createSubscription({
+    plan_id, quantity: seats, total_count: cycle === "monthly" ? 120 : 10, customer_notify: 1,
+    ...(startAt ? { start_at: startAt } : {}),
+    notes: { companyId, plan, cycle },
+  });
+  await companyRef.update({ pendingSubscription: { id: sub.id, plan, cycle, seats, createdAt: FieldValue.serverTimestamp() } });
+  console.log(JSON.stringify({ event: "create_subscription", companyId, plan, cycle, seats, fake: rp.fake }));
+  return { subscriptionId: sub.id, keyId: rp.keyId, fake: rp.fake, startsAt: startAt ? startAt * 1000 : null };
+});
+
+// Checkout success: verify Razorpay's signature and switch the company over
+// straight away (the webhook confirms the same state moments later).
+exports.verifySubscription = onCall({ ...CALLABLE_OPTIONS, secrets: BILLING_SECRETS }, async (request) => {
+  const companyId = requiredText(request.data?.companyId, "company id", 128);
+  await admin(request, companyId);
+  const paymentId = requiredText(request.data?.paymentId, "payment id", 100);
+  const subscriptionId = requiredText(request.data?.subscriptionId, "subscription id", 100);
+  const signature = requiredText(request.data?.signature, "signature", 200);
+  const companyRef = db.collection("companies").doc(companyId);
+  const company = (await companyRef.get()).data();
+  const pending = company.pendingSubscription;
+  if (!pending || pending.id !== subscriptionId) fail("failed-precondition", "No checkout in progress for this subscription");
+  // The emulator's fake Razorpay has no checkout to sign; it accepts "emulator".
+  const fakeOk = razorpay().fake && signature === "emulator";
+  if (!fakeOk && !safeEqual(hmac(RAZORPAY_KEY_SECRET.value(), `${paymentId}|${subscriptionId}`), signature)) fail("permission-denied", "Payment could not be verified");
+  await companyRef.update({
+    plan: pending.plan, cycle: pending.cycle, seats: pending.seats, billingStatus: "authenticated",
+    subscriptionId, pendingSubscription: FieldValue.delete(), billingUpdatedAt: FieldValue.serverTimestamp(),
+  });
+  console.log(JSON.stringify({ event: "verify_subscription", companyId, subscriptionId }));
+  return { plan: pending.plan, status: "authenticated" };
+});
+
+// Admin cancels: the subscription runs to the end of the paid period, then
+// Razorpay's "cancelled" webhook moves the company to Free.
+exports.cancelSubscription = onCall({ ...CALLABLE_OPTIONS, secrets: BILLING_SECRETS }, async (request) => {
+  const companyId = requiredText(request.data?.companyId, "company id", 128);
+  await admin(request, companyId);
+  const companyRef = db.collection("companies").doc(companyId);
+  const company = (await companyRef.get()).data();
+  if (!company.subscriptionId || !LIVE_STATUSES.includes(company.billingStatus)) fail("failed-precondition", "There’s no active subscription");
+  await razorpay().cancelSubscription(company.subscriptionId);
+  await companyRef.update({ cancelAtPeriodEnd: true, billingUpdatedAt: FieldValue.serverTimestamp() });
+  return { cancelled: true };
+});
+
+// GST invoices for the billing screen.
+exports.listInvoices = onCall({ ...CALLABLE_OPTIONS, secrets: BILLING_SECRETS }, async (request) => {
+  const companyId = requiredText(request.data?.companyId, "company id", 128);
+  await admin(request, companyId);
+  const company = (await db.collection("companies").doc(companyId).get()).data();
+  if (!company.subscriptionId) return { invoices: [] };
+  const { items = [] } = await razorpay().invoices(company.subscriptionId);
+  return { invoices: items.map((i) => ({ id: i.id, amount: i.amount, status: i.status, date: (i.paid_at || i.issued_at || i.date) * 1000, url: i.short_url || null })) };
+});
+
+// Razorpay → us. The body is signed with the webhook secret; anything that
+// doesn't verify is dropped. Idempotent: every event just restates the
+// subscription's current state.
+exports.razorpayWebhook = onRequest({ region: CALLABLE_OPTIONS.region, secrets: [RAZORPAY_WEBHOOK_SECRET] }, async (req, res) => {
+  if (req.method !== "POST") return res.status(405).send("Method not allowed");
+  const signature = req.get("X-Razorpay-Signature") || "";
+  if (!req.rawBody || !safeEqual(hmac(RAZORPAY_WEBHOOK_SECRET.value(), req.rawBody), signature)) {
+    console.warn("razorpay webhook: bad signature");
+    return res.status(400).send("Invalid signature");
+  }
+  const event = req.body?.event || "";
+  const sub = req.body?.payload?.subscription?.entity;
+  if (!event.startsWith("subscription.") || !sub?.id) return res.status(200).send("ignored");
+  const companyId = sub.notes?.companyId;
+  if (!companyId) return res.status(200).send("no company");
+  const companyRef = db.collection("companies").doc(companyId);
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(companyRef);
+    if (!snap.exists) return;
+    const company = snap.data();
+    // Only the company's current (or just-created) subscription may change it.
+    if (sub.id !== company.subscriptionId && sub.id !== company.pendingSubscription?.id) return;
+    const live = LIVE_STATUSES.includes(sub.status);
+    const update = { billingStatus: sub.status, billingUpdatedAt: FieldValue.serverTimestamp() };
+    if (live) {
+      Object.assign(update, {
+        plan: sub.notes.plan, cycle: sub.notes.cycle, seats: Number(sub.quantity) || company.seats || 1, subscriptionId: sub.id,
+        ...(sub.current_end ? { currentPeriodEnd: Timestamp.fromMillis(sub.current_end * 1000) } : {}),
+      });
+      if (company.pendingSubscription?.id === sub.id) update.pendingSubscription = FieldValue.delete();
+    } else if (["halted", "cancelled", "completed", "expired"].includes(sub.status) && sub.id === company.subscriptionId) {
+      Object.assign(update, { plan: "free", cancelAtPeriodEnd: FieldValue.delete() });
+    }
+    transaction.update(companyRef, update);
+  });
+  console.log(JSON.stringify({ event: "razorpay_webhook", type: event, companyId, status: sub.status }));
+  return res.status(200).send("ok");
+});
+
+// Keeps company.activeEmployees current (Rules use it to hold Free companies
+// to 5 people) and grows a paid subscription's seats when the team outgrows
+// them — billed from the next cycle, as the billing screen says.
+exports.onEmployeeWritten = onDocumentWritten({ document: "companies/{companyId}/employees/{employeeId}", secrets: BILLING_SECRETS }, async (event) => {
+  const before = event.data.before.data()?.status, after = event.data.after.data()?.status;
+  const counted = (s) => s === "active" || s === "pending";
+  if (counted(before) === counted(after)) return;
+  const companyRef = db.collection("companies").doc(event.params.companyId);
+  const count = await headcount(companyRef);
+  const company = (await companyRef.get()).data();
+  if (!company) return;
+  await companyRef.update({ activeEmployees: count });
+  if (["pro", "business"].includes(effectiveTier(company)) && company.subscriptionId && count > (company.seats || 0)) {
+    try {
+      await razorpay().updateSubscription(company.subscriptionId, { quantity: count, schedule_change_at: "cycle_end" });
+      await companyRef.update({ seats: count });
+    } catch (error) {
+      console.error("seat sync failed", { companyId: event.params.companyId, message: error.message });
+    }
+  }
+});
 
 // ── Onboarding ────────────────────────────────────────────────────────────────
 // Companies, joins and invites are written ONLY here (admin SDK); Security
@@ -127,7 +365,7 @@ exports.registerCompany = onCall(CALLABLE_OPTIONS, async (request) => {
     transaction.set(companyRef, {
       companyId: companyRef.id, companyName, adminId: uid, adminName, adminEmail: email,
       phone: null, address: site.address, status: "active", employeeCode: joinCode,
-      createdBy: uid, createdAt: FieldValue.serverTimestamp(), totalEmployees: 0, teamSize,
+      createdBy: uid, createdAt: FieldValue.serverTimestamp(), totalEmployees: 0, activeEmployees: 0, teamSize,
       plan: "trial", trialEndsAt: Timestamp.fromMillis(Date.now() + TRIAL_DAYS * 86400000),
       settings: { defaultRadius: site.radius, defaultShiftStart: shift.start, defaultShiftEnd: shift.end, approveJoiners: false },
     });
@@ -170,6 +408,7 @@ exports.claimJoin = onCall(CALLABLE_OPTIONS, async (request) => {
     const companyRef = db.collection("companies").doc(companyId);
     const company = await transaction.get(companyRef);
     if (!company.exists || (company.data().status || "active") !== "active") fail("failed-precondition", "This company isn’t accepting new members right now");
+    await assertRoomForOneMore(companyRef, company.data());
 
     // An invite counts only for the company being joined.
     const inv = invite?.exists && invite.data().companyId === companyId ? invite.data() : null;
@@ -230,6 +469,8 @@ exports.importEmployees = onCall(CALLABLE_OPTIONS, async (request) => {
   const main = sites.find((s) => s.isMain) || sites[0] || null;
   const fallbackShift = { start: settings.defaultShiftStart || "09:00", end: settings.defaultShiftEnd || "18:00" };
 
+  // A Free company can only invite up to its 5-person limit.
+  let room = effectiveTier(company) === "free" ? Math.max(0, FREE_EMPLOYEE_LIMIT - (await headcount(companyRef))) : Infinity;
   const errors = [];
   const valid = [];
   const seen = new Set();
@@ -276,6 +517,8 @@ exports.importEmployees = onCall(CALLABLE_OPTIONS, async (request) => {
       if (!members[k].empty) { errors.push({ row: v.index, message: "Already on your team" }); return; }
       const other = existing[k].exists && existing[k].data().companyId !== companyId;
       if (other) { errors.push({ row: v.index, message: "Invited by another company" }); return; }
+      if (!existing[k].exists && room <= 0) { errors.push({ row: v.index, message: `The Free plan includes up to ${FREE_EMPLOYEE_LIMIT} people — upgrade to invite more` }); return; }
+      if (!existing[k].exists) room--;
       if (existing[k].exists) updated++; else created++;
       batch.set(refs[k], v.invite);
     });

@@ -636,13 +636,18 @@ class DatabaseService {
         );
   }
 
+  /// [since] (`yyyy-MM-dd`) bounds the query for Free companies, whose
+  /// admins may only read recent history (Security Rules enforce it).
   Stream<List<AttendanceModel>> getAllAttendanceLogs(
     String companyId, {
     String? dateFilter,
+    String? since,
   }) {
     Query q = _attendance(companyId).orderBy('date', descending: true);
     if (dateFilter != null) {
       q = q.where('date', isEqualTo: dateFilter);
+    } else if (since != null) {
+      q = q.where('date', isGreaterThanOrEqualTo: since);
     }
     return q
         .limit(200)
@@ -661,10 +666,15 @@ class DatabaseService {
 
   Future<List<AttendanceModel>> getAttendanceForMonth(
     String companyId,
-    String yearMonth,
-  ) async {
+    String yearMonth, {
+    String? since,
+  }) async {
+    final start = since != null && since.compareTo('$yearMonth-01') > 0
+        ? since
+        : '$yearMonth-01';
+    if (start.compareTo('$yearMonth-31') > 0) return const [];
     final snap = await _attendance(companyId)
-        .where('date', isGreaterThanOrEqualTo: '$yearMonth-01')
+        .where('date', isGreaterThanOrEqualTo: start)
         .where('date', isLessThanOrEqualTo: '$yearMonth-31')
         .get();
     return snap.docs
