@@ -35,12 +35,12 @@ PunchIn v2 needs the **Blaze** plan (Cloud Functions, phone sign-in, scheduled j
 
    | Plan | Period | Amount per seat (₹, incl. GST) |
    |---|---|---|
-   | Pro monthly | monthly, every 1 | 46.02 |
-   | Pro yearly | yearly, every 1 | 441.32 |
-   | Business monthly | monthly, every 1 | 93.22 |
-   | Business yearly | yearly, every 1 | 894.44 |
+   | Pro monthly | monthly, every 1 | 57.82 |
+   | Pro yearly | yearly, every 1 | 552.24 |
+   | Business monthly | monthly, every 1 | 116.82 |
+   | Business yearly | yearly, every 1 | 1118.64 |
 
-   (Per-seat prices before GST: Pro ₹39/mo or ₹374/yr, Business ₹79/mo or ₹758/yr — the same numbers as
+   (Per-seat prices before GST: Pro ₹49/mo or ₹468/yr, Business ₹99/mo or ₹948/yr — the same numbers as
    `lib/core/billing/entitlements.dart` and `PRICES` in `cloud_functions/index.js`. Change all three together.)
 2. Copy `cloud_functions/.env.example` to `cloud_functions/.env` and fill in the four plan ids.
 3. Set the secrets (you'll be prompted for each value; they never go in the repo):

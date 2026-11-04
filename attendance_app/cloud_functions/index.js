@@ -71,7 +71,7 @@ const RAZORPAY_WEBHOOK_SECRET = defineSecret("RAZORPAY_WEBHOOK_SECRET");
 const planId = (plan, cycle) => process.env[`RAZORPAY_PLAN_${plan.toUpperCase()}_${cycle.toUpperCase()}`] || "";
 
 // Per-seat prices in rupees, before GST. Keep in sync with lib/core/billing/pricing.dart.
-const PRICES = { pro: { monthly: 39, yearly: 374 }, business: { monthly: 79, yearly: 758 } };
+const PRICES = { pro: { monthly: 49, yearly: 468 }, business: { monthly: 99, yearly: 948 } };
 const FREE_EMPLOYEE_LIMIT = 5;
 const LIVE_STATUSES = ["authenticated", "active", "pending"];
 const BILLING_SECRETS = [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET];

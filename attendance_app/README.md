@@ -15,8 +15,8 @@ people by phone (one at a time or from an Excel/CSV list), approve code joiners,
 attendance logs (with punch selfies on Business), approve leave, see monthly reports and export them, including
 payroll layouts for Zoho Payroll, Keka and TallyPrime.
 
-**Plans** (per employee, before 18% GST): Free (up to 5 people, 30 days of history), Pro ₹39/month or ₹374/year, and
-Business ₹79/month or ₹758/year (selfie verification and payroll export). Billing is Razorpay Subscriptions with UPI
+**Plans** (per employee, before 18% GST): Free (up to 5 people, 30 days of history), Pro ₹49/month or ₹39/month billed
+yearly, and Business ₹99/month or ₹79/month billed yearly (selfie verification and payroll export). Billing is Razorpay Subscriptions with UPI
 AutoPay or card.
 
 ## How it is put together
