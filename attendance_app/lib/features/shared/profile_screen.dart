@@ -92,8 +92,12 @@ class ProfileScreen extends StatelessWidget {
                 EntityTile(
                   inGroup: true,
                   leading: const IconChip(icon: Icons.location_on_outlined),
-                  title: 'Work location',
-                  subtitle: user.workAddress ?? 'Not assigned yet',
+                  title: prov.sites.length > 1
+                      ? 'Work locations'
+                      : 'Work location',
+                  subtitle: prov.sites.isEmpty
+                      ? 'Not assigned yet'
+                      : prov.sites.map((s) => s.name).join(', '),
                 ),
                 EntityTile(
                   inGroup: true,

@@ -3,10 +3,15 @@ import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
+import 'package:attendance_app/core/utils/attendance_clock.dart';
 import 'package:attendance_app/core/widgets/app_button.dart';
+import 'package:attendance_app/core/widgets/app_card.dart';
+import 'package:attendance_app/core/widgets/entity_tile.dart';
+import 'package:attendance_app/data/models/location_model.dart';
 import 'package:attendance_app/domain/repositories/employee_repository.dart';
+import 'package:attendance_app/domain/repositories/location_repository.dart';
 import 'package:attendance_app/data/models/user_model.dart';
-import 'package:attendance_app/features/admin/work_location_picker.dart';
+import 'package:attendance_app/features/admin/assign_sites_sheet.dart';
 
 class AddEditEmployee extends StatefulWidget {
   final UserModel? employee;
@@ -37,7 +42,11 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
   final _posCtrl = TextEditingController();
   String _shiftStart = '09:00';
   String _shiftEnd = '18:00';
-  Map<String, dynamic>? _workLocation;
+  List<String> _siteIds = [];
+  String? _primaryId;
+  late final Stream<List<LocationModel>> _sites = sl<LocationRepository>()
+      .watchLocations(widget.companyId);
+  List<LocationModel> _knownSites = const [];
   bool _saving = false;
 
   bool get _isEdit => widget.employee != null;
@@ -54,7 +63,8 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
       _posCtrl.text = e.position ?? '';
       _shiftStart = e.shiftStart;
       _shiftEnd = e.shiftEnd;
-      _workLocation = e.workLocation;
+      _siteIds = [...e.locationIds];
+      _primaryId = e.primaryLocationId;
     } else {
       _shiftStart = widget.defaultShiftStart;
       _shiftEnd = widget.defaultShiftEnd;
@@ -94,20 +104,19 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
     }
   }
 
-  Future<void> _pickLocation() async {
-    final result = await Navigator.push<Map<String, dynamic>>(
+  Future<void> _chooseSites() async {
+    final result = await showAssignSitesSheet(
       context,
-      MaterialPageRoute(
-        builder: (_) => WorkLocationPicker(
-          initialLat: (_workLocation?['latitude'] as num?)?.toDouble(),
-          initialLng: (_workLocation?['longitude'] as num?)?.toDouble(),
-          initialRadius:
-              (_workLocation?['radius'] as num?)?.toDouble() ??
-              widget.defaultRadius,
-        ),
-      ),
+      sites: _knownSites,
+      selected: _siteIds,
+      primaryId: _primaryId,
     );
-    if (result != null) setState(() => _workLocation = result);
+    if (result != null) {
+      setState(() {
+        _siteIds = result.ids;
+        _primaryId = result.primaryId;
+      });
+    }
   }
 
   Future<void> _save() async {
@@ -134,9 +143,19 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
             ? null
             : _deptCtrl.text.trim(),
         position: _posCtrl.text.trim().isEmpty ? null : _posCtrl.text.trim(),
-        workLocation: _workLocation,
         shift: {'start': _shiftStart, 'end': _shiftEnd},
       );
+      final before = widget.employee!;
+      final primary = _knownSites.where((l) => l.id == _primaryId).firstOrNull;
+      if (before.primaryLocationId != _primaryId ||
+          before.locationIds.join(',') != _siteIds.join(',')) {
+        await sl<LocationRepository>().assignLocations(
+          widget.companyId,
+          before.id,
+          locationIds: _siteIds,
+          primary: primary,
+        );
+      }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
@@ -157,7 +176,7 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Scaffold(
-      appBar: AppBar(title: Text(_isEdit ? 'Edit Employee' : 'Add Employee')),
+      appBar: AppBar(title: Text(_isEdit ? 'Edit employee' : 'Add employee')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Form(
@@ -221,9 +240,23 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
                 ],
               ),
               const SizedBox(height: AppSpacing.xxl),
-              _label('Work location'),
-              const SizedBox(height: AppSpacing.md),
-              _locationCard(colors),
+              Row(
+                children: [
+                  Expanded(child: _label('Work locations')),
+                  TextButton(
+                    onPressed: _chooseSites,
+                    child: Text(_siteIds.isEmpty ? 'Assign' : 'Change'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              StreamBuilder<List<LocationModel>>(
+                stream: _sites,
+                builder: (context, snap) {
+                  _knownSites = snap.data ?? _knownSites;
+                  return _sitesCard(colors);
+                },
+              ),
               const SizedBox(height: AppSpacing.xxxl),
               AppButton(
                 label: _isEdit ? 'Save changes' : 'Add employee',
@@ -291,7 +324,7 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  value,
+                  AttendanceClock.formatShiftTime(value),
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
@@ -305,63 +338,52 @@ class _AddEditEmployeeState extends State<AddEditEmployee> {
     );
   }
 
-  Widget _locationCard(AppColors colors) {
-    final isSet = _workLocation != null;
-    final accent = isSet ? colors.success : colors.brand;
-    return GestureDetector(
-      onTap: _pickLocation,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(
-          color: isSet ? accent.withValues(alpha: 0.08) : colors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(
-            color: isSet ? accent.withValues(alpha: 0.4) : colors.border,
+  Widget _sitesCard(AppColors colors) {
+    final byId = {for (final l in _knownSites) l.id: l};
+    final assigned = [
+      for (final id in _siteIds)
+        if (byId[id] != null) byId[id]!,
+    ]..sort((a, b) => a.id == _primaryId ? -1 : (b.id == _primaryId ? 1 : 0));
+    final legacy = widget.employee?.workLocation;
+    if (assigned.isEmpty && _siteIds.isEmpty && legacy?['latitude'] != null) {
+      // Pre-v2 single zone that the migration didn't pick up.
+      return EntityTile(
+        leading: const IconChip(icon: Icons.location_on_outlined),
+        title: legacy!['address'] as String? ?? 'Work location',
+        subtitle: 'Old single location · assign one to manage it here',
+        chevron: true,
+        onTap: _chooseSites,
+      );
+    }
+    if (assigned.isEmpty) {
+      return EntityTile(
+        leading: IconChip(
+          icon: Icons.location_off_outlined,
+          color: colors.warning,
+          background: colors.warningSoft,
+        ),
+        title: 'No location assigned',
+        subtitle: 'They can’t punch in until you assign one',
+        chevron: true,
+        onTap: _chooseSites,
+      );
+    }
+    return AppGroup(
+      children: [
+        for (final l in assigned)
+          EntityTile(
+            inGroup: true,
+            leading: IconChip(
+              icon: l.id == _primaryId
+                  ? Icons.star_rounded
+                  : Icons.location_on_outlined,
+            ),
+            title: l.name,
+            subtitle: l.id == _primaryId
+                ? 'Primary · ${l.radius.round()} m zone'
+                : '${l.radius.round()} m zone',
           ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: Icon(
-                isSet ? Icons.where_to_vote_rounded : Icons.map_outlined,
-                color: accent,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isSet ? 'Location set' : 'No location set',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    isSet
-                        ? '${_workLocation!["address"] ?? "Custom point"} · ${(_workLocation!["radius"] as num?)?.round() ?? 100}m radius'
-                        : 'Tap to place the geofence on the map',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: colors.textTertiary, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: colors.textTertiary),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }

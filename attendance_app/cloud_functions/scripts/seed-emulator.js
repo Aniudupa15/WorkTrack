@@ -14,8 +14,13 @@
 //   employee  ravi@demo.test     / punchin-demo-1
 //   super     super@demo.test    / punchin-demo-1
 //
-// The employees' work location is the Android emulator's default GPS fix
-// (Googleplex, Mountain View) so punching in works out of the box.
+// The main site is the Android emulator's default GPS fix (Googleplex,
+// Mountain View) so punching in works out of the box. A second site sits
+// ~2 km away; Priya and Deepa are assigned both. Arjun keeps only a pre-v2
+// `workLocation` to exercise the legacy punch path.
+//
+// SEED_LEGACY=1 skips the location docs and gives everyone a pre-v2
+// `workLocation` only, so the admin's first sign-in runs the migration.
 
 process.env.FIRESTORE_EMULATOR_HOST ??= "127.0.0.1:8085";
 process.env.FIREBASE_AUTH_EMULATOR_HOST ??= "127.0.0.1:9099";
@@ -35,6 +40,11 @@ const db = getFirestore();
 const PASSWORD = "punchin-demo-1";
 const COMPANY = "demo-bright-logistics";
 const HQ = { latitude: 37.4219983, longitude: -122.084, radius: 150, address: "HQ — MG Road" };
+const LEGACY = process.env.SEED_LEGACY === "1";
+const SITES = {
+  hq: { name: "Head office", address: "12, MG Road, Bengaluru", latitude: HQ.latitude, longitude: HQ.longitude, radius: 150, isMain: true },
+  wh: { name: "Whitefield warehouse", address: "Plot 4, EPIP Zone, Whitefield", latitude: 37.4030, longitude: -122.0750, radius: 200, isMain: false },
+};
 const IST = 330 * 60 * 1000;
 
 async function user(email, name) {
@@ -58,12 +68,13 @@ function at(date, hhmm) {
 async function main() {
   const superUid = await user("super@demo.test", "PunchIn Support");
   const adminUid = await user("asha@demo.test", "Asha Rao");
+  // [email, name, department, shift start, shift end, site ids (primary first)]
   const people = [
-    ["ravi@demo.test", "Ravi Kumar", "Dispatch", "09:00", "18:00"],
-    ["meera@demo.test", "Meera Shah", "Accounts", "10:00", "19:00"],
-    ["arjun@demo.test", "Arjun K", "Dispatch", "09:00", "18:00"],
-    ["priya@demo.test", "Priya Nair", "Warehouse", "08:00", "17:00"],
-    ["deepa@demo.test", "Deepa S", "Field", "09:30", "18:30"],
+    ["ravi@demo.test", "Ravi Kumar", "Dispatch", "09:00", "18:00", ["hq"]],
+    ["meera@demo.test", "Meera Shah", "Accounts", "10:00", "19:00", ["hq"]],
+    ["arjun@demo.test", "Arjun K", "Dispatch", "09:00", "18:00", []],
+    ["priya@demo.test", "Priya Nair", "Warehouse", "08:00", "17:00", ["wh", "hq"]],
+    ["deepa@demo.test", "Deepa S", "Field", "09:30", "18:30", ["hq", "wh"]],
   ];
 
   const batch = db.batch();
@@ -77,21 +88,33 @@ async function main() {
     settings: { defaultRadius: 150, defaultShiftStart: "09:00", defaultShiftEnd: "18:00" },
   });
   batch.set(db.doc("codes/BRT7K4Q"), { companyId: COMPANY, type: "employee" });
+  if (!LEGACY) {
+    for (const [id, site] of Object.entries(SITES)) {
+      batch.set(db.doc(`companies/${COMPANY}/locations/${id}`), { ...site, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+    }
+  }
+  const zoneOf = (s) => ({ latitude: s.latitude, longitude: s.longitude, radius: s.radius, address: s.address });
 
   const uids = [];
-  for (const [email, name, dept, start, end] of people) {
+  for (const [email, name, dept, start, end, siteIds] of people) {
     const uid = await user(email, name);
-    uids.push([uid, name]);
+    const ids = LEGACY ? [] : siteIds;
+    uids.push([uid, name, ids[0] ?? null]);
     batch.set(db.doc(`users/${uid}`), { role: "employee", companyId: COMPANY, viaCode: "BRT7K4Q" });
     batch.set(db.doc(`companies/${COMPANY}/employees/${uid}`), {
       uid, name, email, phone: null, department: dept, position: null, status: "active",
-      avatarUrl: null, workLocation: HQ, shift: { start, end }, fcmToken: null,
+      avatarUrl: null,
+      workLocation: ids.length ? zoneOf(SITES[ids[0]]) : HQ,
+      locationIds: ids, primaryLocationId: ids[0] ?? null,
+      shift: { start, end }, fcmToken: null,
       joinedAt: FieldValue.serverTimestamp(),
     });
   }
 
   // ~5 weeks of history (Mon–Sat), skipping today so the punch flow is fresh.
-  for (const [uid, name] of uids) {
+  for (const [uid, name, siteId] of uids) {
+    const site = siteId ? SITES[siteId] : HQ;
+    const siteFields = siteId ? { locationId: siteId, locationName: SITES[siteId].name } : {};
     for (let back = 1; back <= 35; back++) {
       const date = istDate(back);
       if (new Date(`${date}T00:00:00Z`).getUTCDay() === 0) continue; // Sunday off
@@ -106,9 +129,9 @@ async function main() {
         employeeId: uid, companyId: COMPANY, employeeName: name, date,
         checkIn: at(date, late ? "09:27" : "08:56"), checkOut: at(date, "18:07"),
         status: late ? "late" : "present", isLate: late,
-        checkInLocation: { latitude: HQ.latitude, longitude: HQ.longitude, accuracy: 9 },
-        checkOutLocation: { latitude: HQ.latitude, longitude: HQ.longitude, accuracy: 11 },
-        selfieStoragePath: null, isSynced: true, notes: null,
+        checkInLocation: { latitude: site.latitude, longitude: site.longitude, accuracy: 9 },
+        checkOutLocation: { latitude: site.latitude, longitude: site.longitude, accuracy: 11 },
+        selfieStoragePath: null, isSynced: true, notes: null, ...siteFields,
       });
     }
   }
@@ -126,7 +149,7 @@ async function main() {
   leave("l4", arjun, "earned", "2026-11-20", "2026-11-24", "Family trip", "pending");
 
   await batch.commit();
-  console.log(`Seeded company ${COMPANY}: 1 admin, ${people.length} employees, history and leaves.`);
+  console.log(`Seeded company ${COMPANY}: 1 admin, ${people.length} employees, ${LEGACY ? "legacy work locations" : "2 sites"}, history and leaves.`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

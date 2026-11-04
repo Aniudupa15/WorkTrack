@@ -254,7 +254,9 @@ class _ShiftCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = Provider.of<UserProvider>(context).user!;
+    final prov = Provider.of<UserProvider>(context);
+    final user = prov.user!;
+    final sites = prov.sites;
     final colors = context.colors;
     final time = DateFormat('h:mm a');
     final checkedIn = today?.checkIn != null;
@@ -329,10 +331,11 @@ class _ShiftCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    user.workAddress ??
-                        (user.workLatitude != null
-                            ? 'Work location assigned'
-                            : 'No work location assigned yet'),
+                    sites.isEmpty
+                        ? 'No work location assigned yet'
+                        : sites.length == 1
+                        ? sites.first.name
+                        : '${sites.first.name} + ${sites.length - 1} more',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(

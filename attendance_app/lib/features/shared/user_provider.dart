@@ -8,7 +8,9 @@ import 'package:attendance_app/core/utils/logger.dart';
 import 'package:attendance_app/domain/repositories/auth_repository.dart';
 import 'package:attendance_app/domain/repositories/company_repository.dart';
 import 'package:attendance_app/domain/repositories/employee_repository.dart';
+import 'package:attendance_app/domain/repositories/location_repository.dart';
 import 'package:attendance_app/data/models/company_model.dart';
+import 'package:attendance_app/data/models/location_model.dart';
 import 'package:attendance_app/data/models/user_model.dart';
 import 'package:attendance_app/data/datasources/notification_service.dart';
 import 'package:attendance_app/features/shared/offline_sync_manager.dart';
@@ -20,11 +22,13 @@ class UserProvider with ChangeNotifier {
     AuthRepository? authRepository,
     CompanyRepository? companyRepository,
     EmployeeRepository? employeeRepository,
+    LocationRepository? locationRepository,
     NotificationService? notificationService,
     OfflineSyncManager? offlineSyncManager,
   }) : _auth = authRepository ?? sl<AuthRepository>(),
        _company = companyRepository ?? sl<CompanyRepository>(),
        _employees = employeeRepository ?? sl<EmployeeRepository>(),
+       _locations = locationRepository ?? sl<LocationRepository>(),
        _notifications = notificationService ?? sl<NotificationService>(),
        _offlineSync = offlineSyncManager ?? sl<OfflineSyncManager>() {
     _authSubscription = _auth.authStateChanges().listen(_onAuthChange);
@@ -33,17 +37,23 @@ class UserProvider with ChangeNotifier {
   final AuthRepository _auth;
   final CompanyRepository _company;
   final EmployeeRepository _employees;
+  final LocationRepository _locations;
   final NotificationService _notifications;
   final OfflineSyncManager _offlineSync;
 
   UserModel? _user;
   CompanyModel? _companyModel;
+  List<LocationModel> _sites = const [];
   bool _loading = true;
   StreamSubscription<User?>? _authSubscription;
   int _authChangeVersion = 0;
 
   UserModel? get user => _user;
   CompanyModel? get company => _companyModel;
+
+  /// The employee's assigned work sites, primary first (a pre-v2 single
+  /// work location shows up as one legacy site). Empty for admins.
+  List<LocationModel> get sites => _sites;
   bool get loading => _loading;
   bool get isSuperAdmin => _user?.role == 'super_admin';
   bool get isAdmin => _user?.role == 'admin';
@@ -76,9 +86,11 @@ class UserProvider with ChangeNotifier {
         final company = user?.companyId == null
             ? null
             : await _company.getCompany(user!.companyId!);
+        final sites = await _loadSites(user);
         if (version != _authChangeVersion) return;
         _user = user;
         _companyModel = company;
+        _sites = sites;
         if (user?.role == 'employee' &&
             user?.companyId != null &&
             blockedReason == null) {
@@ -104,10 +116,12 @@ class UserProvider with ChangeNotifier {
         );
         _user = null;
         _companyModel = null;
+        _sites = const [];
       }
     } else {
       _user = null;
       _companyModel = null;
+      _sites = const [];
     }
     _loading = false;
     notifyListeners();
@@ -138,7 +152,41 @@ class UserProvider with ChangeNotifier {
     if (_user?.companyId != null) {
       _companyModel = await _company.getCompany(_user!.companyId!);
     }
+    _sites = await _loadSites(_user);
     notifyListeners();
+  }
+
+  /// Admins: moves legacy per-employee work locations into company sites the
+  /// first time they sign in on a multi-site build. Employees: resolves
+  /// their assigned sites.
+  Future<List<LocationModel>> _loadSites(UserModel? user) async {
+    final companyId = user?.companyId;
+    if (user == null || companyId == null) return const [];
+    try {
+      if (user.role == 'admin') {
+        await _locations.migrateLegacyLocations(companyId);
+        return const [];
+      }
+      if (user.role != 'employee') return const [];
+      if (user.locationIds.isEmpty) {
+        final zone = user.workLocation;
+        return zone?['latitude'] == null
+            ? const []
+            : [LocationModel.legacy(zone!)];
+      }
+      final all = await _locations.getLocations(companyId);
+      final mine = all.where((l) => user.locationIds.contains(l.id)).toList()
+        ..sort((a, b) {
+          final pa = a.id == user.primaryLocationId;
+          final pb = b.id == user.primaryLocationId;
+          return pa == pb ? 0 : (pa ? -1 : 1);
+        });
+      return mine;
+    } catch (error) {
+      // Sites only drive the punch map; never block the session over them.
+      AppLogger.warn('Could not load work sites: $error');
+      return const [];
+    }
   }
 
   Future<void> signOut() async {
@@ -156,6 +204,7 @@ class UserProvider with ChangeNotifier {
     await _notifications.reset();
     _user = null;
     _companyModel = null;
+    _sites = const [];
     notifyListeners();
   }
 

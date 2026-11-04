@@ -12,6 +12,7 @@ import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/section_header.dart';
 import 'package:attendance_app/features/admin/attendance_logs.dart';
 import 'package:attendance_app/features/admin/leave_management.dart';
+import 'package:attendance_app/features/admin/locations_screen.dart';
 import 'package:attendance_app/features/shared/profile_screen.dart';
 import 'package:attendance_app/features/shared/settings_screen.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
@@ -99,6 +100,14 @@ class CompanySettingsScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           AppGroup(
             children: [
+              EntityTile(
+                inGroup: true,
+                leading: const IconChip(icon: Icons.location_on_outlined),
+                title: 'Locations',
+                subtitle: 'Offices and sites people punch in at',
+                chevron: true,
+                onTap: () => open(const LocationsScreen()),
+              ),
               EntityTile(
                 inGroup: true,
                 leading: const IconChip(icon: Icons.list_alt_rounded),

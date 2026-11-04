@@ -18,7 +18,6 @@ class EmployeeRepositoryImpl implements EmployeeRepository {
     String? phone,
     String? department,
     String? position,
-    Map<String, dynamic>? workLocation,
     required Map<String, String> shift,
   }) async {
     try {
@@ -27,7 +26,6 @@ class EmployeeRepositoryImpl implements EmployeeRepository {
         'phone': phone,
         'department': department,
         'position': position,
-        'workLocation': workLocation,
         'shift': shift,
         'updatedAt': FieldValue.serverTimestamp(),
       });

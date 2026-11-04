@@ -7,6 +7,7 @@ import 'package:attendance_app/data/datasources/connectivity_service.dart';
 import 'package:attendance_app/data/datasources/database_service.dart';
 import 'package:attendance_app/data/datasources/storage_service.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
+import 'package:attendance_app/data/models/location_model.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 
 class AttendanceRepositoryImpl implements AttendanceRepository {
@@ -23,6 +24,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
     required String employeeName,
     required String shiftStart,
     required Map<String, dynamic> location,
+    LocationModel? site,
     String? selfieStoragePath,
   }) {
     return _write(
@@ -32,6 +34,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
         employeeName: employeeName,
         shiftStart: shiftStart,
         location: location,
+        site: site,
         selfieStoragePath: selfieStoragePath,
       ),
     );
@@ -42,12 +45,14 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
     required String companyId,
     required String employeeId,
     required Map<String, dynamic> location,
+    LocationModel? site,
   }) {
     return _write(
       () => _db.performCheckOut(
         companyId: companyId,
         employeeId: employeeId,
         location: location,
+        site: site,
       ),
     );
   }

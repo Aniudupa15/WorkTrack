@@ -1,0 +1,13 @@
+{
+  "name": "punchin-rules-tests",
+  "private": true,
+  "description": "Firestore Security Rules tests. Run from attendance_app/: firebase emulators:exec --only firestore --project demo-punchin \"npm --prefix test/rules test\"",
+  "type": "module",
+  "scripts": {
+    "test": "node rules.test.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.10.0"
+  }
+}

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:attendance_app/data/models/attendance_model.dart';
+import 'package:attendance_app/data/models/location_model.dart';
 
 /// Outcome of a check-in/out attempt.
 enum CheckOutcome {
@@ -24,6 +25,7 @@ abstract interface class AttendanceRepository {
     required String employeeName,
     required String shiftStart,
     required Map<String, dynamic> location,
+    LocationModel? site,
     String? selfieStoragePath,
   });
 
@@ -31,6 +33,7 @@ abstract interface class AttendanceRepository {
     required String companyId,
     required String employeeId,
     required Map<String, dynamic> location,
+    LocationModel? site,
   });
 
   Future<String> uploadSelfie(String companyId, String uid, File file);

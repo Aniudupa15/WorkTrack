@@ -7,10 +7,12 @@ import 'package:attendance_app/data/models/user_model.dart';
 import 'package:attendance_app/data/models/company_model.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/data/models/leave_model.dart';
+import 'package:attendance_app/data/models/location_model.dart';
 
 /// All data lives inside the PRD subcollection schema:
 ///   /companies/{companyId}
 ///   /companies/{companyId}/employees/{uid}
+///   /companies/{companyId}/locations/{docId}
 ///   /companies/{companyId}/attendance/{docId}
 ///   /companies/{companyId}/leaves/{docId}
 ///   /users/{uid}  ← minimal role doc for Security Rules
@@ -41,6 +43,9 @@ class DatabaseService {
 
   CollectionReference _leaves(String companyId) =>
       _companies.doc(companyId).collection('leaves');
+
+  CollectionReference _locations(String companyId) =>
+      _companies.doc(companyId).collection('locations');
 
   String newId() => _db.collection('_').doc().id;
 
@@ -317,6 +322,170 @@ class DatabaseService {
     }).toList();
   }
 
+  // ── Locations ───────────────────────────────────────────────────────────────
+
+  Stream<List<LocationModel>> watchLocations(String companyId) {
+    return _locations(companyId).snapshots().map(_locationList);
+  }
+
+  Future<List<LocationModel>> getLocationsOnce(String companyId) async {
+    return _locationList(await _locations(companyId).get());
+  }
+
+  /// Main site first, then by name.
+  List<LocationModel> _locationList(QuerySnapshot snap) {
+    final list = snap.docs
+        .map(
+          (d) => LocationModel.fromMap(d.data() as Map<String, dynamic>, d.id),
+        )
+        .toList();
+    list.sort((a, b) {
+      if (a.isMain != b.isMain) return a.isMain ? -1 : 1;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return list;
+  }
+
+  /// Creates [location] (when its id is empty) or updates it, returning its
+  /// id. Making a site the main one clears the flag on the other [sites] in
+  /// the same batch, and employees whose primary site moved get their legacy
+  /// zone mirror refreshed.
+  Future<String> saveLocation(
+    String companyId,
+    LocationModel location, {
+    List<LocationModel> sites = const [],
+  }) async {
+    final batch = _db.batch();
+    final isNew = location.id.isEmpty;
+    final ref = isNew
+        ? _locations(companyId).doc()
+        : _locations(companyId).doc(location.id);
+    if (isNew) {
+      batch.set(ref, {
+        ...location.toMap(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      batch.update(ref, {
+        ...location.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    if (location.isMain) {
+      for (final o in sites.where((o) => o.isMain && o.id != ref.id)) {
+        batch.update(_locations(companyId).doc(o.id), {
+          'isMain': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+    if (!isNew) {
+      final primaries = await _employees(
+        companyId,
+      ).where('primaryLocationId', isEqualTo: location.id).get();
+      for (final e in primaries.docs) {
+        batch.update(e.reference, {'workLocation': location.toZone()});
+      }
+    }
+    await batch.commit();
+    return ref.id;
+  }
+
+  Future<void> deleteLocation(String companyId, String locationId) async {
+    await _locations(companyId).doc(locationId).delete();
+  }
+
+  /// Assigns [locationIds] to an employee with [primary] as their home site,
+  /// mirroring the primary's zone into the legacy `workLocation` field.
+  Future<void> assignLocations(
+    String companyId,
+    String employeeId, {
+    required List<String> locationIds,
+    LocationModel? primary,
+  }) async {
+    await _employees(companyId).doc(employeeId).update({
+      'locationIds': locationIds,
+      'primaryLocationId': primary?.id,
+      'workLocation': primary?.toZone(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// One-time move from per-employee `workLocation` to company sites: each
+  /// distinct legacy zone becomes a location (the most used one is the main
+  /// site) and its employees are assigned to it. Does nothing once the
+  /// company has any location. Returns how many sites were created.
+  Future<int> migrateLegacyLocations(String companyId) async {
+    if ((await _locations(companyId).limit(1).get()).docs.isNotEmpty) {
+      return 0;
+    }
+    final employees = await _employees(companyId).get();
+    final groups = <String, List<DocumentSnapshot>>{};
+    final zones = <String, Map<String, dynamic>>{};
+    for (final e in employees.docs) {
+      final data = e.data() as Map<String, dynamic>;
+      final zone = data['workLocation'];
+      if (zone is! Map || zone['latitude'] == null) continue;
+      final key = [
+        (zone['latitude'] as num).toStringAsFixed(5),
+        (zone['longitude'] as num).toStringAsFixed(5),
+        (zone['radius'] as num?)?.round() ?? 100,
+      ].join(',');
+      groups.putIfAbsent(key, () => []).add(e);
+      zones[key] = Map<String, dynamic>.from(zone);
+    }
+    if (groups.isEmpty) return 0;
+
+    final keys = groups.keys.toList()
+      ..sort((a, b) => groups[b]!.length.compareTo(groups[a]!.length));
+    final names = <String>{};
+    var batch = _db.batch();
+    var ops = 0;
+    Future<void> add(void Function(WriteBatch b) op) async {
+      op(batch);
+      if (++ops == 450) {
+        await batch.commit();
+        batch = _db.batch();
+        ops = 0;
+      }
+    }
+
+    for (var i = 0; i < keys.length; i++) {
+      final legacy = LocationModel.legacy(zones[keys[i]]!);
+      var name = i == 0 ? 'Head office' : _siteName(legacy, i);
+      while (!names.add(name)) {
+        name = '$name ${i + 1}';
+      }
+      final site = legacy.copyWith(name: name, isMain: i == 0);
+      final ref = _locations(companyId).doc();
+      await add(
+        (b) => b.set(ref, {
+          ...site.toMap(),
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }),
+      );
+      for (final e in groups[keys[i]]!) {
+        await add(
+          (b) => b.update(e.reference, {
+            'locationIds': [ref.id],
+            'primaryLocationId': ref.id,
+          }),
+        );
+      }
+    }
+    if (ops > 0) await batch.commit();
+    return keys.length;
+  }
+
+  /// A short site name from a legacy address: its first part, or "Site N".
+  String _siteName(LocationModel legacy, int index) {
+    final first = legacy.address?.split(',').first.trim() ?? '';
+    if (first.isEmpty) return 'Site ${index + 1}';
+    return first.length > 60 ? first.substring(0, 60) : first;
+  }
+
   // ── Attendance ──────────────────────────────────────────────────────────────
 
   /// Check-in. The geofence is pre-checked in the UI for a friendly message,
@@ -330,9 +499,11 @@ class DatabaseService {
     required String employeeName,
     required String shiftStart,
     required Map<String, dynamic> location,
+    LocationModel? site,
     String? selfieStoragePath,
   }) async {
     final date = AttendanceClock.today();
+    final named = site != null && !site.isLegacy;
     Future<void> write(bool late) =>
         _attendance(companyId).doc('${employeeId}_$date').set({
           'employeeId': employeeId,
@@ -348,6 +519,8 @@ class DatabaseService {
           'selfieStoragePath': selfieStoragePath,
           'isSynced': true,
           'notes': null,
+          if (named) 'locationId': site.id,
+          if (named) 'locationName': site.name,
         });
 
     final late = _isLate(shiftStart);
@@ -366,11 +539,13 @@ class DatabaseService {
     required String companyId,
     required String employeeId,
     required Map<String, dynamic> location,
+    LocationModel? site,
   }) async {
     final date = AttendanceClock.today();
     await _attendance(companyId).doc('${employeeId}_$date').update({
       'checkOut': FieldValue.serverTimestamp(),
       'checkOutLocation': location,
+      if (site != null && !site.isLegacy) 'checkOutLocationId': site.id,
     });
   }
 
