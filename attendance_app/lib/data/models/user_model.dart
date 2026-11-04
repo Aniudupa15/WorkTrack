@@ -12,6 +12,9 @@ class UserModel {
   final String? avatarUrl;
   // workLocation: {latitude, longitude, radius, address}
   final Map<String, dynamic>? workLocation;
+  // Assigned sites (companies/{cid}/locations ids), primary first in the UI.
+  final List<String> locationIds;
+  final String? primaryLocationId;
   // shift: {start: '09:00', end: '18:00'}
   final Map<String, String>? shift;
   final String? fcmToken;
@@ -29,6 +32,8 @@ class UserModel {
     this.status = 'active',
     this.avatarUrl,
     this.workLocation,
+    this.locationIds = const [],
+    this.primaryLocationId,
     this.shift,
     this.fcmToken,
     this.companyId,
@@ -53,6 +58,8 @@ class UserModel {
       workLocation: map['workLocation'] != null
           ? Map<String, dynamic>.from(map['workLocation'] as Map)
           : null,
+      locationIds: List<String>.from(map['locationIds'] as List? ?? const []),
+      primaryLocationId: map['primaryLocationId'] as String?,
       shift: shift,
       fcmToken: map['fcmToken'],
       companyId: map['companyId'],
@@ -73,6 +80,8 @@ class UserModel {
     'status': status,
     'avatarUrl': avatarUrl,
     'workLocation': workLocation,
+    'locationIds': locationIds,
+    'primaryLocationId': primaryLocationId,
     'shift': shift,
     'fcmToken': fcmToken,
     'joinedAt': joinedAt != null
@@ -91,6 +100,8 @@ class UserModel {
     String? status,
     String? avatarUrl,
     Map<String, dynamic>? workLocation,
+    List<String>? locationIds,
+    String? primaryLocationId,
     Map<String, String>? shift,
     String? fcmToken,
   }) {
@@ -105,6 +116,8 @@ class UserModel {
       status: status ?? this.status,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       workLocation: workLocation ?? this.workLocation,
+      locationIds: locationIds ?? this.locationIds,
+      primaryLocationId: primaryLocationId ?? this.primaryLocationId,
       shift: shift ?? this.shift,
       fcmToken: fcmToken ?? this.fcmToken,
       companyId: companyId,

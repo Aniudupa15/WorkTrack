@@ -20,6 +20,9 @@ service cloud.firestore {
     function employeeDoc(companyId, employeeId) {
       return get(/databases/$(database)/documents/companies/$(companyId)/employees/$(employeeId)).data;
     }
+    function locationDoc(companyId, locationId) {
+      return get(/databases/$(database)/documents/companies/$(companyId)/locations/$(locationId)).data;
+    }
 
     // ── Validation helpers ────────────────────────────────────────────────────
     function validText(value, max) { return value is string && value.size() > 0 && value.size() <= max; }
@@ -66,13 +69,40 @@ service cloud.firestore {
       return zone != null && dx * dx + dy * dy <= zone.radius * zone.radius;
     }
 
+    // The zone a punch is judged against. A v2 client names one of the
+    // employee's assigned sites; an older client sends no locationId and is
+    // judged against the legacy single workLocation.
+    function punchZoneOk(companyId, emp, fix, locationId) {
+      return locationId == null
+        ? withinZone(fix, emp.workLocation)
+        : (locationId is string
+            && locationId in emp.get('locationIds', [])
+            && withinZone(fix, locationDoc(companyId, locationId)));
+    }
+
+    function validLocation(loc) {
+      return loc.keys().hasOnly(['name', 'address', 'latitude', 'longitude', 'radius', 'isMain', 'createdAt', 'updatedAt'])
+        && validText(loc.name, 100)
+        && optionalText(loc.get('address', null), 500)
+        && validZone(loc)
+        && loc.isMain is bool;
+    }
+
+    // Assigned sites: up to 10 ids, the primary one among them.
+    function validAssignment(data) {
+      let ids = data.get('locationIds', []);
+      let primary = data.get('primaryLocationId', null);
+      return ids is list && ids.size() <= 10
+        && (primary == null ? ids.size() == 0 : (primary is string && primary in ids));
+    }
+
     function validCheckIn(companyId, attendanceId) {
       let d = request.resource.data;
       let emp = employeeDoc(companyId, uid());
       let lateNow = localMinutes() > toMinutes(emp.shift.start) + 15;
       return emp.status == 'active'
         && companyActive(companyId)
-        && d.keys().hasOnly(['employeeId', 'companyId', 'employeeName', 'date', 'checkIn', 'checkOut', 'status', 'isLate', 'checkInLocation', 'checkOutLocation', 'selfieStoragePath', 'isSynced', 'notes'])
+        && d.keys().hasOnly(['employeeId', 'companyId', 'employeeName', 'date', 'checkIn', 'checkOut', 'status', 'isLate', 'checkInLocation', 'checkOutLocation', 'selfieStoragePath', 'isSynced', 'notes', 'locationId', 'locationName'])
         && d.employeeId == uid()
         && d.companyId == companyId
         && validText(d.employeeName, 200)
@@ -85,7 +115,9 @@ service cloud.firestore {
         // when the server clock agrees.
         && d.isLate is bool && (d.isLate || !lateNow)
         && d.status == (d.isLate ? 'late' : 'present')
-        && validFix(d.checkInLocation) && withinZone(d.checkInLocation, emp.workLocation)
+        && validFix(d.checkInLocation)
+        && punchZoneOk(companyId, emp, d.checkInLocation, d.get('locationId', null))
+        && optionalText(d.get('locationName', null), 100)
         && d.checkOut == null && d.checkOutLocation == null
         && (d.selfieStoragePath == null
             || (d.selfieStoragePath is string && d.selfieStoragePath.matches('^selfies/' + companyId + '/' + uid() + '/[^/]+$')))
@@ -97,12 +129,14 @@ service cloud.firestore {
       let emp = employeeDoc(companyId, uid());
       return emp.status == 'active'
         && companyActive(companyId)
-        && d.diff(resource.data).affectedKeys().hasOnly(['checkOut', 'checkOutLocation'])
+        && d.diff(resource.data).affectedKeys().hasOnly(['checkOut', 'checkOutLocation', 'checkOutLocationId'])
         && resource.data.checkIn != null
         && resource.data.checkOut == null
         && resource.data.date == localDate()
         && d.checkOut == request.time
-        && validFix(d.checkOutLocation) && withinZone(d.checkOutLocation, emp.workLocation);
+        && validFix(d.checkOutLocation)
+        // Punch out at any assigned site (or the legacy zone for old clients).
+        && punchZoneOk(companyId, emp, d.checkOutLocation, d.get('checkOutLocationId', null));
     }
 
     // Registration codes. The doc id IS the code string, and reads are limited
@@ -157,6 +191,19 @@ service cloud.firestore {
             && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['adminId'])
                 || (resource.data.adminId == '' && request.resource.data.adminId == uid())));
 
+      // Work sites. Every member can see them (the punch map draws the zone);
+      // only the admin places or moves one.
+      match /locations/{locationId} {
+        allow read: if memberOf(companyId) || isSuperAdmin();
+        allow create: if isAdmin(companyId)
+          && validLocation(request.resource.data)
+          && request.resource.data.createdAt == request.time;
+        allow update: if isAdmin(companyId)
+          && validLocation(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isAdmin(companyId);
+      }
+
       match /employees/{employeeId} {
         allow read: if isAdmin(companyId) || isEmployee(companyId, employeeId);
         // Employee self-joins (in the same batch as their employee-code role
@@ -165,12 +212,17 @@ service cloud.firestore {
         allow create: if signedIn() && uid() == employeeId
           && roleAfter().role == 'employee'
           && roleAfter().companyId == companyId
-          && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'department', 'position', 'status', 'avatarUrl', 'workLocation', 'shift', 'fcmToken', 'joinedAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'department', 'position', 'status', 'avatarUrl', 'workLocation', 'locationIds', 'primaryLocationId', 'shift', 'fcmToken', 'joinedAt'])
           && request.resource.data.uid == uid()
           && validText(request.resource.data.name, 200)
           && request.resource.data.email.lower() == request.auth.token.email.lower()
           && request.resource.data.status == 'active'
           && request.resource.data.workLocation == null
+          // Either no site yet, or exactly the company's main site.
+          && validAssignment(request.resource.data)
+          && (request.resource.data.get('locationIds', []).size() == 0
+              || (request.resource.data.locationIds.size() == 1
+                  && locationDoc(companyId, request.resource.data.locationIds[0]).isMain == true))
           && request.resource.data.phone == null
           && request.resource.data.department == null
           && request.resource.data.position == null
@@ -181,12 +233,13 @@ service cloud.firestore {
         // Admin manages the profile; the employee may only touch their fcmToken.
         allow update: if (isAdmin(companyId)
               && request.resource.data.diff(resource.data).affectedKeys()
-                   .hasOnly(['name', 'phone', 'department', 'position', 'workLocation', 'shift', 'status', 'avatarUrl', 'updatedAt'])
+                   .hasOnly(['name', 'phone', 'department', 'position', 'workLocation', 'locationIds', 'primaryLocationId', 'shift', 'status', 'avatarUrl', 'updatedAt'])
               && validText(request.resource.data.name, 200)
               && optionalText(request.resource.data.get('phone', null), 40)
               && optionalText(request.resource.data.get('department', null), 200)
               && optionalText(request.resource.data.get('position', null), 200)
               && validZone(request.resource.data.get('workLocation', null))
+              && validAssignment(request.resource.data)
               && validShift(request.resource.data.shift)
               && request.resource.data.status in ['active', 'inactive'])
           || (isEmployee(companyId, employeeId)

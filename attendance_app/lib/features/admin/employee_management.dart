@@ -17,8 +17,10 @@ import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/company_model.dart';
+import 'package:attendance_app/data/models/location_model.dart';
 import 'package:attendance_app/data/models/user_model.dart';
 import 'package:attendance_app/domain/repositories/employee_repository.dart';
+import 'package:attendance_app/domain/repositories/location_repository.dart';
 import 'package:attendance_app/features/admin/add_edit_employee.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
@@ -119,10 +121,13 @@ class EmployeeManagement extends StatefulWidget {
 class _EmployeeManagementState extends State<EmployeeManagement> {
   String _query = '';
   String _filter = 'all'; // all | active | inactive
+  String? _site; // location id, or null for every location
+  Stream<List<LocationModel>>? _sites;
 
   bool _matches(UserModel e) {
     if (_filter == 'active' && e.status != 'active') return false;
     if (_filter == 'inactive' && e.status == 'active') return false;
+    if (_site != null && !e.locationIds.contains(_site)) return false;
     if (_query.isEmpty) return true;
     final q = _query.toLowerCase();
     return e.name.toLowerCase().contains(q) ||
@@ -135,7 +140,22 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
   Widget build(BuildContext context) {
     final prov = Provider.of<UserProvider>(context);
     final companyId = prov.company?.id ?? '';
+    _sites ??= sl<LocationRepository>().watchLocations(companyId);
 
+    return StreamBuilder<List<LocationModel>>(
+      stream: _sites,
+      builder: (context, siteSnap) =>
+          _build(context, prov, companyId, siteSnap.data ?? const []),
+    );
+  }
+
+  Widget _build(
+    BuildContext context,
+    UserProvider prov,
+    String companyId,
+    List<LocationModel> sites,
+  ) {
+    final siteNames = {for (final s in sites) s.id: s.name};
     return Scaffold(
       appBar: TabHeader(
         title: 'Team',
@@ -192,6 +212,7 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
                   AppSpacing.md,
                 ),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     AppSearchField(
                       hint: 'Search name, email, or role',
@@ -220,6 +241,25 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
                         ),
                       ],
                     ),
+                    if (sites.length > 1) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      AppChipBar(
+                        children: [
+                          AppChip(
+                            label: 'All locations',
+                            icon: Icons.location_on_outlined,
+                            selected: _site == null,
+                            onTap: () => setState(() => _site = null),
+                          ),
+                          for (final s in sites)
+                            AppChip(
+                              label: s.name,
+                              selected: _site == s.id,
+                              onTap: () => setState(() => _site = s.id),
+                            ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -245,6 +285,7 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
                                   employee: e,
                                   companyId: companyId,
                                   company: prov.company,
+                                  siteNames: siteNames,
                                 ),
                             ],
                           ),
@@ -264,17 +305,32 @@ class _EmployeeCard extends StatelessWidget {
     required this.employee,
     required this.companyId,
     this.company,
+    this.siteNames = const {},
   });
 
   final UserModel employee;
   final String companyId;
   final CompanyModel? company;
+  final Map<String, String> siteNames;
+
+  /// "Head office", "Head office +2", or the legacy address.
+  String? get _siteLabel {
+    final ids = employee.locationIds;
+    if (ids.isEmpty) {
+      return employee.workAddress ??
+          (employee.workLatitude == null ? 'No location assigned' : null);
+    }
+    final primary =
+        siteNames[employee.primaryLocationId ?? ids.first] ??
+        siteNames[ids.first];
+    if (primary == null) return null;
+    return ids.length > 1 ? '$primary +${ids.length - 1}' : primary;
+  }
 
   @override
   Widget build(BuildContext context) {
     final parts = [
-      employee.workAddress ??
-          (employee.workLatitude == null ? 'No location assigned' : null),
+      _siteLabel,
       employee.department,
     ].whereType<String>().where((s) => s.isNotEmpty);
     return EntityTile(

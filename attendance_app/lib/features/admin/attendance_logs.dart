@@ -6,13 +6,16 @@ import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
+import 'package:attendance_app/core/widgets/app_chip.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/core/widgets/app_search_field.dart';
 import 'package:attendance_app/core/widgets/avatar.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
+import 'package:attendance_app/data/models/location_model.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
+import 'package:attendance_app/domain/repositories/location_repository.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 class AttendanceLogsScreen extends StatefulWidget {
@@ -26,6 +29,11 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
   final _attendance = sl<AttendanceRepository>();
   DateTime? _selectedDate;
   String _searchQuery = '';
+  String? _site;
+  late final Stream<List<LocationModel>> _sites = sl<LocationRepository>()
+      .watchLocations(
+        Provider.of<UserProvider>(context, listen: false).company?.id ?? '',
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +78,35 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
               onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
             ),
           ),
+          StreamBuilder<List<LocationModel>>(
+            stream: _sites,
+            builder: (context, snap) {
+              final sites = snap.data ?? const <LocationModel>[];
+              if (sites.length < 2) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: AppChipBar(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xl,
+                  ),
+                  children: [
+                    AppChip(
+                      label: 'All locations',
+                      icon: Icons.location_on_outlined,
+                      selected: _site == null,
+                      onTap: () => setState(() => _site = null),
+                    ),
+                    for (final s in sites)
+                      AppChip(
+                        label: s.name,
+                        selected: _site == s.id,
+                        onTap: () => setState(() => _site = s.id),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
           if (_selectedDate != null)
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -89,6 +126,9 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
                   return const AppLoader();
                 }
                 var logs = snapshot.data ?? [];
+                if (_site != null) {
+                  logs = logs.where((l) => l.locationId == _site).toList();
+                }
 
                 if (_searchQuery.isNotEmpty) {
                   logs = logs
@@ -159,7 +199,11 @@ class _LogCard extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
           ),
           subtitle: Text(
-            log.date,
+            log.locationName == null
+                ? log.date
+                : '${log.date} · ${log.locationName}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall,
           ),
           trailing: StatusBadge(status: log.status),
@@ -193,6 +237,15 @@ class _LogCard extends StatelessWidget {
                         : '--:--',
                   ),
                   const SizedBox(height: AppSpacing.md),
+                  if (log.locationName != null) ...[
+                    _row(
+                      context,
+                      Icons.location_on_outlined,
+                      'Location',
+                      log.locationName!,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
                   _row(
                     context,
                     Icons.timelapse,

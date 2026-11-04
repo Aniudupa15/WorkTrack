@@ -16,6 +16,9 @@ class AttendanceModel {
   // checkOutLocation: {latitude, longitude}
   final Map<String, dynamic>? checkOutLocation;
   final String? selfieStoragePath;
+  // The site punched in at (null for pre-v2 records and the legacy zone).
+  final String? locationId;
+  final String? locationName;
   final bool isSynced;
   final String? notes;
 
@@ -32,6 +35,8 @@ class AttendanceModel {
     this.checkInLocation,
     this.checkOutLocation,
     this.selfieStoragePath,
+    this.locationId,
+    this.locationName,
     this.isSynced = true,
     this.notes,
   });
@@ -58,6 +63,8 @@ class AttendanceModel {
           ? Map<String, dynamic>.from(map['checkOutLocation'] as Map)
           : null,
       selfieStoragePath: map['selfieStoragePath'],
+      locationId: map['locationId'],
+      locationName: map['locationName'],
       isSynced: map['isSynced'] ?? true,
       notes: map['notes'],
     );
@@ -75,6 +82,8 @@ class AttendanceModel {
     'checkInLocation': checkInLocation,
     'checkOutLocation': checkOutLocation,
     'selfieStoragePath': selfieStoragePath,
+    if (locationId != null) 'locationId': locationId,
+    if (locationName != null) 'locationName': locationName,
     'isSynced': isSynced,
     'notes': notes,
   };
@@ -112,6 +121,8 @@ class AttendanceModel {
       checkInLocation: checkInLocation,
       checkOutLocation: checkOutLocation ?? this.checkOutLocation,
       selfieStoragePath: selfieStoragePath,
+      locationId: locationId,
+      locationName: locationName,
       isSynced: isSynced ?? this.isSynced,
       notes: notes ?? this.notes,
     );

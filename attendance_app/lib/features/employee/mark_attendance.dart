@@ -21,12 +21,14 @@ import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/data/datasources/location_service.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
+import 'package:attendance_app/data/models/location_model.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/features/employee/punch_success.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
-/// Live punch screen: the work zone on a map with a bottom sheet that shows
-/// whether the employee is inside it, and the punch in / out action.
+/// Live punch screen: the employee's work sites on a map with a bottom sheet
+/// that shows whether they are inside the nearest one, and the punch in / out
+/// action.
 class MarkAttendanceScreen extends StatefulWidget {
   const MarkAttendanceScreen({super.key});
   @override
@@ -81,29 +83,46 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     }
   }
 
-  LatLng? get _workLoc {
-    final user = Provider.of<UserProvider>(context, listen: false).user;
-    if (user?.workLatitude == null || user?.workLongitude == null) return null;
-    return LatLng(user!.workLatitude!, user.workLongitude!);
-  }
+  List<LocationModel> get _sites =>
+      Provider.of<UserProvider>(context, listen: false).sites;
 
-  bool get _isNearby {
-    final work = _workLoc;
-    final user = Provider.of<UserProvider>(context, listen: false).user;
-    if (_currentLocation == null || work == null || user == null) return false;
-    return _locationService.isWithinRadius(
-      _currentLocation!,
-      work,
-      user.workRadius,
+  static LatLng _point(LocationModel s) => LatLng(s.latitude, s.longitude);
+
+  double _metresTo(LocationModel s) =>
+      const Distance().as(LengthUnit.Meter, _currentLocation!, _point(s));
+
+  /// The site this punch is for: the closest one the employee is inside, else
+  /// the closest one, else (no fix yet) their primary site.
+  LocationModel? get _site {
+    final sites = _sites;
+    if (sites.isEmpty) return null;
+    if (_currentLocation == null) return sites.first;
+    final byDistance = [...sites]
+      ..sort((a, b) => _metresTo(a).compareTo(_metresTo(b)));
+    return byDistance.firstWhere(
+      (s) => _metresTo(s) <= s.radius,
+      orElse: () => byDistance.first,
     );
   }
 
-  /// Straight-line distance in metres from the employee to the work location,
+  LatLng? get _workLoc => _site == null ? null : _point(_site!);
+
+  bool get _isNearby {
+    final site = _site;
+    if (_currentLocation == null || site == null) return false;
+    return _locationService.isWithinRadius(
+      _currentLocation!,
+      _point(site),
+      site.radius,
+    );
+  }
+
+  /// Straight-line distance in metres from the employee to the punch site,
   /// or null when either point is unknown.
   double? get _distanceMeters {
-    final work = _workLoc;
-    if (_currentLocation == null || work == null) return null;
-    return const Distance().as(LengthUnit.Meter, _currentLocation!, work);
+    final site = _site;
+    if (_currentLocation == null || site == null) return null;
+    return _metresTo(site);
   }
 
   String _fmtDistance(double m) =>
@@ -160,6 +179,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     final user = prov.user!;
     final company = prov.company!;
     final checkingOut = _todayAttendance?.checkIn != null;
+    final site = _site;
 
     if (!checkingOut) {
       final shiftEnd = AttendanceClock.parseMinutes(user.shiftEnd);
@@ -184,6 +204,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
           companyId: company.id,
           employeeId: user.id,
           location: location,
+          site: _site,
         );
         unawaited(sl<AnalyticsService>().logCheckOut(offline: false));
       } else {
@@ -211,6 +232,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
           employeeName: user.name,
           shiftStart: user.shiftStart,
           location: location,
+          site: _site,
           selfieStoragePath: selfiePath,
         );
         unawaited(sl<AnalyticsService>().logCheckIn(offline: false));
@@ -224,7 +246,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
           builder: (_) => PunchSuccessScreen(
             record: record,
             checkedOut: checkingOut,
-            locationName: user.workAddress ?? 'Work location',
+            locationName: (_site ?? site)?.name ?? 'Work location',
             distanceMeters: _distanceMeters,
             withSelfie: withSelfie,
           ),
@@ -265,6 +287,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
       return const Scaffold(body: AppLoader());
     }
     final colors = context.colors;
+    final site = _site;
     final work = _workLoc;
     final inside = _isNearby;
     final zoneColor = _currentLocation == null || inside
@@ -289,10 +312,20 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
               if (work != null)
                 CircleLayer(
                   circles: [
+                    // Other assigned sites, faint; the punch site on top.
+                    for (final s in _sites.where((s) => s.id != site!.id))
+                      CircleMarker(
+                        point: _point(s),
+                        useRadiusInMeter: true,
+                        radius: s.radius,
+                        color: colors.brand.withValues(alpha: 0.05),
+                        borderColor: colors.brand.withValues(alpha: 0.4),
+                        borderStrokeWidth: 1,
+                      ),
                     CircleMarker(
                       point: work,
                       useRadiusInMeter: true,
-                      radius: user.workRadius,
+                      radius: site!.radius,
                       color: zoneColor.withValues(alpha: 0.12),
                       borderColor: zoneColor,
                       borderStrokeWidth: 2,
@@ -312,6 +345,15 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
                 ),
               MarkerLayer(
                 markers: [
+                  for (final s in _sites.where((s) => s.id != site?.id))
+                    Marker(
+                      point: _point(s),
+                      width: 28,
+                      height: 28,
+                      child: _OfficePin(
+                        color: colors.brand.withValues(alpha: 0.6),
+                      ),
+                    ),
                   if (work != null)
                     Marker(
                       point: work,
@@ -367,7 +409,8 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
               inside: inside,
               distance: _distanceMeters,
               accuracy: _position?.accuracy,
-              placeName: user.workAddress ?? 'your work location',
+              placeName: site?.name ?? 'your work location',
+              siteCount: _sites.length,
               shiftStart: user.shiftStart,
               shiftEnd: user.shiftEnd,
               fmtDistance: _fmtDistance,
@@ -392,6 +435,7 @@ class _PunchSheet extends StatelessWidget {
     required this.distance,
     required this.accuracy,
     required this.placeName,
+    required this.siteCount,
     required this.shiftStart,
     required this.shiftEnd,
     required this.fmtDistance,
@@ -408,6 +452,7 @@ class _PunchSheet extends StatelessWidget {
   final double? distance;
   final double? accuracy;
   final String placeName;
+  final int siteCount;
   final String shiftStart;
   final String shiftEnd;
   final String Function(double) fmtDistance;
@@ -482,9 +527,12 @@ class _PunchSheet extends StatelessWidget {
         colors.danger,
         colors.dangerSoft,
       );
-      title = 'You’re not at your work location';
+      title = siteCount > 1
+          ? 'You’re not at any of your locations'
+          : 'You’re not at your work location';
       subtitle =
-          '${fmtDistance(distance ?? 0)} from $placeName. Move inside the circle to punch.';
+          '${fmtDistance(distance ?? 0)} from ${siteCount > 1 ? 'the nearest, ' : ''}'
+          '$placeName. Move inside the circle to punch.';
     }
 
     return Container(
