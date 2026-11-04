@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 
 class NotificationService {
   final FirebaseMessaging _messaging;
@@ -13,7 +14,8 @@ class NotificationService {
   Future<void> initialize({
     required Future<void> Function(String token) onToken,
   }) async {
-    if (_initialized) return;
+    // Shift reminders go to the phone app; the web app doesn't register.
+    if (_initialized || kIsWeb) return;
     _initialized = true;
     final permission = await _messaging.requestPermission(
       alert: true,

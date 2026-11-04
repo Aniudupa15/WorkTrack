@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 import 'package:attendance_app/core/billing/entitlements.dart';
 import 'package:attendance_app/core/di/injection.dart';
@@ -13,6 +12,7 @@ import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/section_header.dart';
 import 'package:attendance_app/domain/repositories/billing_repository.dart';
+import 'package:attendance_app/features/billing/razorpay_checkout.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 /// Seats, the price breakdown with GST, and Razorpay Checkout. During the
@@ -37,22 +37,7 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   late int _seats = widget.seats;
   late final int _minSeats = widget.seats;
-  final _razorpay = Razorpay();
-  CheckoutSession? _session;
   bool _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _onSuccess, rawMap: true);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _onError);
-  }
-
-  @override
-  void dispose() {
-    _razorpay.clear();
-    super.dispose();
-  }
 
   String get _companyId =>
       Provider.of<UserProvider>(context, listen: false).company?.id ?? '';
@@ -67,13 +52,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         cycle: widget.cycle,
         seats: _seats,
       );
-      _session = session;
       if (session.fake) {
         // Emulator only: no Razorpay to open.
         await _confirm(session.subscriptionId, 'pay_emulator', 'emulator');
         return;
       }
-      _razorpay.open({
+      final result = await openRazorpayCheckout({
         'key': session.keyId,
         'subscription_id': session.subscriptionId,
         'name': 'PunchIn',
@@ -82,25 +66,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'prefill': {'email': prov.user?.email ?? ''},
         'theme': {'color': '#0F766E'},
       });
+      if (result == null) {
+        // Closed without paying.
+        if (mounted) setState(() => _busy = false);
+        return;
+      }
+      await _confirm(result.subscriptionId, result.paymentId, result.signature);
+    } on RazorpayFailure catch (e) {
+      _fail(AppException(e.message));
     } catch (e) {
       _fail(e);
     }
-  }
-
-  void _onSuccess(dynamic response) {
-    final data = Map<String, dynamic>.from(response as Map);
-    _confirm(
-      data['razorpay_subscription_id'] as String? ?? _session!.subscriptionId,
-      data['razorpay_payment_id'] as String? ?? '',
-      data['razorpay_signature'] as String? ?? '',
-    );
-  }
-
-  void _onError(PaymentFailureResponse response) {
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (response.code == Razorpay.PAYMENT_CANCELLED) return;
-    _fail(AppException(response.message ?? 'The payment didn’t go through'));
   }
 
   Future<void> _confirm(

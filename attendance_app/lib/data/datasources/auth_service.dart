@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 /// Firebase Authentication wrapper. In the no-Cloud-Functions design the client
 /// only ever creates its OWN account; company/employee provisioning is done via
@@ -26,7 +27,12 @@ class AuthService {
   /// Starts phone sign-in: texts a one-time code to [phone] (E.164) and
   /// returns the verification id to confirm it with. Returns null when
   /// Android auto-verified the SMS and the user is already signed in.
-  Future<String?> sendPhoneCode(String phone, {int? resendToken}) {
+  Future<String?> sendPhoneCode(String phone, {int? resendToken}) async {
+    if (kIsWeb) {
+      // The browser flow runs an invisible reCAPTCHA, then texts the code.
+      _webConfirmation = await _auth.signInWithPhoneNumber(phone);
+      return _webConfirmation!.verificationId;
+    }
     final completer = Completer<String?>();
     _auth.verifyPhoneNumber(
       phoneNumber: phone,
@@ -54,15 +60,22 @@ class AuthService {
   }
 
   int? _resendToken;
+  ConfirmationResult? _webConfirmation;
   int? get resendToken => _resendToken;
 
-  Future<void> confirmPhoneCode(String verificationId, String smsCode) =>
-      _auth.signInWithCredential(
-        PhoneAuthProvider.credential(
-          verificationId: verificationId,
-          smsCode: smsCode.trim(),
-        ),
-      );
+  Future<void> confirmPhoneCode(String verificationId, String smsCode) async {
+    final web = _webConfirmation;
+    if (kIsWeb && web != null) {
+      await web.confirm(smsCode.trim());
+      return;
+    }
+    await _auth.signInWithCredential(
+      PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode.trim(),
+      ),
+    );
+  }
 
   Future<void> sendEmailVerification() async =>
       _auth.currentUser?.sendEmailVerification();

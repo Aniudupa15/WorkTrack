@@ -1,7 +1,6 @@
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:attendance_app/core/constants/app_constants.dart';
@@ -63,13 +62,9 @@ class ReportService {
   }) async {
     final monthLabel = DateFormat('yyyy-MM').format(month);
     final csv = buildCsv(records);
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/attendance_$monthLabel.csv');
-    await file.writeAsString(csv);
-
     await SharePlus.instance.share(
       ShareParams(
-        files: [XFile(file.path, mimeType: 'text/csv')],
+        files: [_csvFile(csv, 'attendance_$monthLabel.csv')],
         subject: '$companyName attendance — $monthLabel',
         text: 'Attendance report for $companyName ($monthLabel).',
       ),
@@ -120,12 +115,9 @@ class ReportService {
       records: records,
       leaves: leaves,
     );
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/payroll_${format.name}_$monthLabel.csv');
-    await file.writeAsString(csv);
     await SharePlus.instance.share(
       ShareParams(
-        files: [XFile(file.path, mimeType: 'text/csv')],
+        files: [_csvFile(csv, 'payroll_${format.name}_$monthLabel.csv')],
         subject: '$companyName payroll (${format.label}) — $monthLabel',
         text: 'Payroll export for $companyName ($monthLabel).',
       ),
@@ -266,6 +258,10 @@ class ReportService {
     ];
     return rows.map((row) => row.map(_escape).join(',')).join('\r\n');
   }
+
+  /// An in-memory CSV: shared on phones, downloaded in the browser.
+  static XFile _csvFile(String csv, String name) =>
+      XFile.fromData(utf8.encode(csv), name: name, mimeType: 'text/csv');
 
   /// Wall-clock time at the company (see AttendanceClock), not the phone's.
   static DateTime _companyTime(DateTime t) => t.toUtc().add(

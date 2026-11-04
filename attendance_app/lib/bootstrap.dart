@@ -31,22 +31,25 @@ Future<void> bootstrap() async {
   await Hive.initFlutter();
   await Hive.openBox(OfflineAttendanceStore.boxName);
   final prefs = await SharedPreferences.getInstance();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  _wireCrashReporting();
+  // Push and Crashlytics are mobile-only; the web app is for admins.
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    _wireCrashReporting();
+  }
   configureDependencies(prefs);
 }
 
 /// Development only: `--dart-define=USE_FIREBASE_EMULATORS=true` points Auth,
 /// Firestore, Storage and Functions at the local Firebase emulator suite
-/// (10.0.2.2 is the host machine from an Android emulator). Never set in
-/// release builds.
+/// (10.0.2.2 is the host machine from an Android emulator; the browser uses
+/// localhost). Never set in release builds.
 Future<void> _useEmulatorsIfRequested() async {
   const enabled = bool.fromEnvironment('USE_FIREBASE_EMULATORS');
   if (!enabled || kReleaseMode) return;
-  const host = String.fromEnvironment(
-    'FIREBASE_EMULATOR_HOST',
-    defaultValue: '10.0.2.2',
-  );
+  const configured = String.fromEnvironment('FIREBASE_EMULATOR_HOST');
+  final host = configured.isNotEmpty
+      ? configured
+      : (kIsWeb ? 'localhost' : '10.0.2.2');
   await FirebaseAuth.instance.useAuthEmulator(host, 9099);
   FirebaseFirestore.instance.useFirestoreEmulator(host, 8085);
   await FirebaseStorage.instance.useStorageEmulator(host, 9199);
