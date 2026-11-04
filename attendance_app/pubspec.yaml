@@ -75,23 +75,24 @@ flutter:
           weight: 700
 
 # Branded splash screen (generated: `dart run flutter_native_splash:create`).
+# Source art: assets/brand/punchin-mark.svg → assets/brand/render_icons.py.
 flutter_native_splash:
-  color: "#0F172A"
-  color_dark: "#0F172A"
-  image: assets/images/logo.png
-  image_dark: assets/images/logo.png
+  color: "#0F766E"
+  color_dark: "#0F766E"
+  image: assets/images/splash_mark.png
   android_12:
-    color: "#0F172A"
-    color_dark: "#0F172A"
-    image: assets/images/logo.png
-    image_dark: assets/images/logo.png
+    color: "#0F766E"
+    color_dark: "#0F766E"
+    image: assets/images/splash_mark.png
 
-# Adaptive launcher icons (generated: `dart run flutter_launcher_icons`).
+# Launcher icons (generated: `dart run flutter_launcher_icons`).
 flutter_launcher_icons:
   android: true
   ios: true
   remove_alpha_ios: true
-  image_path: "assets/images/logo.png"
-  adaptive_icon_background: "#6366F1"
-  adaptive_icon_foreground: "assets/images/logo.png"
+  image_path: "assets/images/icon_square.png"
+  adaptive_icon_background: "#0F766E"
+  adaptive_icon_foreground: "assets/images/icon_foreground.png"
+  # Android 13+ themed icons tint this white silhouette.
+  adaptive_icon_monochrome: "assets/images/icon_foreground.png"
   min_sdk_android: 21
