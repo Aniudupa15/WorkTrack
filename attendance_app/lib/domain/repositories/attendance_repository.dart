@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/data/models/location_model.dart';
@@ -36,7 +36,7 @@ abstract interface class AttendanceRepository {
     LocationModel? site,
   });
 
-  Future<String> uploadSelfie(String companyId, String uid, File file);
+  Future<String> uploadSelfie(String companyId, String uid, Uint8List bytes);
 
   /// Number of events waiting to sync.
   int get pendingSyncCount;

@@ -1,15 +1,23 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
 
 class StorageService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  /// Upload a selfie captured during check-in.
-  /// Returns the storage path (not a download URL) so it can be stored in Firestore.
-  Future<String> uploadSelfie(String companyId, String uid, File file) async {
+  /// Upload a selfie captured during check-in (from memory, so it works in
+  /// browsers too). Returns the storage path (not a download URL) so it can
+  /// be stored in Firestore.
+  Future<String> uploadSelfie(
+    String companyId,
+    String uid,
+    Uint8List bytes,
+  ) async {
     final path =
         'selfies/$companyId/$uid/${DateTime.now().millisecondsSinceEpoch}.jpg';
-    await _storage.ref(path).putFile(file);
+    await _storage
+        .ref(path)
+        .putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
     return path;
   }
 

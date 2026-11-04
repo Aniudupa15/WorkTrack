@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +7,7 @@ import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/utils/attendance_clock.dart';
+import 'package:attendance_app/core/utils/platform_info.dart';
 import 'package:attendance_app/core/widgets/app_bottom_nav.dart';
 import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
@@ -106,17 +106,17 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   Future<void> _openPunch() async {
-    if (kIsWeb) {
-      // Browsers can't detect fake GPS and laptop location is rarely within
-      // the 100 m accuracy punches need, so punching stays on the phone app.
+    if (!PlatformInfo.canPunch) {
+      // A desktop browser has no GPS: its Wi-Fi/IP location is rarely
+      // within the 100 m accuracy a punch needs.
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Punch in from your phone'),
           content: const Text(
-            'Punching needs your phone’s GPS. Open the PunchIn app on your '
-            'phone to punch in or out. You can see your attendance and leave '
-            'here.',
+            'Punching needs your phone’s GPS. Open PunchIn on your phone — '
+            'the app or the website — to punch in or out. You can see your '
+            'attendance and leave here.',
           ),
           actions: [
             TextButton(
