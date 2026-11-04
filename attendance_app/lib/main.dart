@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:attendance_app/bootstrap.dart';
 import 'package:attendance_app/core/di/injection.dart';
+import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_theme.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
@@ -42,6 +43,7 @@ class AttendanceApp extends StatelessWidget {
       themeMode: ThemeMode.light,
       navigatorObservers: [sl<AnalyticsService>().observer],
       home: const AuthWrapper(),
+      builder: (context, child) => _WideScreenFrame(child: child!),
     );
   }
 }
@@ -148,6 +150,40 @@ class _AccessBlockedScreen extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// On wide screens (the web app on a desktop), shows the app as a centred
+/// phone-width column so every screen keeps its designed layout.
+class _WideScreenFrame extends StatelessWidget {
+  const _WideScreenFrame({required this.child});
+
+  final Widget child;
+
+  static const _maxWidth = 480.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    if (media.size.width <= _maxWidth + 32) return child;
+    final colors = context.colors;
+    return ColoredBox(
+      color: colors.surfaceMuted,
+      child: Center(
+        child: Container(
+          width: _maxWidth,
+          decoration: BoxDecoration(
+            border: Border.symmetric(
+              vertical: BorderSide(color: colors.border),
+            ),
+          ),
+          child: MediaQuery(
+            data: media.copyWith(size: Size(_maxWidth, media.size.height)),
+            child: child,
           ),
         ),
       ),

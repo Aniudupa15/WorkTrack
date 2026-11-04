@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -105,6 +106,28 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   Future<void> _openPunch() async {
+    if (kIsWeb) {
+      // Browsers can't detect fake GPS and laptop location is rarely within
+      // the 100 m accuracy punches need, so punching stays on the phone app.
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Punch in from your phone'),
+          content: const Text(
+            'Punching needs your phone’s GPS. Open the PunchIn app on your '
+            'phone to punch in or out. You can see your attendance and leave '
+            'here.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const MarkAttendanceScreen()),

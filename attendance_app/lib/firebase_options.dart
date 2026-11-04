@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -48,6 +45,17 @@ class DefaultFirebaseOptions {
         );
     }
   }
+
+  // Firebase web app "trackin (web)".
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyCcREdxWGktDmfR1ss94bx3ssb7mPc9hCU',
+    appId: '1:46917976454:web:52d1797490857236146c07',
+    messagingSenderId: '46917976454',
+    projectId: 'trackin-df4d8',
+    authDomain: 'trackin-df4d8.firebaseapp.com',
+    storageBucket: 'trackin-df4d8.firebasestorage.app',
+    measurementId: 'G-CB4FBZLD66',
+  );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCJX9V5mTobnLzHNtuX56YOLLstx1NV4z0',
