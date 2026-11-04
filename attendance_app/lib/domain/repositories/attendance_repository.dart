@@ -24,6 +24,7 @@ abstract interface class AttendanceRepository {
     required String employeeId,
     required String employeeName,
     required String shiftStart,
+    int lateAfterMinutes,
     required Map<String, dynamic> location,
     LocationModel? site,
     String? selfieStoragePath,

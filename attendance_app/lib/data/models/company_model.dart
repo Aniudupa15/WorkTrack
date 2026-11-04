@@ -26,6 +26,14 @@ class CompanyModel {
   final bool cancelAtPeriodEnd;
   final int activeEmployees;
 
+  // Profile (design 1.4 / 7.4).
+  final String? industry;
+  final String? gstin;
+
+  /// Storage path of the uploaded logo, if any.
+  final String? logoUrl;
+  final String? teamSize;
+
   CompanyModel({
     required this.id,
     required this.companyName,
@@ -47,6 +55,10 @@ class CompanyModel {
     this.currentPeriodEnd,
     this.cancelAtPeriodEnd = false,
     this.activeEmployees = 0,
+    this.industry,
+    this.gstin,
+    this.logoUrl,
+    this.teamSize,
   }) : settings =
            settings ??
            {
@@ -64,6 +76,22 @@ class CompanyModel {
       (settings['defaultRadius'] as num?)?.toDouble() ?? 100.0;
   String get defaultShiftStart => settings['defaultShiftStart'] ?? '09:00';
   String get defaultShiftEnd => settings['defaultShiftEnd'] ?? '18:00';
+
+  /// Minutes after shift start before a punch counts as late (Rules agree).
+  int get lateAfterMinutes =>
+      (settings['lateAfterMinutes'] as num?)?.toInt() ?? 15;
+
+  /// ISO weekdays (1 = Monday) the company works.
+  List<int> get workingDays =>
+      ((settings['workingDays'] as List?) ?? const [1, 2, 3, 4, 5, 6])
+          .map((d) => (d as num).toInt())
+          .toList();
+
+  bool get checkoutInZone => settings['checkoutInZone'] != false;
+  bool get shiftReminders => settings['shiftReminders'] != false;
+
+  /// Selfie at punch-in. Companies from before the setting always asked.
+  bool get selfieRequired => settings['selfieRequired'] != false;
 
   factory CompanyModel.fromMap(Map<String, dynamic> map, String id) {
     return CompanyModel(
@@ -91,6 +119,10 @@ class CompanyModel {
       currentPeriodEnd: (map['currentPeriodEnd'] as Timestamp?)?.toDate(),
       cancelAtPeriodEnd: map['cancelAtPeriodEnd'] == true,
       activeEmployees: (map['activeEmployees'] as num?)?.toInt() ?? 0,
+      industry: map['industry'] as String?,
+      gstin: map['gstin'] as String?,
+      logoUrl: map['logoUrl'] as String?,
+      teamSize: map['teamSize'] as String?,
     );
   }
 
@@ -137,6 +169,10 @@ class CompanyModel {
       currentPeriodEnd: currentPeriodEnd,
       cancelAtPeriodEnd: cancelAtPeriodEnd,
       activeEmployees: activeEmployees,
+      industry: industry,
+      gstin: gstin,
+      logoUrl: logoUrl,
+      teamSize: teamSize,
     );
   }
 }

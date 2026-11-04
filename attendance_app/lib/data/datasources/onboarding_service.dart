@@ -20,8 +20,17 @@ class OnboardingService {
   Future<Map<String, dynamic>> registerCompany(Map<String, dynamic> data) =>
       _call('registerCompany', data);
 
-  Future<Map<String, dynamic>> claimJoin({String? code, String? name}) =>
-      _call('claimJoin', {'code': ?code, 'name': ?name});
+  Future<Map<String, dynamic>> claimJoin({
+    String? code,
+    String? name,
+    String? email,
+    String? employeeNumber,
+  }) => _call('claimJoin', {
+    'code': ?code,
+    'name': ?name,
+    'email': ?email,
+    'employeeNumber': ?employeeNumber,
+  });
 
   Future<Map<String, dynamic>> importEmployees(
     String companyId,

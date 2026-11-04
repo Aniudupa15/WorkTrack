@@ -210,7 +210,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
       } else {
         String? selfiePath;
         // Selfie verification is a Business feature.
-        if (Entitlements.of(company).hasBusiness) {
+        if (Entitlements.of(company).hasBusiness && company.selfieRequired) {
           try {
             final photo = await ImagePicker().pickImage(
               source: ImageSource.camera,
@@ -234,6 +234,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
           employeeId: user.id,
           employeeName: user.name,
           shiftStart: user.shiftStart,
+          lateAfterMinutes: company.lateAfterMinutes,
           location: location,
           site: _site,
           selfieStoragePath: selfiePath,
@@ -415,6 +416,11 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
               placeName: site?.name ?? 'your work location',
               siteCount: _sites.length,
               shiftStart: user.shiftStart,
+              lateAfterMinutes:
+                  Provider.of<UserProvider>(
+                    context,
+                  ).company?.lateAfterMinutes ??
+                  15,
               shiftEnd: user.shiftEnd,
               fmtDistance: _fmtDistance,
               onPunch: _punch,
@@ -440,6 +446,7 @@ class _PunchSheet extends StatelessWidget {
     required this.placeName,
     required this.siteCount,
     required this.shiftStart,
+    this.lateAfterMinutes = 15,
     required this.shiftEnd,
     required this.fmtDistance,
     required this.onPunch,
@@ -457,6 +464,7 @@ class _PunchSheet extends StatelessWidget {
   final String placeName;
   final int siteCount;
   final String shiftStart;
+  final int lateAfterMinutes;
   final String shiftEnd;
   final String Function(double) fmtDistance;
   final VoidCallback onPunch;
@@ -469,9 +477,7 @@ class _PunchSheet extends StatelessWidget {
     final done = today?.checkOut != null;
     final now = AttendanceClock.now();
     final start = AttendanceClock.parseMinutes(shiftStart) ?? 540;
-    final late =
-        AttendanceClock.minutesOfDay(now) >
-        start + AppConstants.lateGracePeriodMinutes;
+    final late = AttendanceClock.minutesOfDay(now) > start + lateAfterMinutes;
     final end = AttendanceClock.parseMinutes(shiftEnd) ?? 1080;
     // Punch-in closes when the shift ends (the server rejects it too).
     final closed = !checkedIn && AttendanceClock.minutesOfDay(now) >= end;

@@ -8,7 +8,7 @@ import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
-import 'package:attendance_app/features/onboarding/get_started_screen.dart';
+import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/features/onboarding/phone_sign_in_screen.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
@@ -46,6 +46,8 @@ class _LoginScreenState extends State<LoginScreen> {
         listen: false,
       ).signIn(_emailController.text.trim(), _passwordController.text);
       unawaited(sl<AnalyticsService>().logLogin());
+      // The auth state change swaps the home screen; drop this page.
+      if (mounted) Navigator.popUntil(context, (r) => r.isFirst);
     } catch (e) {
       if (mounted) {
         final message = e is AppException ? e.message : 'Login failed.';
@@ -66,140 +68,78 @@ class _LoginScreenState extends State<LoginScreen> {
     final colors = context.colors;
     final text = Theme.of(context).textTheme;
     return Scaffold(
+      backgroundColor: colors.surface,
+      appBar: AppBar(backgroundColor: colors.surface),
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight:
-                  MediaQuery.of(context).size.height -
-                  MediaQuery.of(context).padding.vertical,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          children: [
+            Text(
+              'Welcome back',
+              style: text.displaySmall?.copyWith(fontSize: 22, height: 28 / 22),
             ),
-            // IntrinsicHeight gives the Spacers below a bounded height to
-            // divide; without it they throw inside the scroll view and the
-            // whole screen renders blank.
-            child: IntrinsicHeight(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Wordmark
-                    Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(11),
-                          child: Image.asset(
-                            'assets/images/logo.png',
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        Text(
-                          'PunchIn',
-                          style: text.titleLarge?.copyWith(letterSpacing: -0.3),
-                        ),
-                      ],
-                    ),
-                    const Spacer(flex: 2),
-                    Text(
-                      'Attendance your team can trust',
-                      style: text.displaySmall?.copyWith(
-                        fontSize: 30,
-                        height: 36 / 30,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      'Sign in to punch in, manage leave, and see your team at a glance.',
-                      style: text.bodyMedium,
-                    ),
-                    const Spacer(flex: 3),
-                    // Form
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email address',
-                        prefixIcon: Icon(
-                          Icons.alternate_email_rounded,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      onFieldSubmitted: (_) => _login(),
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(
-                          Icons.lock_outline_rounded,
-                          size: 20,
-                        ),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_off_rounded
-                                : Icons.visibility_rounded,
-                            size: 20,
-                          ),
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _login,
-                      child: _isLoading
-                          ? SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: colors.onBrand,
-                              ),
-                            )
-                          : const Text('Sign in'),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PhoneSignInScreen(),
-                        ),
-                      ),
-                      icon: const Icon(Icons.phone_iphone_rounded, size: 20),
-                      label: const Text('Employee? Sign in with phone'),
-                    ),
-                    const Spacer(),
-                    Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text("New here?", style: text.bodyMedium),
-                          TextButton(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const GetStartedScreen(),
-                              ),
-                            ),
-                            child: const Text('Create an account'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+            const SizedBox(height: 6),
+            Text(
+              'Admins sign in with email. Employees use their phone number.',
+              style: text.bodyMedium?.copyWith(color: colors.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            Text('Work email', style: text.labelMedium),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              autocorrect: false,
+              decoration: const InputDecoration(hintText: 'you@company.com'),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text('Password', style: text.labelMedium),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              onFieldSubmitted: (_) => _login(),
+              decoration: InputDecoration(
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    size: 20,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
                 ),
               ),
             ),
-          ),
+            const SizedBox(height: AppSpacing.xl),
+            AppButton(
+              label: 'Sign in',
+              loading: _isLoading,
+              onPressed: _isLoading ? null : _login,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Row(
+              children: [
+                Expanded(child: Divider(color: colors.border)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('or', style: text.labelSmall),
+                ),
+                Expanded(child: Divider(color: colors.border)),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            AppButton(
+              label: 'Sign in with phone',
+              icon: Icons.phone_iphone_rounded,
+              variant: AppButtonVariant.secondary,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PhoneSignInScreen()),
+              ),
+            ),
+          ],
         ),
       ),
     );

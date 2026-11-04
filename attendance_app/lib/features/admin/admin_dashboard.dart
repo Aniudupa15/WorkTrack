@@ -25,6 +25,7 @@ import 'package:attendance_app/features/admin/company_settings.dart';
 import 'package:attendance_app/features/admin/employee_management.dart';
 import 'package:attendance_app/features/admin/invite_screen.dart';
 import 'package:attendance_app/features/billing/billing_screen.dart';
+import 'package:attendance_app/features/billing/choose_plan_screen.dart';
 import 'package:attendance_app/features/billing/paywall.dart';
 import 'package:attendance_app/features/admin/leave_management.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
@@ -38,6 +39,28 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeTour());
+  }
+
+  /// Fresh from company setup: plans first (skippable), then "Add your team".
+  Future<void> _maybeTour() async {
+    if (!mounted) return;
+    final prov = Provider.of<UserProvider>(context, listen: false);
+    if (!prov.takePostSetupTour()) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ChoosePlanScreen()),
+    );
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const InviteScreen()),
+    );
+  }
+
   int _tab = 0;
 
   @override

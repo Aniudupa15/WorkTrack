@@ -222,6 +222,13 @@ class DatabaseService {
     await _companies.doc(companyId).update({'settings': settings});
   }
 
+  Future<void> updateCompanyProfile(
+    String companyId,
+    Map<String, dynamic> fields,
+  ) async {
+    await _companies.doc(companyId).update(fields);
+  }
+
   Future<void> incrementEmployeeCount(String companyId, int delta) async {
     await _companies.doc(companyId).update({
       'totalEmployees': FieldValue.increment(delta),
@@ -544,6 +551,7 @@ class DatabaseService {
     required String employeeId,
     required String employeeName,
     required String shiftStart,
+    int lateAfterMinutes = AppConstants.lateGracePeriodMinutes,
     required Map<String, dynamic> location,
     LocationModel? site,
     String? selfieStoragePath,
@@ -569,7 +577,7 @@ class DatabaseService {
           if (named) 'locationName': site.name,
         });
 
-    final late = _isLate(shiftStart);
+    final late = _isLate(shiftStart, lateAfterMinutes);
     try {
       await write(late);
     } on FirebaseException catch (e) {
@@ -595,10 +603,10 @@ class DatabaseService {
     });
   }
 
-  bool _isLate(String shiftStart) {
+  bool _isLate(String shiftStart, int lateAfterMinutes) {
     final startMinutes = AttendanceClock.parseMinutes(shiftStart) ?? 9 * 60;
     final nowMinutes = AttendanceClock.minutesOfDay(AttendanceClock.now());
-    return nowMinutes > startMinutes + AppConstants.lateGracePeriodMinutes;
+    return nowMinutes > startMinutes + lateAfterMinutes;
   }
 
   Future<AttendanceModel?> getTodayAttendance(
@@ -772,5 +780,14 @@ class DatabaseService {
     String token,
   ) async {
     await _employees(companyId).doc(uid).update({'fcmToken': token});
+  }
+
+  /// An employee's own profile fields (rules allow avatar + reminders).
+  Future<void> updateOwnEmployee(
+    String companyId,
+    String uid,
+    Map<String, dynamic> data,
+  ) async {
+    await _employees(companyId).doc(uid).update(data);
   }
 }

@@ -8,30 +8,54 @@ class OnboardingRepositoryImpl implements OnboardingRepository {
   final OnboardingService _service;
 
   @override
-  Future<void> registerCompany({
+  Future<String> registerCompany({
     required String companyName,
     required String adminName,
-    required Map<String, dynamic> location,
+    required List<Map<String, dynamic>> locations,
     required String shiftStart,
     required String shiftEnd,
     String? teamSize,
-  }) => _guard(
-    () => _service.registerCompany({
-      'companyName': companyName.trim(),
-      'adminName': adminName.trim(),
-      'location': location,
-      'shiftStart': shiftStart,
-      'shiftEnd': shiftEnd,
-      'teamSize': ?teamSize,
-    }),
-  );
+    String? industry,
+    String? gstin,
+    List<int> workingDays = const [1, 2, 3, 4, 5, 6],
+    int lateAfterMinutes = 15,
+    bool checkoutInZone = true,
+    bool shiftReminders = true,
+    bool selfieRequired = false,
+  }) async {
+    final r = await _guard(
+      () => _service.registerCompany({
+        'companyName': companyName.trim(),
+        'adminName': adminName.trim(),
+        'locations': locations,
+        'shiftStart': shiftStart,
+        'shiftEnd': shiftEnd,
+        'teamSize': ?teamSize,
+        'industry': ?industry,
+        'gstin': ?gstin,
+        'workingDays': workingDays,
+        'lateAfterMinutes': lateAfterMinutes,
+        'checkoutInZone': checkoutInZone,
+        'shiftReminders': shiftReminders,
+        'selfieRequired': selfieRequired,
+      }),
+    );
+    return r['companyId'] as String;
+  }
 
   @override
-  Future<String> claimJoin({String? code, String? name}) async {
+  Future<String> claimJoin({
+    String? code,
+    String? name,
+    String? email,
+    String? employeeNumber,
+  }) async {
     final result = await _guard(
       () => _service.claimJoin(
-        code: code?.trim().toUpperCase(),
+        code: code?.trim().toUpperCase().replaceAll('-', ''),
         name: name?.trim(),
+        email: email?.trim(),
+        employeeNumber: employeeNumber?.trim(),
       ),
     );
     return result['status'] as String? ?? 'active';
