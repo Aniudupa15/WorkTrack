@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:firebase_core/firebase_core.dart';
 
@@ -98,9 +98,13 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
   Future<int> syncPending(String companyId) async => 0;
 
   @override
-  Future<String> uploadSelfie(String companyId, String uid, File file) async {
+  Future<String> uploadSelfie(
+    String companyId,
+    String uid,
+    Uint8List bytes,
+  ) async {
     try {
-      return await _storage.uploadSelfie(companyId, uid, file);
+      return await _storage.uploadSelfie(companyId, uid, bytes);
     } catch (error) {
       throw ErrorMapper.map(error);
     }

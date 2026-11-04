@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -8,19 +9,25 @@ class LocationService {
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      return Future.error('Location services are disabled.');
+      return Future.error('Turn on location on your phone, then try again.');
     }
 
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        return Future.error('Location permissions are denied');
+        return Future.error('Allow location access to punch in.');
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
-      return Future.error('Location permissions are permanently denied.');
+      return Future.error(
+        kIsWeb
+            ? 'Location is blocked for this site. Allow it in your browser’s '
+                  'site settings, then try again.'
+            : 'Location is blocked for PunchIn. Allow it in Settings, then '
+                  'try again.',
+      );
     }
 
     return await Geolocator.getCurrentPosition(

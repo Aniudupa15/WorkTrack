@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -222,7 +221,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
               selfiePath = await _attendance.uploadSelfie(
                 company.id,
                 user.id,
-                File(photo.path),
+                await photo.readAsBytes(),
               );
             }
           } catch (_) {
