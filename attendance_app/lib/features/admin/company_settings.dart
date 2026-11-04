@@ -13,6 +13,7 @@ import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/section_header.dart';
 import 'package:attendance_app/domain/repositories/company_repository.dart';
 import 'package:attendance_app/features/admin/attendance_logs.dart';
+import 'package:attendance_app/features/admin/hours_rules_screen.dart';
 import 'package:attendance_app/features/admin/invite_screen.dart';
 import 'package:attendance_app/features/billing/billing_screen.dart';
 import 'package:attendance_app/features/admin/leave_management.dart';
@@ -146,11 +147,13 @@ class CompanySettingsScreen extends StatelessWidget {
               EntityTile(
                 inGroup: true,
                 leading: const IconChip(icon: Icons.schedule_rounded),
-                title: 'Default hours',
+                title: 'Hours & rules',
                 subtitle:
                     '${AttendanceClock.formatShiftTime(company?.defaultShiftStart ?? '09:00')} – '
                     '${AttendanceClock.formatShiftTime(company?.defaultShiftEnd ?? '18:00')} · '
-                    'late after 15 min',
+                    'late after ${company?.lateAfterMinutes ?? 15} min',
+                chevron: true,
+                onTap: () => open(const HoursRulesScreen()),
               ),
             ],
           ),

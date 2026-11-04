@@ -42,6 +42,8 @@ class _JoinTeamScreenState extends State<JoinTeamScreen> {
   CompanyModel? _company;
   List<LocationModel> _sites = const [];
   String _firstName = '';
+  String _fullName = '';
+  bool _pending = false;
   bool _busy = false;
   bool _locationOk = false;
   bool _notifyOk = false;
@@ -62,18 +64,21 @@ class _JoinTeamScreenState extends State<JoinTeamScreen> {
     });
     final pending = _prov.pendingJoin;
     try {
-      final cid = await _repo.claimJoin(
+      final joined = await _repo.claimJoin(
         code: pending?.code,
         name: pending == null || pending.name.isEmpty ? null : pending.name,
         email: pending?.email,
         employeeNumber: pending?.employeeNumber,
       );
       _prov.pendingJoin = null;
+      final cid = joined.companyId;
       _companyId = cid;
+      _pending = joined.status == 'pending';
       final name = pending?.name.isNotEmpty == true
           ? pending!.name
           : (FirebaseAuth.instance.currentUser?.displayName ?? '');
-      _firstName = name.trim().split(' ').first;
+      _fullName = name.trim();
+      _firstName = _fullName.split(' ').first;
       final db = sl<DatabaseService>();
       try {
         _company = await db.getCompany(cid);
@@ -116,10 +121,15 @@ class _JoinTeamScreenState extends State<JoinTeamScreen> {
   Future<void> _askNotifications() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || _companyId == null) return;
-    await sl<NotificationService>().initialize(
-      onToken: (t) =>
-          sl<DatabaseService>().saveEmployeeFcmToken(_companyId!, uid, t),
-    );
+    // Shows the system prompt; the token itself can take a while (or never
+    // arrive on devices without Play services), so don't wait for it.
+    sl<NotificationService>()
+        .initialize(
+          onToken: (t) =>
+              sl<DatabaseService>().saveEmployeeFcmToken(_companyId!, uid, t),
+        )
+        .catchError((_) {});
+    await Future<void>.delayed(const Duration(milliseconds: 600));
     if (mounted) setState(() => _notifyOk = true);
   }
 
@@ -278,7 +288,7 @@ class _JoinTeamScreenState extends State<JoinTeamScreen> {
 
   Widget _photoStep(BuildContext context) {
     final colors = context.colors;
-    final name = _firstName.isEmpty ? 'You' : _firstName;
+    final name = _fullName.isEmpty ? 'You' : _fullName;
     return OnboardingStep(
       step: 3,
       of: 3,
@@ -417,8 +427,10 @@ class _JoinTeamScreenState extends State<JoinTeamScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    c == null
+                    _pending
                         ? 'Your manager will approve you shortly.'
+                        : c == null
+                        ? 'You’ve joined your team.'
                         : 'You’ve joined ${c.companyName}.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: colors.textSecondary),

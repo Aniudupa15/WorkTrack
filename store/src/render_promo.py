@@ -67,6 +67,19 @@ def cta():
 <div class="chips"><span class="chip">Set up your company in 5 minutes</span></div></div></body></html>"""
 
 
+# Captioned 1080x1920 phone frames double as Play Store screenshots
+# (Play caps the aspect ratio at 2:1; raw captures are 1080x2400).
+PLAY = [
+    ('employee-home.png', 'For your staff', 'One tap to punch in'),
+    ('punch-sheet.png', 'Geofenced', 'Only inside the work zone'),
+    ('punch-success.png', 'Tamper-proof', 'Server time, GPS and selfie'),
+    ('admin-today.png', 'For owners', 'Who’s in, late or absent today'),
+    ('team.png', 'Every site', 'Your whole team in one place'),
+    ('reports.png', 'Month end', 'Reports and payroll export'),
+    ('invite.png', 'Onboard in minutes', 'Invite by QR, code or phone'),
+    ('welcome.png', 'Set up in 5 minutes', 'Attendance your team can trust'),
+]
+
 SCENES = [
     ('title', title, None),
     ('punch', phone, ('employee-home.png', 'For your staff', 'Punch in only when you’re at work')),
@@ -110,11 +123,18 @@ def main():
         pngs.append(out)
         print('scene', out.name)
 
+    play = ROOT / 'store/play-screenshots'
+    play.mkdir(exist_ok=True)
+    for i, (img, kicker, headline) in enumerate(PLAY, 1):
+        if (SHOTS / img).exists():
+            render(phone(SHOTS / img, kicker, headline), play / f'{i:02d}-{img}')
+            print('play', img)
+
     # Each still gets a gentle zoom, then they crossfade into each other.
     fps = 30
     inputs, filters = [], []
     for i, p in enumerate(pngs):
-        inputs += ['-loop', '1', '-t', str(SECONDS), '-i', str(p)]
+        inputs += ['-i', str(p)]
         n = int(SECONDS * fps)
         filters.append(
             f'[{i}:v]scale={W * 2}:{H * 2},zoompan=z=\'min(1+0.0006*on,1.06)\':'
