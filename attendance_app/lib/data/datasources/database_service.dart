@@ -312,6 +312,52 @@ class DatabaseService {
         );
   }
 
+  /// People who joined with the company code and wait for the admin.
+  Stream<List<UserModel>> watchPendingEmployees(String companyId) {
+    return _employees(companyId)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map(
+          (snap) => snap.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            data['companyId'] = companyId;
+            data['role'] = 'employee';
+            return UserModel.fromMap(data, doc.id);
+          }).toList(),
+        );
+  }
+
+  Future<void> setEmployeeStatus(
+    String companyId,
+    String uid,
+    String status,
+  ) async {
+    await _employees(companyId).doc(uid).update({
+      'status': status,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Phone invites not yet claimed (doc id = E.164 phone).
+  Stream<List<Map<String, dynamic>>> watchInvites(String companyId) {
+    return _db
+        .collection('invites')
+        .where('companyId', isEqualTo: companyId)
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map((d) => {...d.data(), 'phone': d.id}).toList()..sort(
+                (a, b) => '${a['name']}'.toLowerCase().compareTo(
+                  '${b['name']}'.toLowerCase(),
+                ),
+              ),
+        );
+  }
+
+  Future<void> deleteInvite(String phone) async {
+    await _db.collection('invites').doc(phone).delete();
+  }
+
   Future<List<UserModel>> getAllEmployeesOnce(String companyId) async {
     final snap = await _employees(companyId).get();
     return snap.docs.map((doc) {

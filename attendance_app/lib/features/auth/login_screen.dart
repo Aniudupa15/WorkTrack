@@ -8,7 +8,8 @@ import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
-import 'package:attendance_app/features/auth/signup_screen.dart';
+import 'package:attendance_app/features/onboarding/get_started_screen.dart';
+import 'package:attendance_app/features/onboarding/phone_sign_in_screen.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -165,6 +166,17 @@ class _LoginScreenState extends State<LoginScreen> {
                             )
                           : const Text('Sign in'),
                     ),
+                    const SizedBox(height: AppSpacing.md),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PhoneSignInScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.phone_iphone_rounded, size: 20),
+                      label: const Text('Employee? Sign in with phone'),
+                    ),
                     const Spacer(),
                     Center(
                       child: Row(
@@ -175,7 +187,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: () => Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const SignupScreen(),
+                                builder: (_) => const GetStartedScreen(),
                               ),
                             ),
                             child: const Text('Create an account'),

@@ -57,6 +57,36 @@ class EmployeeRepositoryImpl implements EmployeeRepository {
   }
 
   @override
+  Stream<List<UserModel>> watchPendingEmployees(String companyId) =>
+      _db.watchPendingEmployees(companyId);
+
+  @override
+  Future<void> setStatus(
+    String companyId,
+    String employeeId,
+    String status,
+  ) async {
+    try {
+      await _db.setEmployeeStatus(companyId, employeeId, status);
+    } catch (error) {
+      throw ErrorMapper.map(error);
+    }
+  }
+
+  @override
+  Stream<List<Map<String, dynamic>>> watchInvites(String companyId) =>
+      _db.watchInvites(companyId);
+
+  @override
+  Future<void> deleteInvite(String phone) async {
+    try {
+      await _db.deleteInvite(phone);
+    } catch (error) {
+      throw ErrorMapper.map(error);
+    }
+  }
+
+  @override
   Future<void> saveFcmToken(
     String companyId,
     String employeeId,

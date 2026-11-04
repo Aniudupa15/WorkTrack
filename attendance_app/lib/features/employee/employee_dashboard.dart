@@ -266,6 +266,7 @@ class _ShiftCard extends StatelessWidget {
     final graceEnd = startMin + AppConstants.lateGracePeriodMinutes;
     final nowMin = AttendanceClock.minutesOfDay(AttendanceClock.now());
     const fmt = AttendanceClock.formatShiftTime;
+    final closed = !checkedIn && !done && nowMin >= endMin;
 
     final Widget pill;
     final String caption;
@@ -278,7 +279,7 @@ class _ShiftCard extends StatelessWidget {
         label: 'In since ${time.format(today!.checkIn!)}',
       );
       caption = 'Shift ends at ${fmt(user.shiftEnd)}';
-    } else if (nowMin >= endMin) {
+    } else if (closed) {
       pill = const StatusBadge(status: 'absent', label: 'Not punched');
       caption = 'Your shift has ended — punch-in is closed for today';
     } else {
@@ -359,11 +360,13 @@ class _ShiftCard extends StatelessWidget {
               child: AppButton(
                 label: done
                     ? 'See today'
-                    : (checkedIn ? 'Punch out' : 'Punch in'),
+                    : checkedIn
+                    ? 'Punch out'
+                    : (closed ? 'Shift over' : 'Punch in'),
                 icon: done
                     ? Icons.check_circle_outline_rounded
                     : (checkedIn ? Icons.logout_rounded : Icons.login_rounded),
-                variant: done
+                variant: done || closed
                     ? AppButtonVariant.secondary
                     : AppButtonVariant.primary,
                 onPressed: onPunch,

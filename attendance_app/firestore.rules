@@ -156,6 +156,13 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'claimedBy']);
     }
 
+    // Phone invites, keyed by E.164 number. Written only by the importEmployees
+    // function and consumed by claimJoin; the inviting admin can see and
+    // withdraw their company's pending invites.
+    match /invites/{phone} {
+      allow read, delete: if signedIn() && isAdmin(resource.data.companyId);
+    }
+
     // Role doc. You may only create your OWN, and only by presenting a valid
     // super-admin-minted code for the company you name. super_admin role docs
     // are created ONLY from the Firebase console (never by a client).

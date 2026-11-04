@@ -75,12 +75,13 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           AppGroup(
             children: [
-              EntityTile(
-                inGroup: true,
-                leading: const IconChip(icon: Icons.mail_outline_rounded),
-                title: 'Email',
-                subtitle: user.email.isEmpty ? 'Not set' : user.email,
-              ),
+              if (user.email.isNotEmpty || user.phone == null)
+                EntityTile(
+                  inGroup: true,
+                  leading: const IconChip(icon: Icons.mail_outline_rounded),
+                  title: 'Email',
+                  subtitle: user.email.isEmpty ? 'Not set' : user.email,
+                ),
               if (user.phone != null)
                 EntityTile(
                   inGroup: true,

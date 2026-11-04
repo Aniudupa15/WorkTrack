@@ -14,17 +14,19 @@ import 'package:attendance_app/data/repositories/company_repository_impl.dart';
 import 'package:attendance_app/data/repositories/employee_repository_impl.dart';
 import 'package:attendance_app/data/repositories/leave_repository_impl.dart';
 import 'package:attendance_app/data/repositories/location_repository_impl.dart';
+import 'package:attendance_app/data/repositories/onboarding_repository_impl.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/domain/repositories/auth_repository.dart';
 import 'package:attendance_app/domain/repositories/company_repository.dart';
 import 'package:attendance_app/domain/repositories/employee_repository.dart';
 import 'package:attendance_app/domain/repositories/leave_repository.dart';
 import 'package:attendance_app/domain/repositories/location_repository.dart';
-import 'package:attendance_app/data/datasources/attendance_service.dart';
+import 'package:attendance_app/domain/repositories/onboarding_repository.dart';
 import 'package:attendance_app/data/datasources/auth_service.dart';
 import 'package:attendance_app/data/datasources/database_service.dart';
 import 'package:attendance_app/data/datasources/location_service.dart';
 import 'package:attendance_app/data/datasources/notification_service.dart';
+import 'package:attendance_app/data/datasources/onboarding_service.dart';
 import 'package:attendance_app/data/datasources/storage_service.dart';
 
 /// Global service locator.
@@ -43,8 +45,8 @@ void configureDependencies(SharedPreferences prefs) {
   sl
     ..registerLazySingleton<AuthService>(AuthService.new)
     ..registerLazySingleton<DatabaseService>(DatabaseService.new)
-    ..registerLazySingleton<AttendanceService>(AttendanceService.new)
     ..registerLazySingleton<StorageService>(StorageService.new)
+    ..registerLazySingleton<OnboardingService>(OnboardingService.new)
     ..registerLazySingleton<LocationService>(LocationService.new)
     ..registerLazySingleton<NotificationService>(NotificationService.new)
     ..registerLazySingleton<ConnectivityService>(ConnectivityService.new)
@@ -71,6 +73,9 @@ void configureDependencies(SharedPreferences prefs) {
     ..registerLazySingleton<LeaveRepository>(() => LeaveRepositoryImpl(sl()))
     ..registerLazySingleton<LocationRepository>(
       () => LocationRepositoryImpl(sl()),
+    )
+    ..registerLazySingleton<OnboardingRepository>(
+      () => OnboardingRepositoryImpl(sl()),
     );
 
   // ── App services ────────────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ import 'package:attendance_app/features/admin/admin_analytics.dart';
 import 'package:attendance_app/features/admin/attendance_logs.dart';
 import 'package:attendance_app/features/admin/company_settings.dart';
 import 'package:attendance_app/features/admin/employee_management.dart';
+import 'package:attendance_app/features/admin/invite_screen.dart';
 import 'package:attendance_app/features/admin/leave_management.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
@@ -192,12 +193,29 @@ class _TodayTab extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SectionHeader(title: 'Needs attention', strong: true),
-                  const SizedBox(height: AppSpacing.sm),
-                  _Attention(
-                    lateLogs: inToday.where((l) => l.isLate).toList(),
-                    absent: absent,
-                  ),
+                  if (employees.isEmpty) ...[
+                    const SectionHeader(title: 'Get started', strong: true),
+                    const SizedBox(height: AppSpacing.sm),
+                    EntityTile(
+                      leading: const IconChip(
+                        icon: Icons.person_add_alt_1_rounded,
+                      ),
+                      title: 'Invite your team',
+                      subtitle: 'Share your QR code or add people by phone',
+                      chevron: true,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const InviteScreen()),
+                      ),
+                    ),
+                  ] else ...[
+                    const SectionHeader(title: 'Needs attention', strong: true),
+                    const SizedBox(height: AppSpacing.sm),
+                    _Attention(
+                      lateLogs: inToday.where((l) => l.isLate).toList(),
+                      absent: absent,
+                    ),
+                  ],
                 ],
               );
             },
