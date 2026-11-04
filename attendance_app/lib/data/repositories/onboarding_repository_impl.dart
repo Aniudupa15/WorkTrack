@@ -44,7 +44,7 @@ class OnboardingRepositoryImpl implements OnboardingRepository {
   }
 
   @override
-  Future<String> claimJoin({
+  Future<({String companyId, String status})> claimJoin({
     String? code,
     String? name,
     String? email,
@@ -58,7 +58,10 @@ class OnboardingRepositoryImpl implements OnboardingRepository {
         employeeNumber: employeeNumber?.trim(),
       ),
     );
-    return result['status'] as String? ?? 'active';
+    return (
+      companyId: result['companyId'] as String? ?? '',
+      status: result['status'] as String? ?? 'active',
+    );
   }
 
   @override

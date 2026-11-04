@@ -19,9 +19,9 @@ abstract interface class OnboardingRepository {
   });
 
   /// Joins the signed-in user to a company by a phone invite (no [code]) or by
-  /// the company's join [code]. Returns the new employee status: `active`, or
+  /// the company's join [code]. Returns the company and the new employee status: `active`, or
   /// `pending` when the company approves joiners.
-  Future<String> claimJoin({
+  Future<({String companyId, String status})> claimJoin({
     String? code,
     String? name,
     String? email,

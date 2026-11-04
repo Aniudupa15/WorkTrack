@@ -294,10 +294,15 @@ class _EmployeeSignupScreenState extends State<EmployeeSignupScreen> {
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
               ],
               decoration: const InputDecoration(
-                prefixText: '+91  ',
+                prefixIcon: Padding(
+                  padding: EdgeInsets.only(left: 16, right: 8),
+                  child: Text('+91', style: TextStyle(fontSize: 16)),
+                ),
+                prefixIconConstraints: BoxConstraints(minWidth: 0),
                 hintText: '99001 23456',
                 helperText:
                     'We’ll text a code to sign you in — no password needed.',
+                helperMaxLines: 2,
               ),
               validator: (v) => PhoneSignInScreen.toE164(v ?? '') == null
                   ? 'Enter a 10-digit mobile number'

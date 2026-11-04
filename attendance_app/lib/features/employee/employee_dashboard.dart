@@ -197,7 +197,8 @@ class _HomeTabState extends State<_HomeTab> {
               ),
             ),
             SectionHeader(
-              title: DateFormat('MMMM').format(AttendanceClock.now()),
+              title:
+                  '${DateFormat('MMMM').format(AttendanceClock.now())} so far',
               strong: true,
               actionLabel: 'View all',
               onAction: () => widget.onOpenTab(1),

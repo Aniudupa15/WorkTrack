@@ -333,7 +333,9 @@ class _Usage extends StatelessWidget {
               ? 'Adding people adds seats automatically from your next bill.'
               : ent.isFree
               ? 'Upgrade to add more than ${Pricing.freeEmployeeLimit} people.'
-              : 'No limit during your trial.',
+              : ent.isTrial
+              ? 'No limit during your trial.'
+              : 'No limit on your plan.',
           style: text.labelSmall,
         ),
       ],
