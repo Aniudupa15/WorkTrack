@@ -12,9 +12,13 @@ service firebase.storage {
       allow create: if isEmployee(companyId, employeeId) && validImage();
       allow delete: if isAdmin(companyId);
     }
+    match /logos/{companyId}/{fileName} {
+      allow read: if signedIn() && userDoc().data.companyId == companyId;
+      allow write: if isAdmin(companyId) && validImage();
+    }
     match /avatars/{companyId}/{employeeId}/{fileName} {
       allow read: if isAdmin(companyId) || isEmployee(companyId, employeeId);
-      allow write: if isAdmin(companyId) && validImage();
+      allow write: if (isAdmin(companyId) || isEmployee(companyId, employeeId)) && validImage();
     }
   }
 }

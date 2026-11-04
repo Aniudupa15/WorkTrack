@@ -30,6 +30,18 @@ class CompanyRepositoryImpl implements CompanyRepository {
   }
 
   @override
+  Future<void> updateProfile(
+    String companyId,
+    Map<String, dynamic> fields,
+  ) async {
+    try {
+      await _db.updateCompanyProfile(companyId, fields);
+    } catch (error) {
+      throw ErrorMapper.map(error);
+    }
+  }
+
+  @override
   Future<({String adminCode, String employeeCode})> createCompany({
     required String superAdminUid,
     required String companyName,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
@@ -6,9 +7,11 @@ import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/domain/repositories/auth_repository.dart';
+import 'package:attendance_app/features/onboarding/onboarding_step.dart';
+import 'package:attendance_app/features/shared/settings_screen.dart';
 
-/// Step 1 of company signup: the admin's own account. Once it exists the app
-/// routes to [CompanySetupScreen] (also after a restart mid-way).
+/// Company signup, step 1 of 5 (design 1.2): the admin's own account. Once it
+/// exists the app routes to the remaining setup steps (also after a restart).
 class CompanySignupScreen extends StatefulWidget {
   const CompanySignupScreen({super.key});
 
@@ -41,7 +44,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
         email: _email.text,
         password: _password.text,
       );
-      // The auth state change takes over and shows company setup.
+      // The auth state change takes over and shows the next step.
       if (mounted) Navigator.popUntil(context, (r) => r.isFirst);
     } catch (e) {
       if (!mounted) return;
@@ -58,83 +61,104 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
+    final colors = context.colors;
     String? required(String? v) =>
         v == null || v.trim().isEmpty ? 'Required' : null;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Step 1 of 2')),
-      body: SafeArea(
-        child: Form(
-          key: _form,
-          child: ListView(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            children: [
-              Text(
-                'Create your admin account',
-                style: text.displaySmall?.copyWith(fontSize: 26),
+    return Form(
+      key: _form,
+      child: OnboardingStep(
+        step: 1,
+        of: 5,
+        onBack: () => Navigator.pop(context),
+        title: 'Create your account',
+        subtitle: const Text(
+          'You’ll manage your company, locations and billing from here.',
+        ),
+        content: [
+          const FieldLabel('Full name'),
+          TextFormField(
+            controller: _name,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(hintText: 'Asha Rao'),
+            validator: required,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          const FieldLabel('Work email'),
+          TextFormField(
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              hintText: 'asha@brightlogistics.in',
+            ),
+            validator: (v) =>
+                v == null || !RegExp(r'^\S+@\S+\.\S+$').hasMatch(v.trim())
+                ? 'Enter a valid email'
+                : null,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          const FieldLabel('Password'),
+          TextFormField(
+            controller: _password,
+            obscureText: _obscure,
+            onFieldSubmitted: (_) => _submit(),
+            decoration: InputDecoration(
+              helperText: '8+ characters with a number',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscure
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
+                  size: 20,
+                ),
+                onPressed: () => setState(() => _obscure = !_obscure),
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'You’ll use this to manage your company. Employees sign in '
-                'with their phone instead.',
-                style: text.bodyMedium,
+            ),
+            validator: (v) =>
+                v == null || v.length < 8 || !v.contains(RegExp(r'\d'))
+                ? 'Use 8+ characters with a number'
+                : null,
+          ),
+        ],
+        footer: [
+          AppButton(
+            label: 'Continue',
+            loading: _loading,
+            onPressed: _loading ? null : _submit,
+          ),
+          Text.rich(
+            TextSpan(
+              text: 'By continuing you agree to our ',
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.textTertiary,
+                fontWeight: FontWeight.w500,
               ),
-              const SizedBox(height: AppSpacing.xxl),
-              TextFormField(
-                controller: _name,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(labelText: 'Your name'),
-                validator: required,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextFormField(
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-                autocorrect: false,
-                decoration: const InputDecoration(labelText: 'Work email'),
-                validator: (v) => v == null || !v.contains('@')
-                    ? 'Enter a valid email'
-                    : null,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextFormField(
-                controller: _password,
-                obscureText: _obscure,
-                onFieldSubmitted: (_) => _submit(),
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  helperText: 'At least 8 characters',
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscure
-                          ? Icons.visibility_off_rounded
-                          : Icons.visibility_rounded,
-                      size: 20,
+              children: [
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.baseline,
+                  baseline: TextBaseline.alphabetic,
+                  child: GestureDetector(
+                    onTap: () => launchUrl(
+                      Uri.parse(SettingsScreen.privacyUrl),
+                      mode: LaunchMode.externalApplication,
                     ),
-                    onPressed: () => setState(() => _obscure = !_obscure),
+                    child: Text(
+                      'Terms and Privacy Policy',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.brand,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
-                validator: (v) => v == null || v.length < 8
-                    ? 'Use at least 8 characters'
-                    : null,
-              ),
-              const SizedBox(height: AppSpacing.xxl),
-              AppButton(
-                label: 'Continue',
-                loading: _loading,
-                onPressed: _loading ? null : _submit,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                'By continuing you agree to the PunchIn terms and privacy '
-                'policy.',
-                textAlign: TextAlign.center,
-                style: text.labelSmall,
-              ),
-            ],
+              ],
+            ),
+            textAlign: TextAlign.center,
           ),
-        ),
+        ],
       ),
     );
   }

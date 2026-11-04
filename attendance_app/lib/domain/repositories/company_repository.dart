@@ -6,6 +6,9 @@ abstract interface class CompanyRepository {
 
   Future<void> updateSettings(String companyId, Map<String, dynamic> settings);
 
+  /// Admin edits the company profile: name, industry, GSTIN, logo, address.
+  Future<void> updateProfile(String companyId, Map<String, dynamic> fields);
+
   /// Super admin: provision a company. Returns the admin + employee codes.
   Future<({String adminCode, String employeeCode})> createCompany({
     required String superAdminUid,

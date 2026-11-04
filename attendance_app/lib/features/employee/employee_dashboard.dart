@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import 'package:attendance_app/core/constants/app_constants.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
@@ -286,7 +285,7 @@ class _ShiftCard extends StatelessWidget {
     final done = today?.checkOut != null;
     final startMin = AttendanceClock.parseMinutes(user.shiftStart) ?? 540;
     final endMin = AttendanceClock.parseMinutes(user.shiftEnd) ?? 1080;
-    final graceEnd = startMin + AppConstants.lateGracePeriodMinutes;
+    final graceEnd = startMin + (prov.company?.lateAfterMinutes ?? 15);
     final nowMin = AttendanceClock.minutesOfDay(AttendanceClock.now());
     const fmt = AttendanceClock.formatShiftTime;
     final closed = !checkedIn && !done && nowMin >= endMin;

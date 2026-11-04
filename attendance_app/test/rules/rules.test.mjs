@@ -13,11 +13,11 @@ const fix = (dLatM = 0, acc = 15) => ({ latitude: ZONE.latitude + dLatM / 111320
 let pass = 0, failN = 0;
 async function t(name, fn) { try { await fn(); pass++; console.log('  ok   ', name); } catch (e) { failN++; console.log('  FAIL ', name, '-', e.message); } }
 
-async function seed({ shiftStart, shiftEnd, status = 'active', zone = ZONE, companyStatus = 'active' }) {
+async function seed({ shiftStart, shiftEnd, status = 'active', zone = ZONE, companyStatus = 'active', settings = {} }) {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, 'companies', C), { companyId: C, companyName: 'Acme', adminId: '', adminName: 'A', adminEmail: 'boss@acme.com', status: companyStatus, employeeCode: 'EMPCODE', settings: {}, totalEmployees: 0 });
+    await setDoc(doc(db, 'companies', C), { companyId: C, companyName: 'Acme', adminId: '', adminName: 'A', adminEmail: 'boss@acme.com', status: companyStatus, employeeCode: 'EMPCODE', settings, totalEmployees: 0 });
     await setDoc(doc(db, 'users', E), { role: 'employee', companyId: C, viaCode: 'EMPCODE' });
     await setDoc(doc(db, 'companies', C, 'employees', E), { uid: E, name: 'Emp', email: 'e@acme.com', status, workLocation: zone, shift: { start: shiftStart, end: shiftEnd } });
     await setDoc(doc(db, 'codes', 'EMPCODE'), { companyId: C, type: 'employee' });
@@ -58,6 +58,16 @@ await seed({ ...onTime, companyStatus: 'suspended' });
 await t('suspended company rejected', () => assertFails(setDoc(attRef(empDb()), rec())));
 await seed({ ...onTime, zone: null });
 await t('no work location assigned rejected', () => assertFails(setDoc(attRef(empDb()), rec())));
+
+console.log('Company policy');
+const twentyIn = { shiftStart: hhmm(nowMin() - 20), shiftEnd: hhmm(nowMin() + 120) };
+await seed(twentyIn);
+await t('20 min after start, default 15 min grace: "present" rejected', () => assertFails(setDoc(attRef(empDb()), rec())));
+await seed({ ...twentyIn, settings: { lateAfterMinutes: 30 } });
+await t('20 min after start, 30 min grace: "present" succeeds', () => assertSucceeds(setDoc(attRef(empDb()), rec())));
+await seed({ ...onTime, settings: { checkoutInZone: false } });
+await setDoc(attRef(empDb()), rec());
+await t('check-out away from zone allowed when policy is off', () => assertSucceeds(updateDoc(attRef(empDb()), { checkOut: serverTimestamp(), checkOutLocation: fix(900) })));
 
 console.log('Check-out / tampering');
 await seed(onTime);

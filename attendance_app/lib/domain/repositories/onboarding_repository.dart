@@ -1,19 +1,32 @@
 /// Self-serve company signup, joining a team, and inviting people.
 abstract interface class OnboardingRepository {
   /// Makes the signed-in (email) user the admin of a new company on a trial.
-  Future<void> registerCompany({
+  /// Returns the new company's id.
+  Future<String> registerCompany({
     required String companyName,
     required String adminName,
-    required Map<String, dynamic> location,
+    required List<Map<String, dynamic>> locations,
     required String shiftStart,
     required String shiftEnd,
     String? teamSize,
+    String? industry,
+    String? gstin,
+    List<int> workingDays,
+    int lateAfterMinutes,
+    bool checkoutInZone,
+    bool shiftReminders,
+    bool selfieRequired,
   });
 
   /// Joins the signed-in user to a company by a phone invite (no [code]) or by
   /// the company's join [code]. Returns the new employee status: `active`, or
   /// `pending` when the company approves joiners.
-  Future<String> claimJoin({String? code, String? name});
+  Future<String> claimJoin({
+    String? code,
+    String? name,
+    String? email,
+    String? employeeNumber,
+  });
 
   /// Invites people by phone. Each row: name, phone, and optionally
   /// department, position, location (site names joined by `;`), shiftStart,

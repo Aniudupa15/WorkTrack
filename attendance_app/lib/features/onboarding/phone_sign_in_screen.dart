@@ -14,7 +14,11 @@ import 'package:attendance_app/domain/repositories/auth_repository.dart';
 /// [JoinTeamScreen] (the auth state change routes there); known ones land in
 /// the app.
 class PhoneSignInScreen extends StatefulWidget {
-  const PhoneSignInScreen({super.key});
+  const PhoneSignInScreen({super.key, this.phone, this.verificationId});
+
+  /// Already-sent code for [phone] (E.164): open on the code step.
+  final String? phone;
+  final String? verificationId;
 
   /// Indian numbers by default: "98450 12345" → "+919845012345". Returns null
   /// when it doesn't look like a phone number.
@@ -37,8 +41,8 @@ class _PhoneSignInScreenState extends State<PhoneSignInScreen> {
   final _phone = TextEditingController();
   final _code = TextEditingController();
   final _auth = sl<AuthRepository>();
-  String? _verificationId;
-  String? _e164;
+  late String? _verificationId = widget.verificationId;
+  late String? _e164 = widget.phone;
   bool _loading = false;
   int _resendIn = 0;
   Timer? _timer;

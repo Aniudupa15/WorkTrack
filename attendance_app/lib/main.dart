@@ -8,7 +8,7 @@ import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/features/shared/theme_controller.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
-import 'package:attendance_app/features/auth/login_screen.dart';
+import 'package:attendance_app/features/auth/welcome_screen.dart';
 import 'package:attendance_app/features/admin/admin_dashboard.dart';
 import 'package:attendance_app/features/admin/super_admin_console.dart';
 import 'package:attendance_app/features/employee/employee_dashboard.dart';
@@ -72,7 +72,7 @@ class AuthWrapper extends StatelessWidget {
           ? const JoinTeamScreen()
           : const CompanySetupScreen();
     }
-    if (userProvider.user == null) return const LoginScreen();
+    if (userProvider.user == null) return const WelcomeScreen();
     final blocked = userProvider.blockedReason;
     if (blocked != null) {
       return _AccessBlockedScreen(

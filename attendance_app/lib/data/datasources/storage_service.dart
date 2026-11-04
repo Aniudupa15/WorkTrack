@@ -28,6 +28,17 @@ class StorageService {
     return path;
   }
 
+  /// Upload an avatar from memory (works on web too); returns a download URL.
+  Future<String> uploadAvatarBytes(
+    String companyId,
+    String uid,
+    Uint8List bytes,
+  ) async {
+    final ref = _storage.ref('avatars/$companyId/$uid/avatar.jpg');
+    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+    return ref.getDownloadURL();
+  }
+
   /// Get a short-lived download URL from a storage path.
   Future<String> getDownloadUrl(String storagePath) async {
     return await _storage.ref(storagePath).getDownloadURL();

@@ -328,14 +328,30 @@ function zoneOf(site) {
   return { latitude: site.latitude, longitude: site.longitude, radius: site.radius, address: site.address || site.name };
 }
 
-function siteInput(value) {
+function siteInput(value, isMain = true) {
   const loc = location(value);
   const radius = Number(value.radius);
   if (!Number.isFinite(radius) || radius < 10 || radius > 5000) fail("invalid-argument", "Invalid zone radius");
   return {
     name: requiredText(value.name ?? "Head office", "location name", 100),
     address: optionalText(value.address, "address", 500),
-    latitude: loc.latitude, longitude: loc.longitude, radius, isMain: true,
+    latitude: loc.latitude, longitude: loc.longitude, radius, isMain,
+  };
+}
+
+// Company attendance policy chosen at signup (design 1.7). Every field has
+// a default, so older clients that don't send it still work.
+function policyInput(data) {
+  const days = Array.isArray(data?.workingDays) ? data.workingDays.map(Number) : [1, 2, 3, 4, 5, 6];
+  if (!days.length || days.some((d) => !Number.isInteger(d) || d < 1 || d > 7)) fail("invalid-argument", "Invalid working days");
+  const lateAfter = data?.lateAfterMinutes == null ? 15 : Number(data.lateAfterMinutes);
+  if (![5, 10, 15, 30].includes(lateAfter)) fail("invalid-argument", "Invalid late threshold");
+  return {
+    workingDays: [...new Set(days)].sort(),
+    lateAfterMinutes: lateAfter,
+    checkoutInZone: data?.checkoutInZone !== false,
+    shiftReminders: data?.shiftReminders !== false,
+    selfieRequired: data?.selfieRequired === true,
   };
 }
 
@@ -353,13 +369,22 @@ exports.registerCompany = onCall(CALLABLE_OPTIONS, async (request) => {
   const email = requiredText(request.auth.token.email, "account email", 320).toLowerCase();
   const companyName = requiredText(request.data?.companyName, "company name", 120);
   const adminName = requiredText(request.data?.adminName, "your name", 200);
-  const site = siteInput(request.data?.location);
+  // `locations` (first = main site) or, from older clients, one `location`.
+  const rawSites = Array.isArray(request.data?.locations) && request.data.locations.length ? request.data.locations : [request.data?.location];
+  if (rawSites.length > 20) fail("invalid-argument", "Add up to 20 locations now; more later from Locations");
+  const sites = rawSites.map((value, i) => siteInput(value, i === 0));
+  if (new Set(sites.map((x) => x.name.toLowerCase())).size !== sites.length) fail("invalid-argument", "Each location needs a different name");
+  const site = sites[0];
   const shift = shiftInput(request.data?.shiftStart, request.data?.shiftEnd);
   const teamSize = optionalText(request.data?.teamSize, "team size", 20);
+  const industry = optionalText(request.data?.industry, "industry", 60);
+  const gstin = optionalText(request.data?.gstin, "GSTIN", 15);
+  if (gstin && !/^[0-9]{2}[A-Z0-9]{13}$/.test(gstin.toUpperCase())) fail("invalid-argument", "That GSTIN doesn’t look right");
+  const policy = policyInput(request.data);
 
   const companyRef = db.collection("companies").doc();
   const roleRef = db.collection("users").doc(uid);
-  const siteRef = companyRef.collection("locations").doc();
+  const siteRefs = sites.map(() => companyRef.collection("locations").doc());
   const code = await db.runTransaction(async (transaction) => {
     if ((await transaction.get(roleRef)).exists) fail("already-exists", "This account already belongs to a company");
     const joinCode = await freshCode(transaction);
@@ -367,11 +392,12 @@ exports.registerCompany = onCall(CALLABLE_OPTIONS, async (request) => {
       companyId: companyRef.id, companyName, adminId: uid, adminName, adminEmail: email,
       phone: null, address: site.address, status: "active", employeeCode: joinCode,
       createdBy: uid, createdAt: FieldValue.serverTimestamp(), totalEmployees: 0, activeEmployees: 0, teamSize,
+      industry, gstin: gstin ? gstin.toUpperCase() : null,
       plan: "trial", trialEndsAt: Timestamp.fromMillis(Date.now() + TRIAL_DAYS * 86400000),
-      settings: { defaultRadius: site.radius, defaultShiftStart: shift.start, defaultShiftEnd: shift.end, approveJoiners: false },
+      settings: { defaultRadius: site.radius, defaultShiftStart: shift.start, defaultShiftEnd: shift.end, approveJoiners: false, ...policy },
     });
-    transaction.set(siteRef, { ...site, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-    transaction.set(db.collection("codes").doc(joinCode), { companyId: companyRef.id, type: "employee", createdAt: FieldValue.serverTimestamp() });
+    sites.forEach((x, i) => transaction.set(siteRefs[i], { ...x, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }));
+    transaction.set(db.collection("codes").doc(joinCode), { companyId: companyRef.id, companyName, type: "employee", createdAt: FieldValue.serverTimestamp() });
     transaction.set(roleRef, { role: "admin", companyId: companyRef.id, viaCode: "self-serve" });
     return joinCode;
   });
@@ -388,7 +414,10 @@ exports.claimJoin = onCall(CALLABLE_OPTIONS, async (request) => {
   const uid = request.auth.uid;
   const phone = request.auth.token.phone_number || null;
   const email = request.auth.token.email ? String(request.auth.token.email).toLowerCase() : null;
-  const code = request.data?.code ? requiredText(request.data.code, "code", 20).toUpperCase() : null;
+  const code = request.data?.code ? requiredText(request.data.code, "code", 20).toUpperCase().replace(/-/g, "") : null;
+  const givenEmail = optionalText(request.data?.email, "email", 320);
+  if (givenEmail && !/^\S+@\S+\.\S+$/.test(givenEmail)) fail("invalid-argument", "That email doesn’t look right");
+  const employeeNumber = optionalText(request.data?.employeeNumber, "employee ID", 40);
   const roleRef = db.collection("users").doc(uid);
 
   const result = await db.runTransaction(async (transaction) => {
@@ -437,7 +466,8 @@ exports.claimJoin = onCall(CALLABLE_OPTIONS, async (request) => {
 
     const status = inv || !settings.approveJoiners ? "active" : "pending";
     transaction.set(companyRef.collection("employees").doc(uid), {
-      uid, name, email: email || "", phone, department: inv?.department || null, position: inv?.position || null,
+      uid, name, email: email || (givenEmail ? givenEmail.toLowerCase() : ""), phone, employeeNumber,
+      department: inv?.department || null, position: inv?.position || null,
       status, avatarUrl: null, workLocation: primary ? zoneOf(primary) : null,
       locationIds, primaryLocationId: primaryId,
       shift: inv?.shift || { start: settings.defaultShiftStart || "09:00", end: settings.defaultShiftEnd || "18:00" },
@@ -540,7 +570,7 @@ exports.resetJoinCode = onCall(CALLABLE_OPTIONS, async (request) => {
     const company = await transaction.get(companyRef);
     const old = company.data()?.employeeCode;
     const next = await freshCode(transaction);
-    transaction.set(db.collection("codes").doc(next), { companyId, type: "employee", createdAt: FieldValue.serverTimestamp() });
+    transaction.set(db.collection("codes").doc(next), { companyId, companyName: company.data()?.companyName || null, type: "employee", createdAt: FieldValue.serverTimestamp() });
     if (old) transaction.delete(db.collection("codes").doc(old));
     transaction.update(companyRef, { employeeCode: next });
     return next;
@@ -550,7 +580,11 @@ exports.resetJoinCode = onCall(CALLABLE_OPTIONS, async (request) => {
 
 exports.autoMarkAbsent = onSchedule({ schedule: "59 23 * * *", timeZone: TIME_ZONE, region: CALLABLE_OPTIONS.region }, async () => {
   const date = dateForZone(); const companies = await db.collection("companies").get();
+  // Dart-style weekday (Mon = 1 … Sun = 7) of today's IST date.
+  const jsDay = new Date(`${date}T00:00:00Z`).getUTCDay(); const weekday = jsDay === 0 ? 7 : jsDay;
   for (const company of companies.docs) {
+    const days = company.data().settings?.workingDays;
+    if (Array.isArray(days) && days.length && !days.map(Number).includes(weekday)) continue;
     const employees = await company.ref.collection("employees").where("status", "==", "active").get();
     const writes = employees.docs.map((employee) => company.ref.collection("attendance").doc(`${employee.id}_${date}`).create({ employeeId: employee.id, companyId: company.id, employeeName: employee.data().name || "", date, checkIn: null, checkOut: null, status: "absent", isLate: false, checkInLocation: null, checkOutLocation: null, selfieStoragePath: null, isSynced: true, notes: "Auto-marked absent" }).catch((error) => { if (error.code !== 6) throw error; }));
     await Promise.all(writes); console.log(JSON.stringify({ event: "auto_mark_absent", companyId: company.id, date, employees: employees.size }));
@@ -579,9 +613,10 @@ exports.sendShiftReminders = onSchedule({ schedule: "*/5 * * * *", timeZone: TIM
   for (const company of companies.docs) {
     const info = company.data();
     if ((info.status || "active") !== "active" || effectiveTier(info) === "free") continue;
+    if (info.settings?.shiftReminders === false) continue;
     const employees = await company.ref.collection("employees").where("status", "==", "active").get();
     // Only people in a reminder window right now cost any further reads.
-    const due = employees.docs.filter((e) => e.data().fcmToken && inReminderWindow(e.data().shift, nowMinutes));
+    const due = employees.docs.filter((e) => e.data().fcmToken && e.data().remindersOff !== true && inReminderWindow(e.data().shift, nowMinutes));
     if (!due.length) continue;
     const [sites, leaves] = await Promise.all([
       company.ref.collection("locations").get(),

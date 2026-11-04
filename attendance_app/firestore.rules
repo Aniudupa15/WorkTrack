@@ -28,6 +28,10 @@ service cloud.firestore {
     }
     // Oldest attendance day a Free company's admin may read (30 days).
     function historyCutoff() { return localDateOf(request.time - duration.value(30, 'd')); }
+    // Company attendance policy (design 1.7), with the pre-policy defaults.
+    function policy(companyId, key, fallback) {
+      return companyDoc(companyId).get('settings', {}).get(key, fallback);
+    }
     function companyActive(companyId) { return companyDoc(companyId).get('status', 'active') == 'active'; }
     function employeeDoc(companyId, employeeId) {
       return get(/databases/$(database)/documents/companies/$(companyId)/employees/$(employeeId)).data;
@@ -115,7 +119,7 @@ service cloud.firestore {
     function validCheckIn(companyId, attendanceId) {
       let d = request.resource.data;
       let emp = employeeDoc(companyId, uid());
-      let lateNow = localMinutes() > toMinutes(emp.shift.start) + 15;
+      let lateNow = localMinutes() > toMinutes(emp.shift.start) + policy(companyId, 'lateAfterMinutes', 15);
       return emp.status == 'active'
         && companyActive(companyId)
         && d.keys().hasOnly(['employeeId', 'companyId', 'employeeName', 'date', 'checkIn', 'checkOut', 'status', 'isLate', 'checkInLocation', 'checkOutLocation', 'selfieStoragePath', 'isSynced', 'notes', 'locationId', 'locationName'])
@@ -151,8 +155,10 @@ service cloud.firestore {
         && resource.data.date == localDate()
         && d.checkOut == request.time
         && validFix(d.checkOutLocation)
-        // Punch out at any assigned site (or the legacy zone for old clients).
-        && punchZoneOk(companyId, emp, d.checkOutLocation, d.get('checkOutLocationId', null));
+        // Punch out at any assigned site (or the legacy zone for old clients),
+        // unless the company lets people punch out from anywhere.
+        && (policy(companyId, 'checkoutInZone', true) == false
+            || punchZoneOk(companyId, emp, d.checkOutLocation, d.get('checkOutLocationId', null)));
     }
 
     // Registration codes. The doc id IS the code string, and reads are limited
@@ -210,7 +216,12 @@ service cloud.firestore {
       allow update: if isSuperAdmin()
         || (signedIn() && roleAfter().role == 'admin' && roleAfter().companyId == companyId
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['settings', 'totalEmployees', 'adminId', 'adminName', 'adminEmail', 'phone'])
+                 .hasOnly(['settings', 'totalEmployees', 'adminId', 'adminName', 'adminEmail', 'phone',
+                           'companyName', 'industry', 'gstin', 'logoUrl', 'address'])
+            && validText(request.resource.data.get('companyName', 'x'), 120)
+            && optionalText(request.resource.data.get('industry', null), 60)
+            && optionalText(request.resource.data.get('gstin', null), 15)
+            && optionalText(request.resource.data.get('logoUrl', null), 2048)
             && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['adminId'])
                 || (resource.data.adminId == '' && request.resource.data.adminId == uid())));
 
@@ -256,7 +267,8 @@ service cloud.firestore {
         // Admin manages the profile; the employee may only touch their fcmToken.
         allow update: if (isAdmin(companyId)
               && request.resource.data.diff(resource.data).affectedKeys()
-                   .hasOnly(['name', 'phone', 'department', 'position', 'workLocation', 'locationIds', 'primaryLocationId', 'shift', 'status', 'avatarUrl', 'updatedAt'])
+                   .hasOnly(['name', 'phone', 'department', 'position', 'workLocation', 'locationIds', 'primaryLocationId', 'shift', 'status', 'avatarUrl', 'employeeNumber', 'updatedAt'])
+              && optionalText(request.resource.data.get('employeeNumber', null), 40)
               && validText(request.resource.data.name, 200)
               && optionalText(request.resource.data.get('phone', null), 40)
               && optionalText(request.resource.data.get('department', null), 200)
@@ -270,8 +282,10 @@ service cloud.firestore {
                   || !onFreeTier(companyDoc(companyId))
                   || companyDoc(companyId).get('activeEmployees', 0) < 5))
           || (isEmployee(companyId, employeeId)
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken'])
-              && optionalText(request.resource.data.fcmToken, 4096));
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmToken', 'avatarUrl', 'remindersOff'])
+              && optionalText(request.resource.data.get('fcmToken', null), 4096)
+              && optionalText(request.resource.data.get('avatarUrl', null), 2048)
+              && request.resource.data.get('remindersOff', false) is bool);
         allow delete: if isAdmin(companyId);
       }
 
@@ -297,7 +311,8 @@ service cloud.firestore {
         allow create: if isEmployee(companyId, request.resource.data.employeeId)
           && companyActive(companyId)
           && employeeDoc(companyId, uid()).status == 'active'
-          && request.resource.data.keys().hasOnly(['id', 'employeeId', 'companyId', 'employeeName', 'type', 'startDate', 'endDate', 'reason', 'status', 'createdAt', 'updatedAt', 'adminNote'])
+          && request.resource.data.keys().hasOnly(['id', 'employeeId', 'companyId', 'employeeName', 'type', 'startDate', 'endDate', 'reason', 'status', 'createdAt', 'updatedAt', 'adminNote', 'dayPart'])
+          && request.resource.data.get('dayPart', 'full') in ['full', 'first_half', 'second_half']
           && request.resource.data.companyId == companyId
           && validText(request.resource.data.employeeName, 200)
           && request.resource.data.status == 'pending'

@@ -60,6 +60,23 @@ class UserProvider with ChangeNotifier {
   bool get isAdmin => _user?.role == 'admin';
   bool get isEmployee => _user?.role == 'employee';
 
+  /// What the person typed on "Join your company" / "Your details" before
+  /// verifying their phone; the join screen claims it once they're signed in.
+  ({String? code, String name, String? email, String? employeeNumber})?
+  pendingJoin;
+
+  bool _postSetupTour = false;
+
+  /// Right after company setup: show plans, then "Add your team" (2.1–2.3).
+  /// Consumed once by the admin home.
+  bool takePostSetupTour() {
+    final show = _postSetupTour;
+    _postSetupTour = false;
+    return show;
+  }
+
+  void startPostSetupTour() => _postSetupTour = true;
+
   /// Joined with the company code and waiting for the admin's approval.
   bool get isPendingApproval =>
       _user?.role == 'employee' && _user?.status == 'pending';

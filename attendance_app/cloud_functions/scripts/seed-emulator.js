@@ -87,7 +87,7 @@ async function main() {
     totalEmployees: people.length,
     settings: { defaultRadius: 150, defaultShiftStart: "09:00", defaultShiftEnd: "18:00" },
   });
-  batch.set(db.doc("codes/BRT7K4Q"), { companyId: COMPANY, type: "employee" });
+  batch.set(db.doc("codes/BRT7K4Q"), { companyId: COMPANY, type: "employee", companyName: "Bright Logistics" });
   if (!LEGACY) {
     for (const [id, site] of Object.entries(SITES)) {
       batch.set(db.doc(`companies/${COMPANY}/locations/${id}`), { ...site, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
