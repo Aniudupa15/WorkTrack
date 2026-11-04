@@ -27,10 +27,10 @@ class Pricing {
   static const yearlyDiscountPercent = 20;
 
   static int perSeat(Tier tier, BillingCycle cycle) => switch ((tier, cycle)) {
-    (Tier.pro, BillingCycle.monthly) => 39,
-    (Tier.pro, BillingCycle.yearly) => 374,
-    (Tier.business, BillingCycle.monthly) => 79,
-    (Tier.business, BillingCycle.yearly) => 758,
+    (Tier.pro, BillingCycle.monthly) => 49,
+    (Tier.pro, BillingCycle.yearly) => 468,
+    (Tier.business, BillingCycle.monthly) => 99,
+    (Tier.business, BillingCycle.yearly) => 948,
     _ => 0,
   };
 
