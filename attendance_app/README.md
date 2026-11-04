@@ -1,70 +1,78 @@
 # PunchIn
 
-PunchIn is a Flutter workplace-attendance application backed by Firebase Authentication, Firestore, Cloud Functions, Cloud Storage, and Firebase Cloud Messaging. Employee provisioning, attendance timestamps, geofence validation, and late-status determination are server-authoritative.
+PunchIn is a Flutter attendance app on Firebase. A company sets up its work sites; employees punch in and out only
+when they are inside one of their assigned sites, and the time and late status come from the server clock, not the
+phone.
 
-## Architecture
+## What it does
 
-- Flutter + Provider: mobile application and authenticated UI state.
-- Firebase Authentication: email/password sign-in.
-- Firestore: tenant-scoped companies, employees, attendance, and leave requests.
-- Cloud Functions (`cloud_functions/`): privileged lifecycle and attendance operations.
-- Cloud Storage: employee selfies and administrator-managed avatars.
-- FCM: per-device employee reminders and leave-status notifications.
+**Employees** sign in with their phone number (SMS code), join their company from an invite, a company code or a QR
+code, and punch in at the nearest assigned site. They see their month on a calendar, request leave and get shift
+reminders.
 
-The application does not use a conventional REST server. Do not grant client-side writes to company roles, employee profiles, or attendance documents: the callable functions and rules are designed as one trust boundary.
+**Admins** sign up with email, set up the company and its main location, and get a 14-day Pro trial. They invite
+people by phone (one at a time or from an Excel/CSV list), approve code joiners, manage locations and shifts, review
+attendance logs (with punch selfies on Business), approve leave, see monthly reports and export them, including
+payroll layouts for Zoho Payroll, Keka and TallyPrime.
 
-## Prerequisites
+**Plans** (per employee, before 18% GST): Free (up to 5 people, 30 days of history), Pro ₹39/month or ₹374/year, and
+Business ₹79/month or ₹758/year (selfie verification and payroll export). Billing is Razorpay Subscriptions with UPI
+AutoPay or card.
 
-- Flutter stable (Dart SDK compatible with `pubspec.yaml`)
-- Node.js 20+
-- Firebase CLI (`npm install -g firebase-tools`)
-- A Firebase project with Authentication (Email/Password), Firestore, Storage, Functions, and Cloud Messaging enabled
+## How it is put together
 
-## Local setup
+- **App** — Flutter, Provider for session state, `get_it` for wiring repositories to Firebase data sources
+  (`lib/data`), screens in `lib/features`. `lib/core/billing/entitlements.dart` decides what a company's plan allows.
+- **Firestore** — `companies/{id}` with `employees`, `locations`, `attendance` and `leaves` subcollections;
+  `users/{uid}` holds each person's role; `codes/{code}` are join codes; `invites/{phone}` are phone invites.
+- **Security Rules** (`firestore.rules`) are the authority for punches: server timestamp, company-time date and late
+  status, an assigned site that the GPS fix falls inside, one record per person per day, and the Free plan's limits.
+- **Cloud Functions** (`cloud_functions/index.js`) do everything a client must not: create companies, join people,
+  import invites, reset codes, run billing (Razorpay subscriptions, the signed webhook, seat sync), send shift
+  reminders and mark absences.
+- **Storage** holds punch selfies; only the employee and their admin can read them.
 
-1. In this directory, run `flutter pub get`.
-2. Run `flutterfire configure` and commit the resulting `lib/firebase_options.dart` and platform configuration files.
-3. Register Android/iOS app identifiers in Firebase. Keep the Android application ID aligned with the package name selected by FlutterFire; do not change it independently.
-4. Install function dependencies: `cd cloud_functions && npm ci` (or `npm install` on first setup).
-5. Start emulators for local development: `firebase emulators:start --only auth,firestore,storage,functions`.
-6. Run the mobile app: `flutter run`.
+Company time is IST (UTC+05:30) in the app (`AttendanceClock`), the Rules and the Functions; change all three together.
 
-## Production configuration and deployment
+## Running it locally
 
-Set `ATTENDANCE_TIME_ZONE` (for example, `Asia/Kolkata`) and optionally `FUNCTION_REGION` in the Functions runtime environment. Configure any required email delivery provider before onboarding employees: the Admin SDK can generate reset links but does not send email by itself.
+Needs Flutter (stable), Node 20+ and the Firebase CLI.
 
-Deploy the backend and access controls from this directory:
-
-```text
-firebase deploy --only firestore:rules,firestore:indexes,storage,functions
+```bash
+flutter pub get
+npm --prefix cloud_functions install
+firebase emulators:start --only auth,firestore,storage,functions --project trackin-df4d8
+node cloud_functions/scripts/seed-emulator.js
+flutter run --dart-define=USE_FIREBASE_EMULATORS=true
 ```
 
-Before a production release:
+The seed creates "Bright Logistics" with two sites, five employees, five weeks of history and some leave. Demo sign-ins
+(emulator only): admin `asha@demo.test`, employees `ravi@demo.test` and others, password `punchin-demo-1`. Phone sign-in
+codes appear in the Auth emulator (`/emulator/v1/projects/trackin-df4d8/verificationCodes`).
 
-- Configure Android/iOS release signing in CI; never sign a release with debug keys.
-- Enable Firebase App Check for Flutter, Firestore, Storage, and Functions.
-- Set Firestore, Storage, and Functions budgets/alerts; enable Cloud Logging retention appropriate to your compliance requirements.
-- Review Firebase Authentication password policy and authorized domains.
-- Build and test each target (`flutter test`, `flutter analyze`, `flutter build appbundle`, and `flutter build ipa` on macOS).
+Billing under the emulator uses a built-in fake Razorpay (keys in the git-ignored `cloud_functions/.secret.local`
+starting with `rzp_fake_`), so no real account is touched.
 
-## Data model and access model
+## Tests
 
-`companies/{companyId}` owns `employees`, `attendance`, and `leaves` subcollections. `users/{uid}` is a server-owned role record. An administrator's company ID is their Firebase Auth UID.
-
-Only Cloud Functions can create roles, provision employees, modify employee records, or record attendance. Employees can submit their own constrained leave requests and update only their own FCM token. Firestore and Storage rules must be deployed with the app; they are not optional configuration.
-
-## Operations and troubleshooting
-
-- **Permission denied:** confirm the user has a server-provisioned `/users/{uid}` document and deploy the latest rules.
-- **Check-in rejected:** verify the employee is active, has a work location, granted precise location permission, and is within the assigned radius.
-- **Missing push notification:** verify OS notification permission, the stored FCM token, and Firebase Messaging configuration. Tokens refresh automatically while the app is authenticated.
-- **Firestore index error:** deploy `firestore.indexes.json`; do not create ad-hoc indexes that diverge from source control.
-- **Employee welcome email:** configure an email provider or administrative delivery workflow. Password-reset links must be delivered through an approved channel and never displayed or logged in the client.
-
-## Verification
-
-```text
-flutter analyze
-flutter test
-node --check cloud_functions/index.js
+```bash
+flutter analyze && flutter test                        # app
+npm --prefix cloud_functions test                       # reminder logic
+npm --prefix test/rules install && npm --prefix test/rules test   # Security Rules (Firestore emulator running)
+node test/functions/functions.test.mjs                  # onboarding + billing end to end (all emulators running)
 ```
+
+## Deploying
+
+See [`../DEPLOYMENT.md`](../DEPLOYMENT.md): Blaze plan, phone sign-in and SHA keys, Razorpay plans, secrets and webhook,
+then rules, functions and the app release together.
+
+## Troubleshooting
+
+- **"The server rejected this punch"** — the person is outside every assigned site, the shift is over, or the phone's
+  clock is far off. Check their sites in Team and that location is set to precise.
+- **Phone sign-in fails in a release build** — the app's SHA-1/SHA-256 aren't registered in Firebase, or Play
+  Integrity isn't enabled.
+- **"Payments aren't set up yet"** — the Razorpay secrets aren't set for the deployed functions.
+- **A company is stuck on Free after paying** — check the Razorpay webhook is configured and its deliveries succeed;
+  `firebase functions:log --only razorpayWebhook`.

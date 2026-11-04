@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import 'package:attendance_app/core/billing/entitlements.dart';
+import 'package:attendance_app/features/admin/payroll_export_sheet.dart';
 import 'package:attendance_app/features/billing/paywall.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -110,6 +111,17 @@ class _AdminAnalyticsState extends State<AdminAnalytics> {
       appBar: TabHeader(
         title: 'Reports',
         actions: [
+          IconButton(
+            icon: const Icon(Icons.payments_outlined),
+            tooltip: 'Payroll export',
+            onPressed: _loading
+                ? null
+                : () => showPayrollExport(
+                    context,
+                    month: _selectedMonth,
+                    records: _records,
+                  ),
+          ),
           IconButton(
             icon: const Icon(Icons.ios_share_rounded),
             tooltip: 'Export CSV',
