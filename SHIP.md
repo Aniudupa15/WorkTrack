@@ -7,8 +7,8 @@ secrets, or your Google sign-in. Do them in this order. Total time is about 45 m
 - [x] v2 app: redesign, multiple sites, self-serve signup, OTP join, invites/QR/bulk upload, billing, payroll export
 - [x] Tests: 34 Flutter, 6 reminders, 37 functions (emulator), 106 security-rules
 - [x] Release bundle **v2.0.0 (20)**, signed with your upload key: `store/release/punchin-2.0.0-20.aab`
-- [x] Store assets: `store/icon-512.png`, `store/feature-graphic.png`, `store/screenshots/*.png`, text in `store/listing.md`
-- [x] Promo video: `store/promo/punchin-promo.mp4`
+- [x] Store assets: `store/icon-512.png`, `store/feature-graphic.png`, `store/play-screenshots/*.png` (8 framed, 1080×1920), text in `store/listing.md`
+- [x] Promo video: `store/promo/punchin-promo.mp4` (30 s, 1080×1920, silent — add music in any editor or WhatsApp/Instagram)
 - [x] Leads: `marketing/leads.csv` (25 Bengaluru SMBs), pitch kit `marketing/pitch.md`, 20 Gmail drafts waiting in Drafts
 
 ## 1. Firebase: Blaze + phone sign-in (10 min) — you
@@ -40,7 +40,7 @@ Then add the Razorpay webhook (DEPLOYMENT.md §1b step 4).
 ## 4. Play Console (10 min + review) — you
 1. Play Console → PunchIn → *Production* → **Create new release** → upload `store/release/punchin-2.0.0-20.aab`.
 2. Release notes: copy from `store/listing.md`.
-3. *Store presence → Main store listing*: replace the icon, feature graphic and phone screenshots with the files in
+3. *Store presence → Main store listing*: replace the icon, feature graphic and phone screenshots (use `store/play-screenshots/`, not the raw 2.22:1 captures) with the files in
    `store/`; update the short/full description.
 4. *App content → Data safety*: add **Phone number** and **Purchase history** (see `store/listing.md`).
 5. Roll out to **100%** (a staged rollout leaves old-version users stuck after step 5). Send for review.
