@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
+import 'package:attendance_app/core/billing/entitlements.dart';
 import 'package:attendance_app/core/constants/app_constants.dart';
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
@@ -209,21 +210,24 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
         unawaited(sl<AnalyticsService>().logCheckOut(offline: false));
       } else {
         String? selfiePath;
-        try {
-          final photo = await ImagePicker().pickImage(
-            source: ImageSource.camera,
-            preferredCameraDevice: CameraDevice.front,
-            maxWidth: 640,
-          );
-          if (photo != null) {
-            selfiePath = await _attendance.uploadSelfie(
-              company.id,
-              user.id,
-              File(photo.path),
+        // Selfie verification is a Business feature.
+        if (Entitlements.of(company).hasBusiness) {
+          try {
+            final photo = await ImagePicker().pickImage(
+              source: ImageSource.camera,
+              preferredCameraDevice: CameraDevice.front,
+              maxWidth: 640,
             );
+            if (photo != null) {
+              selfiePath = await _attendance.uploadSelfie(
+                company.id,
+                user.id,
+                File(photo.path),
+              );
+            }
+          } catch (_) {
+            // Camera unavailable or cancelled — punch without a selfie.
           }
-        } catch (_) {
-          // Camera unavailable or cancelled — punch without a selfie.
         }
         withSelfie = selfiePath != null;
         await _attendance.checkIn(

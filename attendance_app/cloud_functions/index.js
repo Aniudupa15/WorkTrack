@@ -6,6 +6,7 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { randomBytes, createHmac, timingSafeEqual } = require("crypto");
+const { reminderFor, inReminderWindow, leaveCovers } = require("./reminders");
 
 initializeApp();
 const db = getFirestore();
@@ -567,39 +568,39 @@ exports.onLeaveStatusChanged = onDocumentUpdated("companies/{companyId}/leaves/{
   await db.collection("notifications").add({ type: "leave_status", companyId: event.params.companyId, employeeId: after.employeeId, message: `Leave ${after.status} for ${after.employeeName}`, createdAt: FieldValue.serverTimestamp(), read: false });
 });
 
-// Fires every 5 minutes and nudges employees: a check-in reminder in the 5-min
-// window before shift start (when no check-in exists yet) and a check-out
-// reminder 30-35 min after shift end (when checked in but not out). The narrow
-// windows keep each reminder to roughly one send per day without per-employee
-// dynamic schedules.
+// Every 5 minutes: a check-in nudge just before each shift and a check-out
+// nudge after it (see reminders.js). Skips Free companies (reminders are a
+// Pro feature), suspended companies, and anyone on approved leave today.
 exports.sendShiftReminders = onSchedule({ schedule: "*/5 * * * *", timeZone: TIME_ZONE, region: CALLABLE_OPTIONS.region }, async () => {
   const now = new Date();
   const date = dateForZone(now);
-  const [nowHour, nowMinute] = timeForZone(now).split(":").map(Number);
-  const nowMinutes = nowHour * 60 + nowMinute;
+  const nowMinutes = toMinutes(timeForZone(now));
   const companies = await db.collection("companies").get();
   for (const company of companies.docs) {
+    const info = company.data();
+    if ((info.status || "active") !== "active" || effectiveTier(info) === "free") continue;
     const employees = await company.ref.collection("employees").where("status", "==", "active").get();
-    for (const employee of employees.docs) {
+    // Only people in a reminder window right now cost any further reads.
+    const due = employees.docs.filter((e) => e.data().fcmToken && inReminderWindow(e.data().shift, nowMinutes));
+    if (!due.length) continue;
+    const [sites, leaves] = await Promise.all([
+      company.ref.collection("locations").get(),
+      company.ref.collection("leaves").where("status", "==", "approved").get(),
+    ]);
+    const siteNames = new Map(sites.docs.map((s) => [s.id, s.data().name]));
+    const onLeave = new Set(leaves.docs
+      .map((l) => l.data())
+      .filter((l) => l.startDate && l.endDate && leaveCovers({ startDate: l.startDate.toDate(), endDate: l.endDate.toDate() }, date))
+      .map((l) => l.employeeId));
+    for (const employee of due) {
       const data = employee.data();
-      if (!data.fcmToken) continue;
-      const startMinutes = toMinutes(data.shift?.start);
-      const endMinutes = toMinutes(data.shift?.end);
-      const attendanceRef = company.ref.collection("attendance").doc(`${employee.id}_${date}`);
-
-      if (startMinutes != null && nowMinutes >= startMinutes - 5 && nowMinutes < startMinutes) {
-        const attendance = await attendanceRef.get();
-        if (!attendance.exists || !attendance.data().checkIn) {
-          await sendPush(data.fcmToken, "Time to check in", `Your shift starts at ${data.shift.start}. Don't forget to check in.`);
-        }
-      }
-
-      if (endMinutes != null && nowMinutes >= endMinutes + 30 && nowMinutes < endMinutes + 35) {
-        const attendance = await attendanceRef.get();
-        if (attendance.exists && attendance.data().checkIn && !attendance.data().checkOut) {
-          await sendPush(data.fcmToken, "Don't forget to check out", `Your shift ended at ${data.shift.end}. Please check out to record your hours.`);
-        }
-      }
+      const attendance = await company.ref.collection("attendance").doc(`${employee.id}_${date}`).get();
+      const reminder = reminderFor({
+        shift: data.shift, nowMinutes, onLeave: onLeave.has(employee.id),
+        attendance: attendance.exists ? attendance.data() : null,
+        siteName: siteNames.get(data.primaryLocationId) || null,
+      });
+      if (reminder) await sendPush(data.fcmToken, reminder.title, reminder.body);
     }
   }
 });

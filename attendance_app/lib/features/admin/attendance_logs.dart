@@ -17,6 +17,7 @@ import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/data/models/location_model.dart';
+import 'package:attendance_app/data/datasources/storage_service.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/domain/repositories/location_repository.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
@@ -256,7 +257,7 @@ class _LogCard extends StatelessWidget {
                     Icons.login_rounded,
                     'Check-in',
                     log.checkIn != null
-                        ? DateFormat('hh:mm a').format(log.checkIn!)
+                        ? DateFormat('h:mm a').format(log.checkIn!)
                         : '--:--',
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -265,7 +266,7 @@ class _LogCard extends StatelessWidget {
                     Icons.logout_rounded,
                     'Check-out',
                     log.checkOut != null
-                        ? DateFormat('hh:mm a').format(log.checkOut!)
+                        ? DateFormat('h:mm a').format(log.checkOut!)
                         : '--:--',
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -284,6 +285,13 @@ class _LogCard extends StatelessWidget {
                     'Duration',
                     log.workDurationFormatted,
                   ),
+                  if (log.selfieStoragePath != null &&
+                      Entitlements.of(
+                        Provider.of<UserProvider>(context).company,
+                      ).hasBusiness) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _Selfie(path: log.selfieStoragePath!),
+                  ],
                 ],
               ),
             ),
@@ -303,6 +311,75 @@ class _LogCard extends StatelessWidget {
         const Spacer(),
         Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
       ],
+    );
+  }
+}
+
+/// The punch-in selfie: a thumbnail that opens full screen. Download URLs
+/// come from Storage, where only the admin and the employee may read it.
+class _Selfie extends StatefulWidget {
+  const _Selfie({required this.path});
+
+  final String path;
+
+  @override
+  State<_Selfie> createState() => _SelfieState();
+}
+
+class _SelfieState extends State<_Selfie> {
+  late final Future<String> _url = sl<StorageService>().getDownloadUrl(
+    widget.path,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return FutureBuilder<String>(
+      future: _url,
+      builder: (context, snap) {
+        final url = snap.data;
+        return Row(
+          children: [
+            Icon(
+              Icons.photo_camera_outlined,
+              size: 16,
+              color: colors.textTertiary,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Text('Selfie', style: Theme.of(context).textTheme.bodyMedium),
+            const Spacer(),
+            GestureDetector(
+              onTap: url == null
+                  ? null
+                  : () => showDialog<void>(
+                      context: context,
+                      builder: (_) => Dialog(
+                        clipBehavior: Clip.antiAlias,
+                        child: Image.network(url, fit: BoxFit.contain),
+                      ),
+                    ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: url == null
+                      ? ColoredBox(
+                          color: colors.surfaceMuted,
+                          child: snap.hasError
+                              ? Icon(
+                                  Icons.broken_image_outlined,
+                                  color: colors.textTertiary,
+                                )
+                              : null,
+                        )
+                      : Image.network(url, fit: BoxFit.cover),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -3,7 +3,8 @@
   "description": "PunchIn Firebase Cloud Functions",
   "scripts": {
     "serve": "firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "test": "node --test"
   },
   "engines": {
     "node": "18"
