@@ -197,12 +197,25 @@ class _HomeTabState extends State<_HomeTab> {
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
-            FutureBuilder<AttendanceModel?>(
-              future: _today,
-              builder: (context, snap) => _ShiftCard(
-                loading: snap.connectionState == ConnectionState.waiting,
-                today: snap.data,
-                onPunch: _openPunch,
+            // The live history wins, so the card flips to "checked in" the
+            // moment a punch is saved; the one-off read covers first paint.
+            StreamBuilder<List<AttendanceModel>>(
+              stream: _history,
+              builder: (context, hist) => FutureBuilder<AttendanceModel?>(
+                future: _today,
+                builder: (context, snap) {
+                  final day = AttendanceClock.today();
+                  final live = hist.data
+                      ?.where((h) => h.date == day)
+                      .firstOrNull;
+                  return _ShiftCard(
+                    loading:
+                        !hist.hasData &&
+                        snap.connectionState == ConnectionState.waiting,
+                    today: live ?? snap.data,
+                    onPunch: _openPunch,
+                  );
+                },
               ),
             ),
             SectionHeader(
