@@ -47,7 +47,9 @@ class PunchSuccessScreen extends StatelessWidget {
         !user.remindersOff &&
         (prov.company?.shiftReminders ?? true);
     final end = AttendanceClock.parseMinutes(user?.shiftEnd ?? '');
-    final reminderAt = checkedOut || !remindersOn || end == null
+    final reminderAt =
+        // The server reminds 30 min after the shift ends, same day only.
+        checkedOut || !remindersOn || end == null || end + 30 >= 24 * 60
         ? null
         : AttendanceClock.formatMinutes(end + 30);
 

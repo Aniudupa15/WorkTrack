@@ -74,10 +74,10 @@ PLAY = [
     ('punch-sheet.png', 'Geofenced', 'Only inside the work zone'),
     ('punch-success.png', 'Tamper-proof', 'Server time, GPS and selfie'),
     ('admin-today.png', 'For owners', 'Who’s in, late or absent today'),
-    ('team.png', 'Every site', 'Your whole team in one place'),
+    ('live-map.png', 'Every site', 'Your whole team on one map'),
+    ('logs.png', 'No proxy punches', 'Flags tries from outside the zone'),
     ('reports.png', 'Month end', 'Reports and payroll export'),
-    ('invite.png', 'Onboard in minutes', 'Invite by QR, code or phone'),
-    ('welcome.png', 'Set up in 5 minutes', 'Attendance your team can trust'),
+    ('my-leaves.png', 'Leave', 'Balances, requests and approvals'),
 ]
 
 SCENES = [
@@ -85,6 +85,8 @@ SCENES = [
     ('punch', phone, ('employee-home.png', 'For your staff', 'Punch in only when you’re at work')),
     ('map', phone, ('punch-sheet.png', 'Geofenced', 'Server time. GPS checked. No proxy punches.')),
     ('admin', phone, ('admin-today.png', 'For owners', 'See who’s in across every site')),
+    ('live', phone, ('live-map.png', 'Live map', 'Every site, every punch, one screen')),
+    ('flag', phone, ('logs.png', 'Caught', 'Tries from outside the zone get flagged')),
     ('team', phone, ('invite.png', 'Onboard in minutes', 'Invite by WhatsApp, SMS or QR')),
     ('reports', phone, ('reports.png', 'Month end', 'Reports and payroll export')),
     ('pricing', pricing, None),
