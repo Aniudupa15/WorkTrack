@@ -30,7 +30,7 @@
     {
       "source": "cloud_functions",
       "codebase": "default",
-      "runtime": "nodejs20",
+      "runtime": "nodejs22",
       "ignore": [
         "node_modules",
         ".git",
