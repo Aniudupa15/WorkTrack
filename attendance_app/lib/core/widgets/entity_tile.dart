@@ -17,6 +17,8 @@ class EntityTile extends StatelessWidget {
     this.leading,
     required this.title,
     this.subtitle,
+    this.subtitleColor,
+    this.titleColor,
     this.trailing,
     this.onTap,
     this.dense = false,
@@ -27,6 +29,8 @@ class EntityTile extends StatelessWidget {
   final Widget? leading;
   final String title;
   final String? subtitle;
+  final Color? subtitleColor;
+  final Color? titleColor;
   final Widget? trailing;
   final VoidCallback? onTap;
   final bool dense;
@@ -63,7 +67,7 @@ class EntityTile extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: colors.textPrimary,
+                  color: titleColor ?? colors.textPrimary,
                   fontSize: 15,
                   height: 20 / 15,
                   fontWeight: FontWeight.w600,
@@ -76,7 +80,7 @@ class EntityTile extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: colors.textSecondary,
+                    color: subtitleColor ?? colors.textSecondary,
                     fontSize: 13,
                     height: 18 / 13,
                   ),

@@ -70,7 +70,7 @@ async function patch(path, fields) {
     const parts = key.split('.');
     let node = body.fields;
     for (const p of parts.slice(0, -1)) { node[p] ??= { mapValue: { fields: {} } }; node = node[p].mapValue.fields; }
-    node[parts.at(-1)] = typeof v === 'boolean' ? { booleanValue: v } : { stringValue: v };
+    node[parts.at(-1)] = typeof v === 'object' ? v : typeof v === 'boolean' ? { booleanValue: v } : { stringValue: v };
   }
   const mask = Object.keys(fields).map((k) => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&');
   await fetch(`${FS}/${path}?${mask}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -234,6 +234,26 @@ await t('joining past 5 on Free is refused', async () => {
 await t('trigger keeps activeEmployees in step', async () => {
   for (let i = 0; i < 20 && (await read(`companies/${co.companyId}`)).activeEmployees !== 5; i++) await new Promise((r) => setTimeout(r, 500));
   eq((await read(`companies/${co.companyId}`)).activeEmployees, 5, 'activeEmployees');
+});
+
+console.log('deleteMyAccount');
+await t('requires sign-in', () => rejects(call('deleteMyAccount', {}), 'UNAUTHENTICATED'));
+await t('company owner is pointed to support', () => rejects(call('deleteMyAccount', {}, boss), 'FAILED_PRECONDITION'));
+await t('employee removes their profile, records, membership and login', async () => {
+  // The Free company may be full from the limit tests; a live trial lifts the cap.
+  await patch(`companies/${co.companyId}`, { plan: 'trial', trialEndsAt: { timestampValue: new Date(Date.now() + 864e5).toISOString() } });
+  const code = (await read(`companies/${co.companyId}`)).employeeCode;
+  const leaver = await phoneUser(freshPhone());
+  await call('claimJoin', { code, name: 'Leaver' }, leaver);
+  await fetch(`${FS}/companies/${co.companyId}/attendance?documentId=${leaver.uid}_2026-01-05`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { employeeId: { stringValue: leaver.uid }, date: { stringValue: '2026-01-05' } } }) });
+  eq((await read(`companies/${co.companyId}/attendance/${leaver.uid}_2026-01-05`)).date, '2026-01-05', 'attendance before');
+  eq((await read(`users/${leaver.uid}`)).role, 'employee', 'role before');
+  eq(await call('deleteMyAccount', {}, leaver), { deleted: true }, 'result');
+  eq(await read(`users/${leaver.uid}`), null, 'role doc');
+  eq(await read(`companies/${co.companyId}/employees/${leaver.uid}`), null, 'employee doc');
+  eq(await read(`companies/${co.companyId}/attendance/${leaver.uid}_2026-01-05`), null, 'attendance record');
+  const lookup = await post(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:lookup?key=fake`, { idToken: leaver.token });
+  eq(Boolean(lookup.users?.length), false, 'auth user still there');
 });
 
 console.log(`\n${pass} passed, ${failN} failed`);

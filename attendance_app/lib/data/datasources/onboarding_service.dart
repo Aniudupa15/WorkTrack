@@ -37,6 +37,8 @@ class OnboardingService {
     List<Map<String, dynamic>> rows,
   ) => _call('importEmployees', {'companyId': companyId, 'rows': rows});
 
+  Future<void> deleteMyAccount() => _call('deleteMyAccount', {});
+
   Future<String> resetJoinCode(String companyId) async =>
       (await _call('resetJoinCode', {'companyId': companyId}))['employeeCode']
           as String;

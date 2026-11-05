@@ -9,11 +9,12 @@ import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/widgets/app_button.dart';
-import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/core/widgets/app_chip.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
 import 'package:attendance_app/data/models/leave_model.dart';
 import 'package:attendance_app/domain/repositories/leave_repository.dart';
+import 'package:attendance_app/core/utils/attendance_clock.dart';
+import 'package:attendance_app/features/shared/leave_balance.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 class LeaveRequest extends StatefulWidget {
@@ -30,6 +31,16 @@ class _LeaveRequestState extends State<LeaveRequest> {
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now();
   bool _submitting = false;
+  String _dayPart = 'full';
+  late final Stream<List<LeaveModel>> _mine = () {
+    final prov = Provider.of<UserProvider>(context, listen: false);
+    return sl<LeaveRepository>().watchEmployeeLeaves(
+      prov.company?.id ?? '',
+      prov.user?.id ?? '',
+    );
+  }();
+
+  bool get _singleDay => DateUtils.isSameDay(_startDate, _endDate);
 
   final _leaveTypes = ['casual', 'sick', 'earned', 'other'];
 
@@ -54,6 +65,7 @@ class _LeaveRequestState extends State<LeaveRequest> {
         } else {
           _endDate = picked;
         }
+        if (!_singleDay) _dayPart = 'full';
       });
     }
   }
@@ -80,6 +92,7 @@ class _LeaveRequestState extends State<LeaveRequest> {
         endDate: _endDate,
         reason: _reasonCtrl.text.trim(),
         createdAt: DateTime.now(),
+        dayPart: _singleDay ? _dayPart : 'full',
       );
       await sl<LeaveRepository>().submitLeave(prov.company!.id, leave);
       unawaited(sl<AnalyticsService>().logLeaveRequested(_type));
@@ -109,8 +122,31 @@ class _LeaveRequestState extends State<LeaveRequest> {
 
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<List<LeaveModel>>(
+      stream: _mine,
+      builder: (context, snap) => _build(context, snap.data ?? const []),
+    );
+  }
+
+  Widget _build(BuildContext context, List<LeaveModel> mine) {
+    final colors = context.colors;
+    final prov = Provider.of<UserProvider>(context);
+    final company = prov.company;
+    final workingDays = company?.workingDays ?? const [1, 2, 3, 4, 5, 6];
+    final year = AttendanceClock.now().year;
+    double left(String t) =>
+        (leaveQuota(company, t) ?? 0) -
+        leaveUsed(mine, t, year, workingDays, pending: true);
     final dateFormat = DateFormat('EEE, d MMM');
-    final days = _endDate.difference(_startDate).inDays + 1;
+    final days = leaveDays(
+      _startDate,
+      _endDate,
+      workingDays: workingDays,
+      dayPart: _singleDay ? _dayPart : 'full',
+    );
+    final quota = leaveQuota(company, _type);
+    final after = quota == null ? null : left(_type) - days;
+    final approver = (company?.adminName ?? '').trim();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Request time off')),
@@ -134,7 +170,10 @@ class _LeaveRequestState extends State<LeaveRequest> {
                 children: _leaveTypes
                     .map(
                       (t) => AppChip(
-                        label: '${t[0].toUpperCase()}${t.substring(1)}',
+                        label: leaveQuota(company, t) == null
+                            ? '${t[0].toUpperCase()}${t.substring(1)}'
+                            : '${t[0].toUpperCase()}${t.substring(1)} · '
+                                  '${fmtDays(left(t).clamp(0, 999).toDouble())}',
                         selected: _type == t,
                         onTap: () => setState(() => _type = t),
                       ),
@@ -148,7 +187,7 @@ class _LeaveRequestState extends State<LeaveRequest> {
                 children: [
                   Expanded(
                     child: _dateTile(
-                      'Start',
+                      'From',
                       dateFormat.format(_startDate),
                       () => _pickDate(true),
                     ),
@@ -156,13 +195,25 @@ class _LeaveRequestState extends State<LeaveRequest> {
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: _dateTile(
-                      'End',
+                      'To',
                       dateFormat.format(_endDate),
                       () => _pickDate(false),
                     ),
                   ),
                 ],
               ),
+              if (_singleDay) ...[
+                const SizedBox(height: AppSpacing.md),
+                AppSegmented<String>(
+                  segments: const {
+                    'full': 'Full day',
+                    'first_half': 'First half',
+                    'second_half': 'Second half',
+                  },
+                  selected: _dayPart,
+                  onChanged: (v) => setState(() => _dayPart = v),
+                ),
+              ],
               const SizedBox(height: AppSpacing.xxl),
               _label('Reason'),
               const SizedBox(height: AppSpacing.md),
@@ -178,19 +229,66 @@ class _LeaveRequestState extends State<LeaveRequest> {
                     : null,
               ),
               const SizedBox(height: AppSpacing.xxl),
-              // Summary before submit
-              AppBanner(
-                icon: Icons.event_available_rounded,
-                child: Text(
-                  'You’re requesting $days ${days > 1 ? "days" : "day"} '
-                  'of $_type leave. It goes to your manager for approval.',
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        days == 0
+                            ? 'No working days picked'
+                            : '${fmtDays(days)} working '
+                                  '${days == 1 ? 'day' : 'days'}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    if (after != null)
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: after < 0
+                                  ? '${fmtDays(-after)} over'
+                                  : '${fmtDays(after)} $_type '
+                                        '${after == 1 ? 'day' : 'days'}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: after < 0 ? colors.danger : null,
+                              ),
+                            ),
+                            TextSpan(
+                              text: after < 0
+                                  ? ' your allowance'
+                                  : ' left after this',
+                            ),
+                          ],
+                        ),
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),
               AppButton(
                 label: 'Send request',
                 loading: _submitting,
-                onPressed: _submitting ? null : _submit,
+                onPressed: _submitting || days == 0 ? null : _submit,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Center(
+                child: Text(
+                  approver.isEmpty
+                      ? 'Goes to your manager for approval'
+                      : 'Goes to $approver for approval',
+                  style: TextStyle(fontSize: 12, color: colors.textTertiary),
+                ),
               ),
             ],
           ),

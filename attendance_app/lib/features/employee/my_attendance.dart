@@ -13,7 +13,11 @@ import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/section_header.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
+import 'package:attendance_app/data/models/leave_model.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
+import 'package:attendance_app/domain/repositories/leave_repository.dart';
+import 'package:attendance_app/features/shared/leave_balance.dart';
+import 'package:attendance_app/features/shared/today_status.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 /// The employee's attendance: a month calendar coloured by status, a legend
@@ -51,90 +55,138 @@ class _MyAttendanceScreenState extends State<MyAttendanceScreen> {
           : const TabHeader(title: 'Attendance'),
       body: StreamBuilder<List<AttendanceModel>>(
         stream: sl<AttendanceRepository>().watchEmployeeHistory(companyId, uid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const AppLoader();
-          }
-          final logs = snapshot.data ?? const <AttendanceModel>[];
-          final monthKey = DateFormat('yyyy-MM').format(_month);
-          final byDate = {
-            for (final l in logs)
-              if (l.date.startsWith(monthKey)) l.date: l,
-          };
-          final now = AttendanceClock.now();
-          final isCurrentMonth =
-              _month.year == now.year && _month.month == now.month;
+        builder: (context, snapshot) => StreamBuilder<List<LeaveModel>>(
+          stream: sl<LeaveRepository>().watchEmployeeLeaves(companyId, uid),
+          builder: (context, leaveSnap) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const AppLoader();
+            }
+            final logs = snapshot.data ?? const <AttendanceModel>[];
+            final monthKey = DateFormat('yyyy-MM').format(_month);
+            final byDate = {
+              for (final l in logs)
+                if (l.date.startsWith(monthKey)) l.date: l,
+            };
+            final now = AttendanceClock.now();
+            final isCurrentMonth =
+                _month.year == now.year && _month.month == now.month;
+            final statuses = _dayStatuses(
+              byDate: byDate,
+              leaves: leaveSnap.data ?? const [],
+              workingDays:
+                  prov.company?.workingDays ?? const [1, 2, 3, 4, 5, 6],
+              joined: prov.user?.joinedAt,
+              holidays: {for (final h in holidaysOf(prov.company)) h.date},
+            );
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.xs,
-              AppSpacing.lg,
-              AppSpacing.xxl,
-            ),
-            children: [
-              AppCard(
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          tooltip: 'Previous month',
-                          onPressed: () => _shift(-1),
-                          icon: const Icon(Icons.chevron_left_rounded),
-                        ),
-                        Expanded(
-                          child: Text(
-                            DateFormat('MMMM yyyy').format(_month),
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Next month',
-                          onPressed: isCurrentMonth ? null : () => _shift(1),
-                          icon: const Icon(Icons.chevron_right_rounded),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _MonthGrid(
-                      month: _month,
-                      byDate: byDate,
-                      today: AttendanceClock.today(),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _Legend(records: byDate.values.toList()),
-                  ],
-                ),
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.xs,
+                AppSpacing.lg,
+                AppSpacing.xxl,
               ),
-              const SectionHeader(title: 'Recent days'),
-              const SizedBox(height: AppSpacing.sm),
-              if (logs.isEmpty)
-                const AppCard(child: Text('Your punches will appear here.'))
-              else
-                AppGroup(
-                  children: [
-                    for (final log in logs.take(10)) _DayRow(log: log),
-                  ],
+              children: [
+                AppCard(
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Previous month',
+                            onPressed: () => _shift(-1),
+                            icon: const Icon(Icons.chevron_left_rounded),
+                          ),
+                          Expanded(
+                            child: Text(
+                              DateFormat('MMMM yyyy').format(_month),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Next month',
+                            onPressed: isCurrentMonth ? null : () => _shift(1),
+                            icon: const Icon(Icons.chevron_right_rounded),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _MonthGrid(
+                        month: _month,
+                        statuses: statuses,
+                        today: AttendanceClock.today(),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _Legend(statuses: statuses),
+                    ],
+                  ),
                 ),
-            ],
-          );
-        },
+                const SectionHeader(title: 'Recent days'),
+                const SizedBox(height: AppSpacing.sm),
+                if (logs.isEmpty)
+                  const AppCard(child: Text('Your punches will appear here.'))
+                else
+                  AppGroup(
+                    children: [
+                      for (final log in logs.take(10)) _DayRow(log: log),
+                    ],
+                  ),
+              ],
+            );
+          },
+        ),
       ),
     );
+  }
+
+  /// One status per day of [_month] up to today: punches first, then
+  /// approved leave, then absent on a past working day; 'off' otherwise.
+  Map<String, String> _dayStatuses({
+    required Map<String, AttendanceModel> byDate,
+    required List<LeaveModel> leaves,
+    required List<int> workingDays,
+    DateTime? joined,
+    Set<String> holidays = const {},
+  }) {
+    final fmt = DateFormat('yyyy-MM-dd');
+    final today = AttendanceClock.today();
+    final start = joined == null
+        ? null
+        : fmt.format(DateTime(joined.year, joined.month, joined.day));
+    final out = <String, String>{};
+    final days = DateTime(_month.year, _month.month + 1, 0).day;
+    for (var d = 1; d <= days; d++) {
+      final date = DateTime(_month.year, _month.month, d);
+      final key = fmt.format(date);
+      if (key.compareTo(today) > 0) break;
+      final rec = byDate[key];
+      if (rec != null && rec.checkIn != null) {
+        out[key] = rec.isLate ? 'late' : 'present';
+      } else if (leaves.any((l) => onLeaveOn(l, key))) {
+        out[key] = 'leave';
+      } else if (holidays.contains(key)) {
+        out[key] = 'holiday';
+      } else if (!workingDays.contains(date.weekday)) {
+        out[key] = 'off';
+      } else if (key.compareTo(today) < 0 &&
+          (start == null || key.compareTo(start) >= 0)) {
+        out[key] = 'absent';
+      }
+    }
+    return out;
   }
 }
 
 class _MonthGrid extends StatelessWidget {
   const _MonthGrid({
     required this.month,
-    required this.byDate,
+    required this.statuses,
     required this.today,
   });
 
   final DateTime month;
-  final Map<String, AttendanceModel> byDate;
+  final Map<String, String> statuses;
   final String today;
 
   @override
@@ -152,12 +204,8 @@ class _MonthGrid extends StatelessWidget {
 
     for (var day = 1; day <= daysInMonth; day++) {
       final key = fmt.format(DateTime(month.year, month.month, day));
-      final rec = byDate[key];
-      final status = rec == null
-          ? null
-          : (rec.status == 'absent'
-                ? 'absent'
-                : (rec.isLate ? 'late' : 'present'));
+      final raw = statuses[key];
+      final status = raw == 'off' ? null : raw;
       final isToday = key == today;
       cells.add(
         Semantics(
@@ -200,21 +248,24 @@ class _MonthGrid extends StatelessWidget {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend({required this.records});
+  const _Legend({required this.statuses});
 
-  final List<AttendanceModel> records;
+  final Map<String, String> statuses;
 
   @override
   Widget build(BuildContext context) {
-    final present = records.where((r) => r.checkIn != null && !r.isLate).length;
-    final late = records.where((r) => r.isLate).length;
-    final absent = records.where((r) => r.status == 'absent').length;
+    int n(String s) => statuses.values.where((v) => v == s).length;
+    final present = n('present');
+    final late = n('late');
+    final leave = n('leave') + n('holiday');
+    final absent = n('absent');
     return Wrap(
       spacing: 6,
       runSpacing: 6,
       children: [
         StatusBadge(status: 'present', label: 'Present $present'),
         StatusBadge(status: 'late', label: 'Late $late'),
+        StatusBadge(status: 'leave', label: 'Leave/holiday $leave'),
         StatusBadge(status: 'absent', label: 'Absent $absent'),
       ],
     );
@@ -245,10 +296,23 @@ class _DayRow extends StatelessWidget {
     return EntityTile(
       inGroup: true,
       title: date,
-      subtitle: log.workDuration != null
-          ? '$inOut · ${log.workDurationFormatted}'
-          : inOut,
-      trailing: StatusBadge(status: status),
+      subtitle: log.locationName == null
+          ? inOut
+          : '$inOut · ${log.locationName}',
+      trailing: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          StatusBadge(status: status),
+          if (log.workDuration != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              log.workDurationFormatted,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

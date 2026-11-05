@@ -160,6 +160,8 @@ class AppColors extends ThemeExtension<AppColors> {
       case 'holiday':
       case 'half_day':
         return (info, infoSoft);
+      case 'brand':
+        return (brandStrong, brandSoft);
       default:
         return (textSecondary, surfaceMuted);
     }

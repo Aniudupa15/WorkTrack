@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/error/app_exception.dart';
@@ -12,11 +12,12 @@ import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/section_header.dart';
+import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/domain/repositories/employee_repository.dart';
 import 'package:attendance_app/domain/repositories/onboarding_repository.dart';
 import 'package:attendance_app/features/admin/bulk_upload_screen.dart';
+import 'package:attendance_app/features/admin/company_qr_screen.dart';
 import 'package:attendance_app/features/admin/invite_person_screen.dart';
-import 'package:attendance_app/features/onboarding/qr_scan_screen.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 /// Everything for growing the team: the join code and its QR, inviting by
@@ -71,6 +72,15 @@ class _InviteScreenState extends State<InviteScreen> {
     }
   }
 
+  Future<void> _open(Uri uri) async {
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No app on this phone can open that')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final prov = Provider.of<UserProvider>(context);
@@ -78,12 +88,33 @@ class _InviteScreenState extends State<InviteScreen> {
     final companyId = company?.id ?? '';
     final code = company?.employeeCode ?? '';
     final name = company?.name ?? 'our team';
+    final message = inviteMessage(name, code);
     final colors = context.colors;
+    final mainSite = prov.sites.where((s) => s.isMain).firstOrNull;
     void open(Widget page) =>
         Navigator.push(context, MaterialPageRoute(builder: (_) => page));
 
+    Widget share(String label, IconData icon, VoidCallback onTap) => Expanded(
+      child: AppButton(
+        label: label,
+        icon: icon,
+        size: AppButtonSize.small,
+        variant: AppButtonVariant.secondary,
+        onPressed: code.isEmpty ? null : onTap,
+      ),
+    );
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Invite people')),
+      appBar: AppBar(
+        title: const Text('Add your team'),
+        actions: [
+          if (!Navigator.of(context).canPop())
+            TextButton(
+              onPressed: () => Navigator.maybePop(context),
+              child: const Text('Later'),
+            ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.lg,
@@ -93,77 +124,106 @@ class _InviteScreenState extends State<InviteScreen> {
         ),
         children: [
           AppCard(
-            padding: const EdgeInsets.all(AppSpacing.xl),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Scan to join $name',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                if (code.isNotEmpty)
-                  QrImageView(
-                    data: QrScanScreen.payloadFor(code),
-                    size: 200,
-                    eyeStyle: QrEyeStyle(
-                      eyeShape: QrEyeShape.square,
-                      color: colors.textPrimary,
-                    ),
-                    dataModuleStyle: QrDataModuleStyle(
-                      dataModuleShape: QrDataModuleShape.square,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                const SizedBox(height: AppSpacing.lg),
-                Text(
-                  'or enter code',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-                const SizedBox(height: 4),
-                SelectableText(
-                  code,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 5,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
                 Row(
                   children: [
                     Expanded(
-                      child: AppButton(
-                        label: 'Share',
-                        icon: Icons.share_rounded,
-                        onPressed: () => SharePlus.instance.share(
-                          ShareParams(
-                            subject: 'Join $name on PunchIn',
-                            text:
-                                'Join $name on PunchIn.\n\n'
-                                '1. Install PunchIn and tap “Create an account” '
-                                '→ “Join my team”.\n'
-                                '2. Sign in with your mobile number.\n'
-                                '3. Enter company code $code',
-                          ),
+                      child: Text(
+                        'Company invite code',
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 13,
                         ),
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.md),
+                    const StatusBadge(
+                      status: 'present',
+                      label: 'Active',
+                      dot: false,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
                     Expanded(
-                      child: AppButton(
-                        label: 'Copy',
-                        icon: Icons.copy_rounded,
-                        variant: AppButtonVariant.secondary,
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: code));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Code copied')),
-                          );
-                        },
+                      child: SelectableText(
+                        CompanyQrScreen.pretty(code),
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 4,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    AppButton(
+                      label: 'Copy',
+                      size: AppButtonSize.small,
+                      expand: false,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: code));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Code copied')),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    share(
+                      'QR',
+                      Icons.qr_code_2_rounded,
+                      () => open(const CompanyQrScreen()),
+                    ),
+                    const SizedBox(width: 6),
+                    share(
+                      'WhatsApp',
+                      Icons.chat_outlined,
+                      () => _open(
+                        Uri.parse(
+                          'https://wa.me/?text=${Uri.encodeComponent(message)}',
+                        ),
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    share(
+                      'SMS',
+                      Icons.sms_outlined,
+                      () => _open(
+                        Uri(scheme: 'sms', queryParameters: {'body': message}),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    share(
+                      'More',
+                      Icons.ios_share_rounded,
+                      () => SharePlus.instance.share(
+                        ShareParams(
+                          subject: 'Join $name on PunchIn',
+                          text: message,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Employees type this code or scan the QR (print it for the '
+                  'entrance). People who join with it get '
+                  '${mainSite == null ? 'your main location' : mainSite.name}'
+                  '${company?.settings['approveJoiners'] == true ? ' once you approve them' : ''}. '
+                  'You can reset it any time.',
+                  style: TextStyle(fontSize: 12, color: colors.textTertiary),
                 ),
                 TextButton(
                   onPressed: _resetting ? null : () => _reset(companyId),
@@ -187,8 +247,8 @@ class _InviteScreenState extends State<InviteScreen> {
               EntityTile(
                 inGroup: true,
                 leading: const IconChip(icon: Icons.upload_file_rounded),
-                title: 'Upload a list',
-                subtitle: 'Excel or CSV with names and phone numbers',
+                title: 'Upload a spreadsheet',
+                subtitle: 'Add everyone at once from Excel or CSV',
                 chevron: true,
                 onTap: () => open(const BulkUploadScreen()),
               ),

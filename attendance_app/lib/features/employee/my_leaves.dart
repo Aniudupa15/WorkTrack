@@ -12,12 +12,11 @@ import 'package:attendance_app/core/widgets/app_chip.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
-import 'package:attendance_app/core/widgets/entity_tile.dart';
-import 'package:attendance_app/core/widgets/metric_tile.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/leave_model.dart';
 import 'package:attendance_app/domain/repositories/leave_repository.dart';
 import 'package:attendance_app/features/employee/leave_request.dart';
+import 'package:attendance_app/features/shared/leave_balance.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 /// The employee's leave requests with days taken this year per type and a
@@ -42,7 +41,6 @@ class _MyLeavesState extends State<MyLeaves> {
     final prov = Provider.of<UserProvider>(context);
     final companyId = prov.company?.id ?? '';
     final uid = prov.user?.id ?? '';
-    final colors = context.colors;
     final requestButton = AppButton(
       label: 'Request',
       size: AppButtonSize.small,
@@ -81,14 +79,8 @@ class _MyLeavesState extends State<MyLeaves> {
           }
 
           final year = AttendanceClock.now().year;
-          int taken(String type) => leaves
-              .where(
-                (l) =>
-                    l.type == type &&
-                    l.status == 'approved' &&
-                    l.startDate.year == year,
-              )
-              .fold(0, (sum, l) => sum + l.durationDays);
+          final workingDays =
+              prov.company?.workingDays ?? const [1, 2, 3, 4, 5, 6];
           final shown = _filter == 'all'
               ? leaves
               : leaves.where((l) => l.status == _filter).toList();
@@ -101,28 +93,19 @@ class _MyLeavesState extends State<MyLeaves> {
               AppSpacing.xxl,
             ),
             children: [
-              Text(
-                'Days taken in $year',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              MetricRow(
-                tiles: [
-                  MetricTile(
-                    label: 'Casual',
-                    value: '${taken('casual')}',
-                    dotColor: colors.info,
-                  ),
-                  MetricTile(
-                    label: 'Sick',
-                    value: '${taken('sick')}',
-                    dotColor: colors.info,
-                  ),
-                  MetricTile(
-                    label: 'Earned',
-                    value: '${taken('earned')}',
-                    dotColor: colors.info,
-                  ),
+              Row(
+                children: [
+                  for (final t in quotaLeaveTypes) ...[
+                    if (t != quotaLeaveTypes.first)
+                      const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: _Balance(
+                        label: StatusBadge.humanise(t),
+                        quota: leaveQuota(prov.company, t)!,
+                        used: leaveUsed(leaves, t, year, workingDays),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
@@ -141,7 +124,14 @@ class _MyLeavesState extends State<MyLeaves> {
                 const AppCard(child: Text('Nothing here.'))
               else
                 AppGroup(
-                  children: [for (final l in shown) _LeaveRow(leave: l)],
+                  children: [
+                    for (final l in shown)
+                      _LeaveRow(
+                        leave: l,
+                        days: leaveDaysOf(l, workingDays),
+                        approver: prov.company?.adminName,
+                      ),
+                  ],
                 ),
             ],
           );
@@ -151,27 +141,122 @@ class _MyLeavesState extends State<MyLeaves> {
   }
 }
 
-class _LeaveRow extends StatelessWidget {
-  const _LeaveRow({required this.leave});
+/// Days left of a yearly allowance, with a bar.
+class _Balance extends StatelessWidget {
+  const _Balance({
+    required this.label,
+    required this.quota,
+    required this.used,
+  });
 
-  final LeaveModel leave;
+  final String label;
+  final int quota;
+  final double used;
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final left = (quota - used).clamp(0, quota).toDouble();
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadius.md,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: colors.textSecondary, fontSize: 12),
+          ),
+          const SizedBox(height: 2),
+          Text.rich(
+            TextSpan(
+              text: fmtDays(left),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              children: [
+                TextSpan(
+                  text: ' / $quota',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: colors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: quota == 0 ? 0 : left / quota,
+              minHeight: 4,
+              color: colors.brand,
+              backgroundColor: colors.surfaceMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LeaveRow extends StatelessWidget {
+  const _LeaveRow({required this.leave, required this.days, this.approver});
+
+  final LeaveModel leave;
+  final double days;
+  final String? approver;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
     final d = DateFormat('d MMM');
-    final range = leave.durationDays == 1
+    final single = leave.durationDays == 1;
+    final range = single
         ? d.format(leave.startDate)
         : '${d.format(leave.startDate)} – ${d.format(leave.endDate)}';
-    final days =
-        '${leave.durationDays} ${leave.durationDays == 1 ? 'day' : 'days'}';
-    final note = (leave.adminNote ?? '').isNotEmpty
-        ? '\nNote: ${leave.adminNote}'
-        : '';
-    return EntityTile(
-      inGroup: true,
-      title: '$range · ${StatusBadge.humanise(leave.type)}',
-      subtitle: '$days · ${leave.reason}$note',
-      trailing: StatusBadge(status: leave.status),
+    final length = switch (leave.dayPart) {
+      'first_half' => 'First half',
+      'second_half' => 'Second half',
+      _ => '${fmtDays(days)} ${days == 1 ? 'day' : 'days'}',
+    };
+    final note = (leave.adminNote ?? '').trim();
+    final who = (approver ?? '').trim().split(' ').first;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$range · ${StatusBadge.humanise(leave.type)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  leave.reason.isEmpty ? length : '$length · ${leave.reason}',
+                  style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                ),
+                if (note.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    who.isEmpty ? '“$note”' : '$who: “$note”',
+                    style: TextStyle(color: colors.textPrimary, fontSize: 13),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          StatusBadge(status: leave.status),
+        ],
+      ),
     );
   }
 }

@@ -86,6 +86,9 @@ class OnboardingRepositoryImpl implements OnboardingRepository {
   Future<String> resetJoinCode(String companyId) =>
       _guard(() => _service.resetJoinCode(companyId));
 
+  @override
+  Future<void> deleteMyAccount() => _guard(_service.deleteMyAccount);
+
   Future<T> _guard<T>(Future<T> Function() run) async {
     try {
       return await run();

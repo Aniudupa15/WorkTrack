@@ -16,6 +16,8 @@ import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/utils/attendance_clock.dart';
 import 'package:attendance_app/core/widgets/app_button.dart';
+import 'package:attendance_app/core/widgets/app_card.dart';
+import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/data/datasources/analytics_service.dart';
@@ -415,6 +417,12 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
               accuracy: _position?.accuracy,
               placeName: site?.name ?? 'your work location',
               siteCount: _sites.length,
+              siteDistances: _currentLocation == null
+                  ? const []
+                  : ([
+                      for (final s in _sites)
+                        (name: s.name, metres: _metresTo(s), main: s.isMain),
+                    ]..sort((a, b) => a.metres.compareTo(b.metres))),
               shiftStart: user.shiftStart,
               lateAfterMinutes:
                   Provider.of<UserProvider>(
@@ -445,6 +453,7 @@ class _PunchSheet extends StatelessWidget {
     required this.accuracy,
     required this.placeName,
     required this.siteCount,
+    this.siteDistances = const [],
     required this.shiftStart,
     this.lateAfterMinutes = 15,
     required this.shiftEnd,
@@ -454,6 +463,9 @@ class _PunchSheet extends StatelessWidget {
   });
 
   final bool loading;
+
+  /// Every assigned site, nearest first (empty without a GPS fix).
+  final List<({String name, double metres, bool main})> siteDistances;
   final AttendanceModel? today;
   final bool hasWork;
   final bool located;
@@ -641,6 +653,37 @@ class _PunchSheet extends StatelessWidget {
                   onPressed: () => Navigator.pop(context),
                 )
               else if (located && hasWork && !inside) ...[
+                if (siteDistances.length > 1) ...[
+                  AppGroup(
+                    children: [
+                      for (final s in siteDistances.take(4))
+                        EntityTile(
+                          inGroup: true,
+                          dense: true,
+                          leading: IconChip(
+                            icon: s.main
+                                ? Icons.apartment_rounded
+                                : Icons.warehouse_outlined,
+                            size: 32,
+                            color: colors.textSecondary,
+                            background: colors.surfaceMuted,
+                          ),
+                          title: s.name,
+                          trailing: Text(
+                            fmtDistance(s.metres),
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: 13,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 const AppBanner(
                   icon: Icons.tips_and_updates_outlined,
                   tone: BannerTone.warning,

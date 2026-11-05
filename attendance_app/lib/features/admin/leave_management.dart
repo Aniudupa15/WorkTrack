@@ -14,6 +14,8 @@ import 'package:attendance_app/core/widgets/pressable.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/leave_model.dart';
 import 'package:attendance_app/domain/repositories/leave_repository.dart';
+import 'package:attendance_app/core/widgets/app_page.dart';
+import 'package:attendance_app/features/shared/leave_balance.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 class LeaveManagement extends StatefulWidget {
@@ -113,7 +115,7 @@ class _LeaveList extends StatelessWidget {
           itemCount: filtered.length,
           separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
           itemBuilder: (ctx, i) =>
-              _LeaveCard(leave: filtered[i], companyId: companyId),
+              _LeaveCard(leave: filtered[i], companyId: companyId, all: all),
         );
       },
     );
@@ -121,15 +123,51 @@ class _LeaveList extends StatelessWidget {
 }
 
 class _LeaveCard extends StatelessWidget {
-  const _LeaveCard({required this.leave, required this.companyId});
+  const _LeaveCard({
+    required this.leave,
+    required this.companyId,
+    this.all = const [],
+  });
 
   final LeaveModel leave;
   final String companyId;
+
+  /// Every request in the company, for balances and overlaps.
+  final List<LeaveModel> all;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final dateFormat = DateFormat('d MMM');
+    final company = Provider.of<UserProvider>(context).company;
+    final workingDays = company?.workingDays ?? const [1, 2, 3, 4, 5, 6];
+    final days = leaveDaysOf(leave, workingDays);
+    final quota = leaveQuota(company, leave.type);
+    final mine = all.where((l) => l.employeeId == leave.employeeId).toList();
+    final used = leaveUsed(
+      mine.where((l) => l.id != leave.id).toList(),
+      leave.type,
+      leave.startDate.year,
+      workingDays,
+    );
+    final leftAfter = quota == null ? null : quota - used - days;
+    // Others already approved for any of these days.
+    final overlap = all
+        .where(
+          (l) =>
+              l.employeeId != leave.employeeId &&
+              l.status == 'approved' &&
+              !l.startDate.isAfter(leave.endDate) &&
+              !l.endDate.isBefore(leave.startDate),
+        )
+        .map((l) => l.employeeId)
+        .toSet()
+        .length;
+    final length = switch (leave.dayPart) {
+      'first_half' => 'first half',
+      'second_half' => 'second half',
+      _ => '${fmtDays(days)} ${days == 1 ? 'day' : 'days'}',
+    };
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,7 +230,7 @@ class _LeaveCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${leave.durationDays} ${leave.durationDays == 1 ? "day" : "days"}',
+                  length,
                   style: TextStyle(
                     color: colors.brand,
                     fontSize: 13,
@@ -209,6 +247,41 @@ class _LeaveCard extends StatelessWidget {
               context,
             ).textTheme.bodyMedium?.copyWith(color: colors.textPrimary),
           ),
+          if (leave.status == 'pending' && leftAfter != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${StatusBadge.humanise(leave.type)} left after this',
+                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                  ),
+                ),
+                Text(
+                  leftAfter < 0
+                      ? '${fmtDays(-leftAfter)} over $quota'
+                      : '${fmtDays(leftAfter)} of $quota',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: leftAfter < 0 ? colors.danger : null,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (leave.status == 'pending' && overlap > 0) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppBanner(
+              icon: Icons.warning_amber_rounded,
+              tone: BannerTone.warning,
+              child: Text(
+                overlap == 1
+                    ? '1 other person is off on these days.'
+                    : '$overlap others are off on these days.',
+              ),
+            ),
+          ],
           if (leave.adminNote != null && leave.adminNote!.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(

@@ -24,6 +24,7 @@ import 'package:attendance_app/features/admin/attendance_logs.dart';
 import 'package:attendance_app/features/admin/company_settings.dart';
 import 'package:attendance_app/features/admin/employee_management.dart';
 import 'package:attendance_app/features/admin/invite_screen.dart';
+import 'package:attendance_app/features/admin/live_map_screen.dart';
 import 'package:attendance_app/features/billing/billing_screen.dart';
 import 'package:attendance_app/features/billing/choose_plan_screen.dart';
 import 'package:attendance_app/features/billing/paywall.dart';
@@ -218,6 +219,17 @@ class _TodayTab extends StatelessWidget {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  EntityTile(
+                    leading: const IconChip(icon: Icons.map_outlined),
+                    title: 'Live map',
+                    subtitle: 'Where your team punched in today',
+                    chevron: true,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LiveMapScreen()),
+                    ),
                   ),
                   if (employees.isEmpty) ...[
                     const SectionHeader(title: 'Get started', strong: true),

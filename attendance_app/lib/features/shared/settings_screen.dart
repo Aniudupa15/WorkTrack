@@ -14,6 +14,7 @@ class SettingsScreen extends StatelessWidget {
   static const privacyUrl =
       'https://aniudupa15.github.io/WorkTrack/privacy-policy.html';
   static const version = '2.0.0';
+  static const supportEmail = 'aniudupa15@gmail.com';
 
   @override
   Widget build(BuildContext context) {

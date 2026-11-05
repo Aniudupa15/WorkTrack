@@ -17,13 +17,19 @@ import 'package:attendance_app/core/widgets/avatar.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
+import 'package:attendance_app/core/utils/attendance_clock.dart';
+import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/data/models/company_model.dart';
+import 'package:attendance_app/data/models/leave_model.dart';
 import 'package:attendance_app/data/models/location_model.dart';
 import 'package:attendance_app/data/models/user_model.dart';
+import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/domain/repositories/employee_repository.dart';
+import 'package:attendance_app/domain/repositories/leave_repository.dart';
 import 'package:attendance_app/domain/repositories/location_repository.dart';
-import 'package:attendance_app/features/admin/add_edit_employee.dart';
+import 'package:attendance_app/features/admin/employee_detail_screen.dart';
 import 'package:attendance_app/features/admin/invite_screen.dart';
+import 'package:attendance_app/features/shared/today_status.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 class EmployeeManagement extends StatefulWidget {
@@ -38,6 +44,11 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
   String _filter = 'all'; // all | active | inactive
   String? _site; // location id, or null for every location
   Stream<List<LocationModel>>? _sites;
+  Stream<List<AttendanceModel>>? _today;
+  Stream<List<LeaveModel>>? _leaves;
+
+  Map<String, AttendanceModel> _logs = const {};
+  Set<String> _onLeave = const {};
 
   bool _matches(UserModel e) {
     if (_filter == 'active' && e.status != 'active') return false;
@@ -47,6 +58,7 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
     final q = _query.toLowerCase();
     return e.name.toLowerCase().contains(q) ||
         e.email.toLowerCase().contains(q) ||
+        (e.phone?.contains(q) ?? false) ||
         (e.department?.toLowerCase().contains(q) ?? false) ||
         (e.position?.toLowerCase().contains(q) ?? false);
   }
@@ -56,11 +68,29 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
     final prov = Provider.of<UserProvider>(context);
     final companyId = prov.company?.id ?? '';
     _sites ??= sl<LocationRepository>().watchLocations(companyId);
+    _today ??= sl<AttendanceRepository>().watchAllLogs(
+      companyId,
+      dateFilter: AttendanceClock.today(),
+    );
+    _leaves ??= sl<LeaveRepository>().watchAllLeaves(companyId);
 
     return StreamBuilder<List<LocationModel>>(
       stream: _sites,
-      builder: (context, siteSnap) =>
-          _build(context, prov, companyId, siteSnap.data ?? const []),
+      builder: (context, siteSnap) => StreamBuilder<List<AttendanceModel>>(
+        stream: _today,
+        builder: (context, logSnap) => StreamBuilder<List<LeaveModel>>(
+          stream: _leaves,
+          builder: (context, leaveSnap) {
+            final day = AttendanceClock.today();
+            _logs = {for (final l in logSnap.data ?? const []) l.employeeId: l};
+            _onLeave = {
+              for (final l in leaveSnap.data ?? const <LeaveModel>[])
+                if (onLeaveOn(l, day)) l.employeeId,
+            };
+            return _build(context, prov, companyId, siteSnap.data ?? const []);
+          },
+        ),
+      ),
     );
   }
 
@@ -148,7 +178,7 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   AppSearchField(
-                    hint: 'Search name, email, or role',
+                    hint: 'Search name, phone or role',
                     onChanged: (v) => setState(() => _query = v),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -181,12 +211,16 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
                         AppChip(
                           label: 'All locations',
                           icon: Icons.location_on_outlined,
+                          count: employees.length,
                           selected: _site == null,
                           onTap: () => setState(() => _site = null),
                         ),
                         for (final s in sites)
                           AppChip(
                             label: s.name,
+                            count: employees
+                                .where((e) => e.locationIds.contains(s.id))
+                                .length,
                             selected: _site == s.id,
                             onTap: () => setState(() => _site = s.id),
                           ),
@@ -219,6 +253,12 @@ class _EmployeeManagementState extends State<EmployeeManagement> {
                                 companyId: companyId,
                                 company: prov.company,
                                 siteNames: siteNames,
+                                today: todayStatus(
+                                  e,
+                                  _logs[e.id],
+                                  onLeave: _onLeave.contains(e.id),
+                                  company: prov.company,
+                                ),
                               ),
                           ],
                         ),
@@ -238,7 +278,10 @@ class _EmployeeCard extends StatelessWidget {
     required this.companyId,
     this.company,
     this.siteNames = const {},
+    required this.today,
   });
+
+  final TodayStatus today;
 
   final UserModel employee;
   final String companyId;
@@ -259,6 +302,9 @@ class _EmployeeCard extends StatelessWidget {
     return ids.length > 1 ? '$primary +${ids.length - 1}' : primary;
   }
 
+  bool get _unassigned =>
+      employee.locationIds.isEmpty && employee.workLatitude == null;
+
   @override
   Widget build(BuildContext context) {
     final parts = [
@@ -270,17 +316,14 @@ class _EmployeeCard extends StatelessWidget {
       leading: Avatar(name: employee.name, imageUrl: employee.avatarUrl),
       title: employee.name,
       subtitle: parts.isEmpty ? employee.email : parts.join(' · '),
-      trailing: StatusBadge(status: employee.status),
+      subtitleColor: _unassigned ? context.colors.danger : null,
+      trailing: _unassigned && employee.status == 'active'
+          ? const StatusBadge(status: 'brand', label: 'Assign', dot: false)
+          : StatusBadge(status: today.status, label: today.label),
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => AddEditEmployee(
-            employee: employee,
-            companyId: companyId,
-            defaultRadius: company?.defaultRadius ?? 100,
-            defaultShiftStart: company?.defaultShiftStart ?? '09:00',
-            defaultShiftEnd: company?.defaultShiftEnd ?? '18:00',
-          ),
+          builder: (_) => EmployeeDetailScreen(employee: employee),
         ),
       ),
     );

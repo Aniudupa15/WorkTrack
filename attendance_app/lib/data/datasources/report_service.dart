@@ -59,13 +59,19 @@ class ReportService {
     required String companyName,
     required DateTime month,
     required List<AttendanceModel> records,
+    String? scope,
   }) async {
     final monthLabel = DateFormat('yyyy-MM').format(month);
     final csv = buildCsv(records);
+    final slug = scope == null
+        ? ''
+        : '_${scope.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
     await SharePlus.instance.share(
       ShareParams(
-        files: [_csvFile(csv, 'attendance_$monthLabel.csv')],
-        subject: '$companyName attendance — $monthLabel',
+        files: [_csvFile(csv, 'attendance_$monthLabel$slug.csv')],
+        subject:
+            '$companyName attendance — $monthLabel'
+            '${scope == null ? '' : ' · $scope'}',
         text: 'Attendance report for $companyName ($monthLabel).',
       ),
     );
