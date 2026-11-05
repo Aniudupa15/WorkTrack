@@ -70,6 +70,32 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
     if (mounted) setState(() => _isLoading = false);
   }
 
+  DateTime? _lastFailedLog;
+
+  /// Tells the admin someone tried to punch in from outside every zone, at
+  /// most once a minute from this screen.
+  void _maybeLogFailedTry() {
+    final prov = Provider.of<UserProvider>(context, listen: false);
+    final site = _site;
+    final pos = _position;
+    if (site == null || pos == null || _isNearby) return;
+    if (_todayAttendance?.checkIn != null) return;
+    final now = DateTime.now();
+    if (_lastFailedLog != null &&
+        now.difference(_lastFailedLog!) < const Duration(minutes: 1)) {
+      return;
+    }
+    _lastFailedLog = now;
+    _attendance.logFailedAttempt(
+      companyId: prov.company!.id,
+      employeeId: prov.user!.id,
+      employeeName: prov.user!.name,
+      nearest: site,
+      distance: _metresTo(site),
+      accuracy: pos.accuracy,
+    );
+  }
+
   Future<void> _updateCurrentLocation() async {
     try {
       final pos = await _locationService.getCurrentLocation();
@@ -79,6 +105,7 @@ class _MarkAttendanceScreenState extends State<MarkAttendanceScreen> {
           _locationError = null;
           _currentLocation = LatLng(pos.latitude, pos.longitude);
         });
+        _maybeLogFailedTry();
       }
     } catch (e) {
       if (mounted) setState(() => _locationError = '$e');

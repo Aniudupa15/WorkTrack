@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/data/models/location_model.dart';
+import 'package:attendance_app/data/models/punch_attempt_model.dart';
 
 /// Outcome of a check-in/out attempt.
 enum CheckOutcome {
@@ -36,6 +37,19 @@ abstract interface class AttendanceRepository {
     required Map<String, dynamic> location,
     LocationModel? site,
   });
+
+  /// Records a punch refused for being outside every zone (best effort).
+  Future<void> logFailedAttempt({
+    required String companyId,
+    required String employeeId,
+    required String employeeName,
+    LocationModel? nearest,
+    required double distance,
+    double? accuracy,
+  });
+
+  /// Failed attempts on [date] ('yyyy-MM-dd'), for the admin.
+  Stream<List<PunchAttempt>> watchFailedAttempts(String companyId, String date);
 
   Future<String> uploadSelfie(String companyId, String uid, Uint8List bytes);
 

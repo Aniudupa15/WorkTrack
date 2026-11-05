@@ -16,6 +16,7 @@ import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/data/models/location_model.dart';
+import 'package:attendance_app/data/models/punch_attempt_model.dart';
 import 'package:attendance_app/data/models/user_model.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 import 'package:attendance_app/domain/repositories/employee_repository.dart';
@@ -42,6 +43,8 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
       .watchEmployees(_companyId);
   late final Stream<List<AttendanceModel>> _today = sl<AttendanceRepository>()
       .watchAllLogs(_companyId, dateFilter: AttendanceClock.today());
+  late final Stream<List<PunchAttempt>> _attempts = sl<AttendanceRepository>()
+      .watchFailedAttempts(_companyId, AttendanceClock.today());
   final _map = MapController();
   String? _site;
   bool _mapReady = false;
@@ -87,14 +90,18 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
         stream: _people,
         builder: (context, peopleSnap) => StreamBuilder<List<AttendanceModel>>(
           stream: _today,
-          builder: (context, logSnap) {
-            if (logSnap.hasData) _updated = AttendanceClock.now();
-            return _build(
-              siteSnap.data ?? const [],
-              peopleSnap.data ?? const [],
-              logSnap.data ?? const [],
-            );
-          },
+          builder: (context, logSnap) => StreamBuilder<List<PunchAttempt>>(
+            stream: _attempts,
+            builder: (context, attemptSnap) {
+              if (logSnap.hasData) _updated = AttendanceClock.now();
+              return _build(
+                siteSnap.data ?? const [],
+                peopleSnap.data ?? const [],
+                logSnap.data ?? const [],
+                attemptSnap.data ?? const [],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -104,6 +111,7 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
     List<LocationModel> sites,
     List<UserModel> people,
     List<AttendanceModel> logs,
+    List<PunchAttempt> attempts,
   ) {
     final colors = context.colors;
     _frameOnce(sites);
@@ -115,16 +123,20 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
         .where((l) => l.checkIn != null && l.checkOut == null)
         .toList();
     final out = visible.where((l) => l.checkOut != null).length;
-    final punched = {for (final l in logs) l.employeeId};
-    final notIn = people
-        .where(
-          (p) =>
-              p.status == 'active' &&
-              !punched.contains(p.id) &&
-              (_site == null || p.locationIds.contains(_site)),
-        )
-        .length;
     final late = inNow.where((l) => l.isLate).toList();
+    final punchedIn = {
+      for (final l in logs)
+        if (l.checkIn != null) l.employeeId,
+    };
+    final failed = FailedTries.group(attempts)
+        .where(
+          (f) =>
+              !punchedIn.contains(f.employeeId) &&
+              (_site == null || f.closest.locationId == _site),
+        )
+        .toList();
+    String metres(double m) =>
+        m >= 1000 ? '${(m / 1000).toStringAsFixed(1)} km' : '${m.round()} m';
     int inAt(String siteId) => logs
         .where(
           (l) =>
@@ -411,13 +423,47 @@ class _LiveMapScreenState extends State<LiveMapScreen> {
                       stat(inNow.length, 'Checked in', colors.success),
                       stat(out, 'Checked out', colors.textTertiary),
                       stat(
-                        notIn,
-                        'Not in',
+                        failed.length,
+                        'Failed',
                         colors.danger,
-                        valueColor: notIn > 0 ? colors.danger : null,
+                        valueColor: failed.isNotEmpty ? colors.danger : null,
                       ),
                     ],
                   ),
+                  if (failed.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    AppGroup(
+                      children: [
+                        for (final f in failed)
+                          EntityTile(
+                            inGroup: true,
+                            leading: Avatar(
+                              name: f.employeeName,
+                              imageUrl: byId[f.employeeId]?.avatarUrl,
+                            ),
+                            title: f.employeeName,
+                            subtitle:
+                                '${f.count} ${f.count == 1 ? 'try' : 'tries'} from '
+                                '${metres(f.closest.distance)} outside '
+                                '${f.closest.locationName ?? 'the zone'}',
+                            trailing: const StatusBadge(
+                              status: 'absent',
+                              label: 'Check',
+                            ),
+                            onTap: byId[f.employeeId] == null
+                                ? null
+                                : () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => EmployeeDetailScreen(
+                                        employee: byId[f.employeeId]!,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                      ],
+                    ),
+                  ],
                   if (late.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     AppGroup(

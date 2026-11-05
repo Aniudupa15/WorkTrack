@@ -305,6 +305,27 @@ service cloud.firestore {
         allow delete: if isAdmin(companyId);
       }
 
+      // Punches the app refused because the person was outside every zone.
+      // Shown to the admin as "Flagged" in logs and "Failed" on the map. The
+      // employee can only add their own, stamped with server time and today.
+      match /punchAttempts/{attemptId} {
+        allow read: if isAdmin(companyId)
+          || (signedIn() && resource.data.employeeId == uid() && memberOf(companyId));
+        allow create: if isEmployee(companyId, request.resource.data.employeeId)
+          && request.resource.data.keys().hasOnly(['employeeId', 'employeeName', 'date', 'at', 'locationId', 'locationName', 'distance', 'accuracy'])
+          && request.resource.data.at == request.time
+          && request.resource.data.date == localDate()
+          && validText(request.resource.data.employeeName, 200)
+          && optionalText(request.resource.data.get('locationId', null), 128)
+          && optionalText(request.resource.data.get('locationName', null), 200)
+          && request.resource.data.distance is number
+          && request.resource.data.distance >= 0 && request.resource.data.distance <= 20000000
+          && (request.resource.data.get('accuracy', null) == null
+              || (request.resource.data.accuracy is number && request.resource.data.accuracy >= 0
+                  && request.resource.data.accuracy <= 100000));
+        allow delete: if isAdmin(companyId);
+      }
+
       match /leaves/{leaveId} {
         allow read: if isAdmin(companyId)
           || (signedIn() && resource.data.employeeId == uid() && memberOf(companyId));

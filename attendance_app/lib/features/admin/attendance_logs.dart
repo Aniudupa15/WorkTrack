@@ -19,6 +19,7 @@ import 'package:attendance_app/core/utils/attendance_clock.dart';
 import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/data/models/leave_model.dart';
+import 'package:attendance_app/data/models/punch_attempt_model.dart';
 import 'package:attendance_app/data/models/user_model.dart';
 import 'package:attendance_app/domain/repositories/employee_repository.dart';
 import 'package:attendance_app/domain/repositories/leave_repository.dart';
@@ -58,6 +59,17 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
       .watchEmployees(_companyId);
   late final Stream<List<LeaveModel>> _leaves = sl<LeaveRepository>()
       .watchAllLeaves(_companyId);
+  final _attemptStreams = <String, Stream<List<PunchAttempt>>>{};
+
+  Stream<List<PunchAttempt>> _attemptsOn(String? day) => day == null
+      ? Stream.value(const [])
+      : _attemptStreams.putIfAbsent(
+          day,
+          () => _attendance.watchFailedAttempts(_companyId, day),
+        );
+
+  static String _metres(double m) =>
+      m >= 1000 ? '${(m / 1000).toStringAsFixed(1)} km' : '${m.round()} m';
 
   Future<void> _pickDate() async {
     final now = AttendanceClock.now();
@@ -234,125 +246,180 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
             dateFilter: dateFilter,
             since: _since,
           ),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const AppLoader();
-            }
-            final company = Provider.of<UserProvider>(context).company;
-            var logs = snapshot.data ?? [];
-            if (_site != null) {
-              logs = logs.where((l) => l.locationId == _site).toList();
-            }
+          builder: (context, snapshot) => StreamBuilder<List<PunchAttempt>>(
+            stream: _attemptsOn(dateFilter),
+            builder: (context, attemptSnap) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const AppLoader();
+              }
+              final company = Provider.of<UserProvider>(context).company;
+              var logs = snapshot.data ?? [];
+              if (_site != null) {
+                logs = logs.where((l) => l.locationId == _site).toList();
+              }
 
-            // On a single day, people with no punch (and no leave) count as
-            // absent: today once their start time plus the grace has passed,
-            // earlier days when the day was a working day.
-            var absent = <UserModel>[];
-            if (dateFilter != null) {
-              final punched = {for (final l in logs) l.employeeId};
-              final onLeave = {
-                for (final l in leaveSnap.data ?? const <LeaveModel>[])
-                  if (onLeaveOn(l, dateFilter)) l.employeeId,
+              // On a single day, people with no punch (and no leave) count as
+              // absent: today once their start time plus the grace has passed,
+              // earlier days when the day was a working day.
+              var absent = <UserModel>[];
+              if (dateFilter != null) {
+                final punched = {for (final l in logs) l.employeeId};
+                final onLeave = {
+                  for (final l in leaveSnap.data ?? const <LeaveModel>[])
+                    if (onLeaveOn(l, dateFilter)) l.employeeId,
+                };
+                final isToday = dateFilter == AttendanceClock.today();
+                final weekday = DateTime.parse(dateFilter).weekday;
+                final workDay =
+                    (company?.workingDays.contains(weekday) ?? true) &&
+                    holidayOn(company, dateFilter) == null;
+                bool missing(UserModel e) => isToday
+                    ? todayStatus(
+                            e,
+                            null,
+                            onLeave: false,
+                            company: company,
+                          ).status ==
+                          'absent'
+                    : workDay;
+                absent = [
+                  for (final e in peopleSnap.data ?? const <UserModel>[])
+                    if (e.status == 'active' &&
+                        !punched.contains(e.id) &&
+                        !onLeave.contains(e.id) &&
+                        (_site == null || e.locationIds.contains(_site)) &&
+                        missing(e))
+                      e,
+                ];
+              }
+
+              bool match(String name) =>
+                  _searchQuery.isEmpty ||
+                  name.toLowerCase().contains(_searchQuery);
+              logs = logs.where((l) => match(l.employeeName)).toList();
+              absent = absent.where((e) => match(e.name)).toList();
+
+              // Tried from outside the zone and never got in that day.
+              final punchedIn = {
+                for (final l in snapshot.data ?? const <AttendanceModel>[])
+                  if (l.checkIn != null) l.employeeId,
               };
-              final isToday = dateFilter == AttendanceClock.today();
-              final weekday = DateTime.parse(dateFilter).weekday;
-              final workDay =
-                  (company?.workingDays.contains(weekday) ?? true) &&
-                  holidayOn(company, dateFilter) == null;
-              bool missing(UserModel e) => isToday
-                  ? todayStatus(
-                          e,
-                          null,
-                          onLeave: false,
-                          company: company,
-                        ).status ==
-                        'absent'
-                  : workDay;
-              absent = [
-                for (final e in peopleSnap.data ?? const <UserModel>[])
-                  if (e.status == 'active' &&
-                      !punched.contains(e.id) &&
-                      !onLeave.contains(e.id) &&
-                      (_site == null || e.locationIds.contains(_site)) &&
-                      missing(e))
-                    e,
-              ];
-            }
+              final flagged = FailedTries.group(attemptSnap.data ?? const [])
+                  .where(
+                    (f) =>
+                        !punchedIn.contains(f.employeeId) &&
+                        (_site == null || f.closest.locationId == _site) &&
+                        match(f.employeeName),
+                  )
+                  .toList();
+              final flaggedIds = {for (final f in flagged) f.employeeId};
+              absent = absent.where((e) => !flaggedIds.contains(e.id)).toList();
 
-            bool match(String name) =>
-                _searchQuery.isEmpty ||
-                name.toLowerCase().contains(_searchQuery);
-            logs = logs.where((l) => match(l.employeeName)).toList();
-            absent = absent.where((e) => match(e.name)).toList();
+              final late = logs.where((l) => l.isLate).length;
+              final present =
+                  logs.where((l) => l.checkIn != null).length - late;
+              final shownLogs = switch (_filter) {
+                'present' =>
+                  logs.where((l) => l.checkIn != null && !l.isLate).toList(),
+                'late' => logs.where((l) => l.isLate).toList(),
+                'absent' || 'flagged' => const <AttendanceModel>[],
+                _ => logs,
+              };
+              final shownAbsent = _filter == 'all' || _filter == 'absent'
+                  ? absent
+                  : const <UserModel>[];
+              final shownFlagged = _filter == 'all' || _filter == 'flagged'
+                  ? flagged
+                  : const <FailedTries>[];
 
-            final late = logs.where((l) => l.isLate).length;
-            final present = logs.where((l) => l.checkIn != null).length - late;
-            final shownLogs = switch (_filter) {
-              'present' =>
-                logs.where((l) => l.checkIn != null && !l.isLate).toList(),
-              'late' => logs.where((l) => l.isLate).toList(),
-              'absent' => const <AttendanceModel>[],
-              _ => logs,
-            };
-            final shownAbsent = _filter == 'all' || _filter == 'absent'
-                ? absent
-                : const <UserModel>[];
+              AppChip chip(String key, String label, int n) => AppChip(
+                label: label,
+                count: n,
+                selected: _filter == key,
+                onTap: () => setState(() => _filter = key),
+              );
 
-            AppChip chip(String key, String label, int n) => AppChip(
-              label: label,
-              count: n,
-              selected: _filter == key,
-              onTap: () => setState(() => _filter = key),
-            );
-
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.md,
-                AppSpacing.lg,
-                40,
-              ),
-              children: [
-                AppChipBar(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    chip('all', 'All', logs.length + absent.length),
-                    chip('present', 'Present', present),
-                    chip('late', 'Late', late),
-                    if (dateFilter != null)
-                      chip('absent', 'Absent', absent.length),
-                  ],
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                  40,
                 ),
-                const SizedBox(height: AppSpacing.md),
-                if (shownLogs.isEmpty && shownAbsent.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 40),
-                    child: EmptyState(
-                      icon: Icons.event_busy_rounded,
-                      title: 'No records found',
-                      subtitle: 'Try a different day, name or filter.',
-                    ),
-                  ),
-                for (final log in shownLogs) ...[
-                  _LogCard(log: log, showDate: dateFilter == null),
-                  const SizedBox(height: AppSpacing.sm),
-                ],
-                if (shownAbsent.isNotEmpty)
-                  AppGroup(
+                children: [
+                  AppChipBar(
+                    padding: EdgeInsets.zero,
                     children: [
-                      for (final e in shownAbsent)
-                        EntityTile(
-                          inGroup: true,
-                          leading: Avatar(name: e.name, imageUrl: e.avatarUrl),
-                          title: e.name,
-                          subtitle: 'No punch',
-                          trailing: const StatusBadge(status: 'absent'),
-                        ),
+                      chip(
+                        'all',
+                        'All',
+                        logs.length + absent.length + flagged.length,
+                      ),
+                      chip('present', 'Present', present),
+                      chip('late', 'Late', late),
+                      if (dateFilter != null)
+                        chip('absent', 'Absent', absent.length),
+                      if (flagged.isNotEmpty)
+                        chip('flagged', 'Flagged', flagged.length),
                     ],
                   ),
-              ],
-            );
-          },
+                  const SizedBox(height: AppSpacing.md),
+                  if (shownLogs.isEmpty &&
+                      shownAbsent.isEmpty &&
+                      shownFlagged.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 40),
+                      child: EmptyState(
+                        icon: Icons.event_busy_rounded,
+                        title: 'No records found',
+                        subtitle: 'Try a different day, name or filter.',
+                      ),
+                    ),
+                  for (final log in shownLogs) ...[
+                    _LogCard(log: log, showDate: dateFilter == null),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                  if (shownFlagged.isNotEmpty) ...[
+                    AppGroup(
+                      children: [
+                        for (final f in shownFlagged)
+                          EntityTile(
+                            inGroup: true,
+                            leading: Avatar(name: f.employeeName),
+                            title: f.employeeName,
+                            subtitle:
+                                '${f.count} failed ${f.count == 1 ? 'try' : 'tries'}'
+                                ' · ${_metres(f.closest.distance)} away'
+                                '${f.closest.locationName == null ? '' : ' from ${f.closest.locationName}'}',
+                            trailing: const StatusBadge(
+                              status: 'absent',
+                              label: 'Flagged',
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                  if (shownAbsent.isNotEmpty)
+                    AppGroup(
+                      children: [
+                        for (final e in shownAbsent)
+                          EntityTile(
+                            inGroup: true,
+                            leading: Avatar(
+                              name: e.name,
+                              imageUrl: e.avatarUrl,
+                            ),
+                            title: e.name,
+                            subtitle: 'No punch',
+                            trailing: const StatusBadge(status: 'absent'),
+                          ),
+                      ],
+                    ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
