@@ -270,24 +270,32 @@ exports.razorpayWebhook = onRequest({ region: CALLABLE_OPTIONS.region, secrets: 
 });
 
 // Keeps company.activeEmployees current (Rules use it to hold Free companies
-// to 5 people) and grows a paid subscription's seats when the team outgrows
-// them — billed from the next cycle, as the billing screen says.
-exports.onEmployeeWritten = onDocumentWritten({ document: "companies/{companyId}/employees/{employeeId}", secrets: BILLING_SECRETS }, async (event) => {
+// to 5 people). Needs no billing secrets, so it runs before Razorpay is set up.
+const countedStatus = (s) => s === "active" || s === "pending";
+
+exports.onEmployeeWritten = onDocumentWritten("companies/{companyId}/employees/{employeeId}", async (event) => {
   const before = event.data.before.data()?.status, after = event.data.after.data()?.status;
-  const counted = (s) => s === "active" || s === "pending";
-  if (counted(before) === counted(after)) return;
+  if (countedStatus(before) === countedStatus(after)) return;
   const companyRef = db.collection("companies").doc(event.params.companyId);
-  const count = await headcount(companyRef);
+  if (!(await companyRef.get()).exists) return;
+  await companyRef.update({ activeEmployees: await headcount(companyRef) });
+});
+
+// Grows a paid subscription's seats when the team outgrows them — billed from
+// the next cycle, as the billing screen says.
+exports.syncSeats = onDocumentWritten({ document: "companies/{companyId}/employees/{employeeId}", secrets: BILLING_SECRETS }, async (event) => {
+  const before = event.data.before.data()?.status, after = event.data.after.data()?.status;
+  if (countedStatus(before) === countedStatus(after)) return;
+  const companyRef = db.collection("companies").doc(event.params.companyId);
   const company = (await companyRef.get()).data();
-  if (!company) return;
-  await companyRef.update({ activeEmployees: count });
-  if (["pro", "business"].includes(effectiveTier(company)) && company.subscriptionId && count > (company.seats || 0)) {
-    try {
-      await razorpay().updateSubscription(company.subscriptionId, { quantity: count, schedule_change_at: "cycle_end" });
-      await companyRef.update({ seats: count });
-    } catch (error) {
-      console.error("seat sync failed", { companyId: event.params.companyId, message: error.message });
-    }
+  if (!company || !company.subscriptionId || !["pro", "business"].includes(effectiveTier(company))) return;
+  const count = await headcount(companyRef);
+  if (count <= (company.seats || 0)) return;
+  try {
+    await razorpay().updateSubscription(company.subscriptionId, { quantity: count, schedule_change_at: "cycle_end" });
+    await companyRef.update({ seats: count });
+  } catch (error) {
+    console.error("seat sync failed", { companyId: event.params.companyId, message: error.message });
   }
 });
 
