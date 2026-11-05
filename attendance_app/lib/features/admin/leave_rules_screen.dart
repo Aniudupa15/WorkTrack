@@ -49,31 +49,10 @@ class _LeaveRulesScreenState extends State<LeaveRulesScreen> {
       lastDate: DateTime(now.year + 2, 12, 31),
     );
     if (date == null || !mounted) return;
-    final nameCtrl = TextEditingController();
     final name = await showDialog<String>(
       context: context,
-      builder: (d) => AlertDialog(
-        title: Text(DateFormat('EEE, d MMM yyyy').format(date)),
-        content: TextField(
-          controller: nameCtrl,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(hintText: 'e.g. Diwali'),
-          onSubmitted: (v) => Navigator.pop(d, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(d),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(d, nameCtrl.text),
-            child: const Text('Add'),
-          ),
-        ],
-      ),
+      builder: (_) => _HolidayNameDialog(date: date),
     );
-    nameCtrl.dispose();
     if (name == null || name.trim().isEmpty) return;
     final key = DateFormat('yyyy-MM-dd').format(date);
     setState(() {
@@ -233,4 +212,47 @@ class _LeaveRulesScreenState extends State<LeaveRulesScreen> {
       ),
     );
   }
+}
+
+/// Asks for the holiday's name. Owns its controller so it lives as long as
+/// the dialog, including the closing animation.
+class _HolidayNameDialog extends StatefulWidget {
+  const _HolidayNameDialog({required this.date});
+
+  final DateTime date;
+
+  @override
+  State<_HolidayNameDialog> createState() => _HolidayNameDialogState();
+}
+
+class _HolidayNameDialogState extends State<_HolidayNameDialog> {
+  final _name = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(DateFormat('EEE, d MMM yyyy').format(widget.date)),
+    content: TextField(
+      controller: _name,
+      autofocus: true,
+      textCapitalization: TextCapitalization.words,
+      decoration: const InputDecoration(hintText: 'e.g. Diwali'),
+      onSubmitted: (v) => Navigator.pop(context, v),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      TextButton(
+        onPressed: () => Navigator.pop(context, _name.text),
+        child: const Text('Add'),
+      ),
+    ],
+  );
 }

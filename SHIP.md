@@ -5,7 +5,7 @@ secrets, or your Google sign-in. Do them in this order. Total time is about 45 m
 
 ## Already done
 - [x] v2 app: redesign, multiple sites, self-serve signup, OTP join, invites/QR/bulk upload, billing, payroll export
-- [x] Tests: 34 Flutter, 6 reminders, 40 functions (emulator), 106 security-rules
+- [x] Tests: 34 Flutter, 6 reminders, 40 functions (emulator), 115 security-rules
 - [x] Release bundle **v2.0.0 (20)**, signed with your upload key: `store/release/punchin-2.0.0-20.aab`
 - [x] Store assets: `store/icon-512.png`, `store/feature-graphic.png`, `store/play-screenshots/*.png` (8 framed, 1080×1920), text in `store/listing.md`
 - [x] Promo video: `store/promo/punchin-promo.mp4` (30 s, 1080×1920, silent — add music in any editor or WhatsApp/Instagram)

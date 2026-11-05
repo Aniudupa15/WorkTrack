@@ -237,6 +237,24 @@ for (const [field, value] of [['seats', 999], ['billingStatus', 'active'], ['tri
   await t(`admin cannot write ${field}`, () => assertFails(updateDoc(doc(adm(), 'companies', C), { [field]: value })));
 }
 
+console.log('Failed punch attempts');
+await seed(onTime);
+await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'users', 'attAdm'), { role: 'admin', companyId: C }));
+const tryRef = (db) => doc(collection(db, 'companies', C, 'punchAttempts'));
+const attempt = (over = {}) => ({ employeeId: E, employeeName: 'Emp', date: today(), at: serverTimestamp(), locationId: 'hq', locationName: 'HQ', distance: 380, accuracy: 12, ...over });
+await t('employee logs own failed attempt', () => assertSucceeds(setDoc(tryRef(empDb()), attempt())));
+await t('attempt for someone else rejected', () => assertFails(setDoc(tryRef(empDb()), attempt({ employeeId: 'emp2' }))));
+await t('attempt with device time rejected', () => assertFails(setDoc(tryRef(empDb()), attempt({ at: Timestamp.now() }))));
+await t('attempt on another day rejected', () => assertFails(setDoc(tryRef(empDb()), attempt({ date: '2020-01-01' }))));
+await t('attempt with extra fields rejected', () => assertFails(setDoc(tryRef(empDb()), attempt({ approved: true }))));
+await t('attempt with negative distance rejected', () => assertFails(setDoc(tryRef(empDb()), attempt({ distance: -1 }))));
+await t('admin reads attempts', () => assertSucceeds(getDocs(collection(env.authenticatedContext('attAdm').firestore(), 'companies', C, 'punchAttempts'))));
+await t('stranger cannot read attempts', () => assertFails(getDocs(collection(env.authenticatedContext('x9').firestore(), 'companies', C, 'punchAttempts'))));
+await t('employee cannot edit an attempt', async () => {
+  const ref = tryRef(empDb()); await setDoc(ref, attempt());
+  await assertFails(updateDoc(ref, { distance: 0 }));
+});
+
 console.log(`\n${pass} passed, ${failN} failed`);
 await env.cleanup();
 process.exit(failN ? 1 : 0);

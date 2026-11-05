@@ -8,6 +8,7 @@ import 'package:attendance_app/data/models/company_model.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/data/models/leave_model.dart';
 import 'package:attendance_app/data/models/location_model.dart';
+import 'package:attendance_app/data/models/punch_attempt_model.dart';
 
 /// All data lives inside the PRD subcollection schema:
 ///   /companies/{companyId}
@@ -646,6 +647,32 @@ class DatabaseService {
 
   /// [since] (`yyyy-MM-dd`) bounds the query for Free companies, whose
   /// admins may only read recent history (Security Rules enforce it).
+  CollectionReference _attempts(String companyId) =>
+      _companies.doc(companyId).collection('punchAttempts');
+
+  Future<void> addPunchAttempt(String companyId, Map<String, dynamic> data) =>
+      _attempts(companyId).add({
+        ...data,
+        'date': AttendanceClock.today(),
+        'at': FieldValue.serverTimestamp(),
+      });
+
+  Stream<List<PunchAttempt>> watchPunchAttempts(
+    String companyId,
+    String date,
+  ) => _attempts(companyId)
+      .where('date', isEqualTo: date)
+      .limit(500)
+      .snapshots()
+      .map(
+        (snap) => snap.docs
+            .map(
+              (d) =>
+                  PunchAttempt.fromMap(d.data() as Map<String, dynamic>, d.id),
+            )
+            .toList(),
+      );
+
   Stream<List<AttendanceModel>> getAllAttendanceLogs(
     String companyId, {
     String? dateFilter,

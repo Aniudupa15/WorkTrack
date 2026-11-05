@@ -8,6 +8,7 @@ import 'package:attendance_app/data/datasources/database_service.dart';
 import 'package:attendance_app/data/datasources/storage_service.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
 import 'package:attendance_app/data/models/location_model.dart';
+import 'package:attendance_app/data/models/punch_attempt_model.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
 
 class AttendanceRepositoryImpl implements AttendanceRepository {
@@ -16,6 +17,35 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
   final DatabaseService _db;
   final StorageService _storage;
   final ConnectivityService _connectivity;
+
+  @override
+  Future<void> logFailedAttempt({
+    required String companyId,
+    required String employeeId,
+    required String employeeName,
+    LocationModel? nearest,
+    required double distance,
+    double? accuracy,
+  }) async {
+    try {
+      await _db.addPunchAttempt(companyId, {
+        'employeeId': employeeId,
+        'employeeName': employeeName,
+        'locationId': nearest?.id,
+        'locationName': nearest?.name,
+        'distance': distance.roundToDouble(),
+        'accuracy': accuracy?.roundToDouble(),
+      });
+    } catch (_) {
+      // Only a signal for the admin; never block the person over it.
+    }
+  }
+
+  @override
+  Stream<List<PunchAttempt>> watchFailedAttempts(
+    String companyId,
+    String date,
+  ) => _db.watchPunchAttempts(companyId, date);
 
   @override
   Future<CheckOutcome> checkIn({
