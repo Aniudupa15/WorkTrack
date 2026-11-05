@@ -5,11 +5,17 @@ secrets, or your Google sign-in. Do them in this order. Total time is about 45 m
 
 ## Already done
 - [x] v2 app: redesign, multiple sites, self-serve signup, OTP join, invites/QR/bulk upload, billing, payroll export
-- [x] Tests: 34 Flutter, 6 reminders, 37 functions (emulator), 106 security-rules
+- [x] Tests: 34 Flutter, 6 reminders, 40 functions (emulator), 106 security-rules
 - [x] Release bundle **v2.0.0 (20)**, signed with your upload key: `store/release/punchin-2.0.0-20.aab`
 - [x] Store assets: `store/icon-512.png`, `store/feature-graphic.png`, `store/play-screenshots/*.png` (8 framed, 1080×1920), text in `store/listing.md`
 - [x] Promo video: `store/promo/punchin-promo.mp4` (30 s, 1080×1920, silent — add music in any editor or WhatsApp/Instagram)
 - [x] Leads: `marketing/leads.csv` (25 Bengaluru SMBs), pitch kit `marketing/pitch.md`, 20 Gmail drafts waiting in Drafts
+- [x] Remaining canvas screens: team status pills, employee detail, live map, logs filters, reports bars and
+      downloads, leave balances/half days/approvals, leave & holidays settings, company profile, invite share
+      (WhatsApp/SMS/QR poster), profile (employee ID, reminders, delete account), super console MRR
+- [x] In-app account deletion (`deleteMyAccount` function) — `docs/delete-account.html` updated to say so;
+      `git push` publishes the page. In Play Console → App content → Data deletion, you can now tick
+      "users can delete their account in the app".
 
 ## 1. Firebase: Blaze + phone sign-in (10 min) — you
 1. Firebase console → trackin-df4d8 → **Upgrade to Blaze**. Set a budget alert (e.g. ₹1,000).

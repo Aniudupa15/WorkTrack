@@ -5,6 +5,8 @@ const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { getAuth } = require("firebase-admin/auth");
+const { getStorage } = require("firebase-admin/storage");
 const { randomBytes, createHmac, timingSafeEqual } = require("crypto");
 const { reminderFor, inReminderWindow, leaveCovers } = require("./reminders");
 
@@ -482,6 +484,49 @@ exports.claimJoin = onCall(CALLABLE_OPTIONS, async (request) => {
   return result;
 });
 
+// An employee deletes their own account (Play's in-app deletion rule). As
+// docs/delete-account.html promises: profile, membership, attendance records,
+// leave requests, photo and selfies all go, and so does the login.
+// Company owners close the company through support instead, since that
+// removes everyone's data.
+exports.deleteMyAccount = onCall(CALLABLE_OPTIONS, async (request) => {
+  if (!request.auth) fail("unauthenticated", "Sign-in is required");
+  const uid = request.auth.uid;
+  const roleRef = db.collection("users").doc(uid);
+  const role = await roleRef.get();
+  let companyId = null;
+  if (role.exists) {
+    const data = role.data();
+    if (data.role !== "employee") fail("failed-precondition", "Company owners can close their company by writing to support. Your team’s data goes with it, so we do it with you.");
+    companyId = data.companyId;
+    const companyRef = db.collection("companies").doc(companyId);
+    await db.runTransaction(async (transaction) => {
+      const employeeRef = companyRef.collection("employees").doc(uid);
+      const employee = await transaction.get(employeeRef);
+      if (employee.exists) {
+        transaction.delete(employeeRef);
+        transaction.update(companyRef, { totalEmployees: FieldValue.increment(-1) });
+      }
+      transaction.delete(roleRef);
+    });
+    // Their attendance and leave, in batches (Firestore caps a batch at 500).
+    for (const name of ["attendance", "leaves"]) {
+      const docs = (await companyRef.collection(name).where("employeeId", "==", uid).get()).docs;
+      for (let i = 0; i < docs.length; i += 400) {
+        const batch = db.batch();
+        docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+    const bucket = getStorage().bucket();
+    await Promise.all([`avatars/${companyId}/${uid}/`, `selfies/${companyId}/${uid}/`].map((prefix) =>
+      bucket.deleteFiles({ prefix }).catch((error) => console.warn(JSON.stringify({ event: "delete_account_storage", uid, prefix, error: String(error.message || error) })))));
+  }
+  await getAuth().deleteUser(uid);
+  console.log(JSON.stringify({ event: "delete_account", uid, companyId }));
+  return { deleted: true };
+});
+
 // Admin invites people by phone — one from a form or up to 500 from an
 // uploaded sheet. Each row becomes invites/{E.164 phone}; the person joins by
 // signing in with that number. Rows are validated independently so one bad
@@ -585,8 +630,15 @@ exports.autoMarkAbsent = onSchedule({ schedule: "59 23 * * *", timeZone: TIME_ZO
   for (const company of companies.docs) {
     const days = company.data().settings?.workingDays;
     if (Array.isArray(days) && days.length && !days.map(Number).includes(weekday)) continue;
+    const holidays = company.data().settings?.holidays;
+    if (Array.isArray(holidays) && holidays.some((h) => h && h.date === date)) continue;
+    // People on approved leave today aren't absent.
+    const leaves = await company.ref.collection("leaves").where("status", "==", "approved").get();
+    const onLeave = new Set(leaves.docs.map((l) => l.data())
+      .filter((l) => l.startDate && l.endDate && leaveCovers({ startDate: l.startDate.toDate(), endDate: l.endDate.toDate() }, date))
+      .map((l) => l.employeeId));
     const employees = await company.ref.collection("employees").where("status", "==", "active").get();
-    const writes = employees.docs.map((employee) => company.ref.collection("attendance").doc(`${employee.id}_${date}`).create({ employeeId: employee.id, companyId: company.id, employeeName: employee.data().name || "", date, checkIn: null, checkOut: null, status: "absent", isLate: false, checkInLocation: null, checkOutLocation: null, selfieStoragePath: null, isSynced: true, notes: "Auto-marked absent" }).catch((error) => { if (error.code !== 6) throw error; }));
+    const writes = employees.docs.filter((employee) => !onLeave.has(employee.id)).map((employee) => company.ref.collection("attendance").doc(`${employee.id}_${date}`).create({ employeeId: employee.id, companyId: company.id, employeeName: employee.data().name || "", date, checkIn: null, checkOut: null, status: "absent", isLate: false, checkInLocation: null, checkOutLocation: null, selfieStoragePath: null, isSynced: true, notes: "Auto-marked absent" }).catch((error) => { if (error.code !== 6) throw error; }));
     await Promise.all(writes); console.log(JSON.stringify({ event: "auto_mark_absent", companyId: company.id, date, employees: employees.size }));
   }
 });

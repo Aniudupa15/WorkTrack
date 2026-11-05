@@ -20,6 +20,10 @@ class UserModel {
   final String? fcmToken;
   final String? companyId;
   final DateTime? joinedAt;
+  // The company's own staff number, typed at join (read-only here).
+  final String? employeeNumber;
+  // The person turned shift reminders off for themselves.
+  final bool remindersOff;
 
   UserModel({
     required this.id,
@@ -38,6 +42,8 @@ class UserModel {
     this.fcmToken,
     this.companyId,
     this.joinedAt,
+    this.employeeNumber,
+    this.remindersOff = false,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map, String id) {
@@ -66,6 +72,8 @@ class UserModel {
       joinedAt: map['joinedAt'] != null
           ? (map['joinedAt'] as Timestamp).toDate()
           : null,
+      employeeNumber: map['employeeNumber'] as String?,
+      remindersOff: map['remindersOff'] == true,
     );
   }
 
@@ -122,6 +130,8 @@ class UserModel {
       fcmToken: fcmToken ?? this.fcmToken,
       companyId: companyId,
       joinedAt: joinedAt,
+      employeeNumber: employeeNumber,
+      remindersOff: remindersOff,
     );
   }
 

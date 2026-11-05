@@ -22,6 +22,21 @@ import 'package:attendance_app/features/admin/work_location_picker.dart';
 import 'package:attendance_app/features/onboarding/onboarding_step.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
+/// Industries offered at signup and on the company profile.
+const companyIndustries = [
+  'Logistics & transport',
+  'Retail & stores',
+  'Manufacturing',
+  'Construction & real estate',
+  'Security services',
+  'Facility management',
+  'Healthcare',
+  'Hospitality & restaurants',
+  'IT & services',
+  'Education',
+  'Other',
+];
+
 /// Company signup steps 2–5 (designs 1.3–1.7): verify email, company
 /// details, work locations, and default hours & policy. Shown whenever an
 /// email account has no company yet, so it resumes after a restart.
@@ -33,19 +48,7 @@ class CompanySetupScreen extends StatefulWidget {
 }
 
 class _CompanySetupScreenState extends State<CompanySetupScreen> {
-  static const industries = [
-    'Logistics & transport',
-    'Retail & stores',
-    'Manufacturing',
-    'Construction & real estate',
-    'Security services',
-    'Facility management',
-    'Healthcare',
-    'Hospitality & restaurants',
-    'IT & services',
-    'Education',
-    'Other',
-  ];
+  static const industries = companyIndustries;
   static const teamSizes = ['1–5', '6–25', '26–100', '100+'];
   static const lateOptions = [5, 10, 15, 30];
 

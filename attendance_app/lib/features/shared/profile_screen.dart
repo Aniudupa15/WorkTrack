@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:attendance_app/core/di/injection.dart';
+import 'package:attendance_app/core/error/app_exception.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/utils/attendance_clock.dart';
@@ -10,6 +12,8 @@ import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/core/widgets/avatar.dart';
 import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/section_header.dart';
+import 'package:attendance_app/data/datasources/database_service.dart';
+import 'package:attendance_app/domain/repositories/onboarding_repository.dart';
 import 'package:attendance_app/features/shared/settings_screen.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
@@ -26,9 +30,12 @@ class ProfileScreen extends StatelessWidget {
     if (user == null) return const Scaffold(body: SizedBox.shrink());
 
     final subtitle = [
-      user.department,
-      user.position,
+      user.department ?? user.position,
+      user.employeeNumber,
     ].whereType<String>().where((s) => s.isNotEmpty).join(' · ');
+    final isEmployee = user.role == 'employee';
+    final remindersOn =
+        !user.remindersOff && (prov.company?.shiftReminders ?? true);
 
     return Scaffold(
       appBar: Navigator.of(context).canPop()
@@ -108,6 +115,25 @@ class ProfileScreen extends StatelessWidget {
                       '${AttendanceClock.formatShiftTime(user.shiftStart)} – '
                       '${AttendanceClock.formatShiftTime(user.shiftEnd)}',
                 ),
+                SwitchListTile(
+                  secondary: const IconChip(
+                    icon: Icons.notifications_none_rounded,
+                  ),
+                  title: const Text(
+                    'Shift reminders',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                  ),
+                  subtitle: Text(
+                    prov.company?.shiftReminders == false
+                        ? 'Turned off by your company'
+                        : 'Before your shift, and if you forget to check out',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  value: remindersOn,
+                  onChanged: prov.company?.shiftReminders == false
+                      ? null
+                      : (on) => _setReminders(context, prov, on),
+                ),
               ],
               if (user.role == 'admin')
                 EntityTile(
@@ -141,6 +167,17 @@ class ProfileScreen extends StatelessWidget {
                   applicationVersion: SettingsScreen.version,
                 ),
               ),
+              EntityTile(
+                inGroup: true,
+                title: 'Help & support',
+                chevron: true,
+                onTap: () => launchUrl(
+                  Uri.parse(
+                    'mailto:${SettingsScreen.supportEmail}'
+                    '?subject=PunchIn%20help',
+                  ),
+                ),
+              ),
               Material(
                 color: Colors.transparent,
                 child: InkWell(
@@ -167,6 +204,19 @@ class ProfileScreen extends StatelessWidget {
               ),
             ],
           ),
+          if (isEmployee) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppGroup(
+              children: [
+                EntityTile(
+                  inGroup: true,
+                  title: 'Delete account',
+                  titleColor: colors.danger,
+                  onTap: () => _deleteAccount(context, prov),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: AppSpacing.lg),
           Center(
             child: Text(
@@ -177,5 +227,69 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _setReminders(
+    BuildContext context,
+    UserProvider prov,
+    bool on,
+  ) async {
+    final user = prov.user!;
+    try {
+      await sl<DatabaseService>().updateOwnEmployee(prov.company!.id, user.id, {
+        'remindersOff': !on,
+      });
+      await prov.refreshUser();
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Couldn’t change reminders')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteAccount(BuildContext context, UserProvider prov) async {
+    final colors = context.colors;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Delete your account?'),
+        content: Text(
+          'This removes your profile, attendance history, leave requests, '
+          'photo and selfies, takes you out of '
+          '${prov.company?.name ?? 'your company'} and deletes your login. '
+          'Ask your manager for any records you need first.\n\n'
+          'This can’t be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(d, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(d, true),
+            child: Text('Delete', style: TextStyle(color: colors.danger)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await sl<OnboardingRepository>().deleteMyAccount();
+      await prov.signOut();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Your account was deleted')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            e is AppException ? e.message : 'Couldn’t delete your account',
+          ),
+        ),
+      );
+    }
   }
 }

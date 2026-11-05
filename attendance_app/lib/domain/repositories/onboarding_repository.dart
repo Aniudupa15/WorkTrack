@@ -38,6 +38,9 @@ abstract interface class OnboardingRepository {
 
   /// Replaces the company's join code; returns the new one.
   Future<String> resetJoinCode(String companyId);
+
+  /// Deletes the signed-in employee's profile, membership and login.
+  Future<void> deleteMyAccount();
 }
 
 class ImportResult {

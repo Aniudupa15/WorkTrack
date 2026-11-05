@@ -13,7 +13,10 @@ import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/section_header.dart';
 import 'package:attendance_app/domain/repositories/company_repository.dart';
 import 'package:attendance_app/features/admin/attendance_logs.dart';
+import 'package:attendance_app/features/admin/company_profile_screen.dart';
 import 'package:attendance_app/features/admin/hours_rules_screen.dart';
+import 'package:attendance_app/features/admin/leave_rules_screen.dart';
+import 'package:attendance_app/features/shared/leave_balance.dart';
 import 'package:attendance_app/features/admin/invite_screen.dart';
 import 'package:attendance_app/features/billing/billing_screen.dart';
 import 'package:attendance_app/features/admin/leave_management.dart';
@@ -59,7 +62,7 @@ class CompanySettingsScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       Text(
-                        '${company?.totalEmployees ?? 0} people',
+                        '${company?.activeEmployees ?? 0} people',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -114,6 +117,14 @@ class CompanySettingsScreen extends StatelessWidget {
                 chevron: true,
                 onTap: () => openBilling(context),
               ),
+              EntityTile(
+                inGroup: true,
+                leading: const IconChip(icon: Icons.business_outlined),
+                title: 'Company profile',
+                subtitle: 'Name, logo, GSTIN',
+                chevron: true,
+                onTap: () => open(const CompanyProfileScreen()),
+              ),
             ],
           ),
           const SectionHeader(title: 'Workspace'),
@@ -154,6 +165,16 @@ class CompanySettingsScreen extends StatelessWidget {
                     'late after ${company?.lateAfterMinutes ?? 15} min',
                 chevron: true,
                 onTap: () => open(const HoursRulesScreen()),
+              ),
+              EntityTile(
+                inGroup: true,
+                leading: const IconChip(icon: Icons.calendar_month_outlined),
+                title: 'Leave & holidays',
+                subtitle:
+                    '${quotaLeaveTypes.length} leave types · '
+                    '${holidaysOf(company).length} holidays',
+                chevron: true,
+                onTap: () => open(const LeaveRulesScreen()),
               ),
             ],
           ),

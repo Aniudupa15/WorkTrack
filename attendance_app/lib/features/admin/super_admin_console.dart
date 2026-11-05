@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
+import 'package:attendance_app/core/billing/entitlements.dart';
 
 import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
@@ -9,7 +12,7 @@ import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/app_loader.dart';
 import 'package:attendance_app/core/widgets/app_page.dart';
-import 'package:attendance_app/core/widgets/metric_tile.dart';
+import 'package:attendance_app/core/widgets/app_search_field.dart';
 import 'package:attendance_app/core/widgets/avatar.dart';
 import 'package:attendance_app/core/widgets/empty_state.dart';
 import 'package:attendance_app/core/widgets/entity_tile.dart';
@@ -19,18 +22,50 @@ import 'package:attendance_app/domain/repositories/company_repository.dart';
 import 'package:attendance_app/features/admin/add_company.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
-/// Super-admin home: the roster of every company, with the ability to
-/// provision new ones and suspend/activate existing ones.
-class SuperAdminConsole extends StatelessWidget {
+/// Super-admin home: revenue, plan mix and the roster of every company, with
+/// the ability to provision new ones and suspend/activate existing ones.
+class SuperAdminConsole extends StatefulWidget {
   const SuperAdminConsole({super.key});
 
   @override
+  State<SuperAdminConsole> createState() => _SuperAdminConsoleState();
+}
+
+enum _Kind { paying, trial, free, pastDue }
+
+class _SuperAdminConsoleState extends State<SuperAdminConsole> {
+  final _repo = sl<CompanyRepository>();
+  late final Stream<List<CompanyModel>> _companies = _repo.watchCompanies();
+  String _query = '';
+
+  static _Kind _kindOf(CompanyModel c) {
+    if (c.plan == 'pro' || c.plan == 'business') {
+      if (c.billingStatus == 'pending' || c.billingStatus == 'halted') {
+        return _Kind.pastDue;
+      }
+      return Entitlements.of(c).isPaid ? _Kind.paying : _Kind.free;
+    }
+    return Entitlements.of(c).isTrial ? _Kind.trial : _Kind.free;
+  }
+
+  /// Monthly value of a paying company (₹, before GST).
+  static double _mrrOf(CompanyModel c) {
+    if (_kindOf(c) != _Kind.paying) return 0;
+    final tier = c.plan == 'business' ? Tier.business : Tier.pro;
+    final cycle = c.cycle == 'yearly'
+        ? BillingCycle.yearly
+        : BillingCycle.monthly;
+    return Pricing.perSeatMonthly(tier, cycle) * c.seats;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final repo = sl<CompanyRepository>();
+    final colors = context.colors;
     return Scaffold(
       appBar: TabHeader(
         title: 'Console',
         actions: [
+          const StatusBadge(status: 'brand', label: 'Super admin', dot: false),
           IconButton(
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout_rounded),
@@ -40,13 +75,67 @@ class SuperAdminConsole extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<List<CompanyModel>>(
-        stream: repo.watchCompanies(),
+        stream: _companies,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const AppLoader();
           }
           final companies = snap.data ?? [];
-          final active = companies.where((c) => c.status == 'active').length;
+          final count = {for (final k in _Kind.values) k: 0};
+          for (final c in companies) {
+            count[_kindOf(c)] = count[_kindOf(c)]! + 1;
+          }
+          final mrr = companies.fold<double>(0, (a, c) => a + _mrrOf(c));
+          final q = _query.toLowerCase();
+          final shown = companies
+              .where(
+                (c) =>
+                    q.isEmpty ||
+                    c.name.toLowerCase().contains(q) ||
+                    c.adminEmail.toLowerCase().contains(q),
+              )
+              .toList();
+
+          Widget stat(String label, int n, Color dot) => Expanded(
+            child: AppCard(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              radius: AppRadius.md,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: dot,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$n',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+
           return ListView(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
@@ -55,20 +144,63 @@ class SuperAdminConsole extends StatelessWidget {
               100,
             ),
             children: [
-              MetricRow(
-                tiles: [
-                  MetricTile(label: 'Companies', value: '${companies.length}'),
-                  MetricTile(
-                    label: 'Active',
-                    value: '$active',
-                    dotColor: context.colors.success,
-                  ),
-                  MetricTile(
-                    label: 'Suspended',
-                    value: '${companies.length - active}',
-                    dotColor: context.colors.danger,
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Monthly recurring revenue',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      Pricing.format(mrr, whole: true),
+                      style: const TextStyle(
+                        fontSize: 30,
+                        height: 36 / 30,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.6,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    Text(
+                      'From live subscriptions, before GST · yearly plans '
+                      'counted per month',
+                      style: TextStyle(
+                        color: colors.textTertiary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  stat('Paying', count[_Kind.paying]!, colors.success),
+                  const SizedBox(width: AppSpacing.sm),
+                  stat(
+                    'On trial',
+                    count[_Kind.trial]!,
+                    const Color(0xFFF59E0B),
                   ),
                 ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  stat('Free', count[_Kind.free]!, colors.textTertiary),
+                  const SizedBox(width: AppSpacing.sm),
+                  stat('Past due', count[_Kind.pastDue]!, colors.danger),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              AppSearchField(
+                hint: 'Search companies',
+                onChanged: (v) => setState(() => _query = v),
               ),
               const SizedBox(height: AppSpacing.md),
               if (companies.isEmpty)
@@ -83,15 +215,14 @@ class SuperAdminConsole extends StatelessWidget {
               else
                 AppGroup(
                   children: [
-                    for (final c in companies)
+                    for (final c in shown)
                       EntityTile(
                         inGroup: true,
                         leading: Avatar(name: c.name, square: true),
                         title: c.name,
-                        subtitle:
-                            '${c.totalEmployees} people · ${c.hasAdmin ? c.adminEmail : "admin not claimed"}',
-                        trailing: StatusBadge(status: c.status),
-                        onTap: () => _showSheet(context, repo, c),
+                        subtitle: _subtitle(c),
+                        trailing: _pill(c),
+                        onTap: () => _showSheet(context, _repo, c),
                       ),
                   ],
                 ),
@@ -108,6 +239,38 @@ class SuperAdminConsole extends StatelessWidget {
         label: const Text('Add company'),
       ),
     );
+  }
+
+  String _subtitle(CompanyModel c) {
+    final people = '${c.activeEmployees} people';
+    if (c.status == 'suspended') return '$people · suspended';
+    final e = Entitlements.of(c);
+    switch (_kindOf(c)) {
+      case _Kind.trial:
+        return '$people · trial ends '
+            '${DateFormat('d MMM').format(c.trialEndsAt!)}';
+      case _Kind.paying:
+        return '${c.seats} seats · ${c.plan == 'business' ? 'Business' : 'Pro'} '
+            '${c.cycle == 'yearly' ? 'yearly' : 'monthly'}';
+      case _Kind.pastDue:
+        return '${c.seats} seats · AutoPay failed';
+      case _Kind.free:
+        if (e.tier == Tier.legacy) return '$people · early customer';
+        return e.trialEnded ? '$people · trial ended' : '$people · Free';
+    }
+  }
+
+  Widget _pill(CompanyModel c) {
+    if (c.status == 'suspended') return const StatusBadge(status: 'suspended');
+    return switch (_kindOf(c)) {
+      _Kind.trial => const StatusBadge(status: 'pending', label: 'Trial'),
+      _Kind.pastDue => const StatusBadge(status: 'absent', label: 'Past due'),
+      _Kind.paying =>
+        c.plan == 'business'
+            ? const StatusBadge(status: 'brand', label: 'Business', dot: false)
+            : const StatusBadge(status: 'present', label: 'Pro'),
+      _Kind.free => const StatusBadge(status: 'neutral', label: 'Free'),
+    };
   }
 
   void _showSheet(

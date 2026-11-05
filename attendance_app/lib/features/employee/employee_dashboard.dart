@@ -16,12 +16,16 @@ import 'package:attendance_app/core/widgets/metric_tile.dart';
 import 'package:attendance_app/core/widgets/section_header.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
+import 'package:attendance_app/data/models/leave_model.dart';
 import 'package:attendance_app/domain/repositories/attendance_repository.dart';
+import 'package:attendance_app/domain/repositories/leave_repository.dart';
 import 'package:attendance_app/features/employee/leave_request.dart';
 import 'package:attendance_app/features/employee/mark_attendance.dart';
 import 'package:attendance_app/features/employee/my_attendance.dart';
 import 'package:attendance_app/features/employee/my_leaves.dart';
+import 'package:attendance_app/features/shared/leave_balance.dart';
 import 'package:attendance_app/features/shared/profile_screen.dart';
+import 'package:attendance_app/features/shared/today_status.dart';
 import 'package:attendance_app/features/shared/user_provider.dart';
 
 /// The employee app shell: Home / Attendance / Leaves / Profile tabs.
@@ -88,6 +92,11 @@ class _HomeTab extends StatefulWidget {
 
 class _HomeTabState extends State<_HomeTab> {
   final _repo = sl<AttendanceRepository>();
+  late final _prov = Provider.of<UserProvider>(context, listen: false);
+  late final Stream<List<AttendanceModel>> _history = _repo
+      .watchEmployeeHistory(_prov.company?.id ?? '', _prov.user?.id ?? '');
+  late final Stream<List<LeaveModel>> _leaves = sl<LeaveRepository>()
+      .watchEmployeeLeaves(_prov.company?.id ?? '', _prov.user?.id ?? '');
   late Future<AttendanceModel?> _today;
 
   @override
@@ -204,56 +213,88 @@ class _HomeTabState extends State<_HomeTab> {
               onAction: () => widget.onOpenTab(1),
             ),
             const SizedBox(height: AppSpacing.sm),
-            StreamBuilder<List<AttendanceModel>>(
-              stream: _repo.watchEmployeeHistory(
-                prov.company?.id ?? '',
-                user.id,
-              ),
-              builder: (context, snap) {
-                final month = DateFormat(
-                  'yyyy-MM',
-                ).format(AttendanceClock.now());
-                final logs = (snap.data ?? const <AttendanceModel>[])
-                    .where((l) => l.date.startsWith(month))
-                    .toList();
-                final present = logs.where((l) => l.checkIn != null).length;
-                final late = logs.where((l) => l.isLate).length;
-                final absent = logs.where((l) => l.status == 'absent').length;
-                return MetricRow(
-                  tiles: [
-                    MetricTile(
-                      label: 'Present',
-                      value: '$present',
-                      dotColor: colors.success,
+            StreamBuilder<List<LeaveModel>>(
+              stream: _leaves,
+              builder: (context, leaveSnap) {
+                final leaves = leaveSnap.data ?? const <LeaveModel>[];
+                final workingDays =
+                    prov.company?.workingDays ?? const [1, 2, 3, 4, 5, 6];
+                final now = AttendanceClock.now();
+                final casualLeft =
+                    (leaveQuota(prov.company, 'casual') ?? 0) -
+                    leaveUsed(
+                      leaves,
+                      'casual',
+                      now.year,
+                      workingDays,
+                      pending: true,
+                    );
+                // Leave days this month up to today.
+                final monthStart = DateTime(now.year, now.month);
+                final today = DateTime(now.year, now.month, now.day);
+                var leaveDaysSoFar = 0;
+                for (
+                  var d = monthStart;
+                  !d.isAfter(today);
+                  d = d.add(const Duration(days: 1))
+                ) {
+                  final key = DateFormat('yyyy-MM-dd').format(d);
+                  if (leaves.any((l) => onLeaveOn(l, key))) leaveDaysSoFar++;
+                }
+                return Column(
+                  children: [
+                    StreamBuilder<List<AttendanceModel>>(
+                      stream: _history,
+                      builder: (context, snap) {
+                        final month = DateFormat('yyyy-MM').format(now);
+                        final logs = (snap.data ?? const <AttendanceModel>[])
+                            .where((l) => l.date.startsWith(month))
+                            .toList();
+                        final late = logs.where((l) => l.isLate).length;
+                        final present =
+                            logs.where((l) => l.checkIn != null).length - late;
+                        return MetricRow(
+                          tiles: [
+                            MetricTile(
+                              label: 'Present',
+                              value: '$present',
+                              dotColor: colors.success,
+                            ),
+                            MetricTile(
+                              label: 'Late',
+                              value: '$late',
+                              dotColor: colors.warning,
+                            ),
+                            MetricTile(
+                              label: 'Leave',
+                              value: '$leaveDaysSoFar',
+                              dotColor: colors.info,
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                    MetricTile(
-                      label: 'Late',
-                      value: '$late',
-                      dotColor: colors.warning,
-                    ),
-                    MetricTile(
-                      label: 'Absent',
-                      value: '$absent',
-                      dotColor: colors.danger,
+                    const SizedBox(height: AppSpacing.md),
+                    EntityTile(
+                      leading: IconChip(
+                        icon: Icons.event_available_rounded,
+                        color: colors.info,
+                        background: colors.infoSoft,
+                      ),
+                      title: 'Plan time off',
+                      subtitle: casualLeft <= 0
+                          ? 'No casual days left this year'
+                          : '${fmtDays(casualLeft)} casual '
+                                '${casualLeft == 1 ? 'day' : 'days'} left',
+                      chevron: true,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LeaveRequest()),
+                      ),
                     ),
                   ],
                 );
               },
-            ),
-            const SizedBox(height: AppSpacing.md),
-            EntityTile(
-              leading: IconChip(
-                icon: Icons.event_available_rounded,
-                color: colors.info,
-                background: colors.infoSoft,
-              ),
-              title: 'Plan time off',
-              subtitle: 'Request casual, sick or earned leave',
-              chevron: true,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LeaveRequest()),
-              ),
             ),
           ],
         ),

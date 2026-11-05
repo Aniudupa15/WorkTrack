@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
+import 'package:attendance_app/core/di/injection.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
 import 'package:attendance_app/core/theme/app_spacing.dart';
 import 'package:attendance_app/core/widgets/app_button.dart';
 import 'package:attendance_app/core/widgets/app_card.dart';
 import 'package:attendance_app/core/widgets/entity_tile.dart';
 import 'package:attendance_app/core/widgets/status_badge.dart';
+import 'package:attendance_app/core/utils/attendance_clock.dart';
+import 'package:attendance_app/core/widgets/app_page.dart';
 import 'package:attendance_app/data/models/attendance_model.dart';
+import 'package:attendance_app/domain/repositories/attendance_repository.dart';
+import 'package:attendance_app/features/shared/leave_balance.dart';
+import 'package:attendance_app/features/shared/user_provider.dart';
 
 /// Confirmation after a successful punch: the server-recorded time, the
 /// status, and what was verified.
@@ -33,6 +40,16 @@ class PunchSuccessScreen extends StatelessWidget {
     final time = DateFormat('h:mm a');
     final at = checkedOut ? record.checkOut : record.checkIn;
     final status = record.isLate ? 'late' : 'present';
+    final prov = Provider.of<UserProvider>(context);
+    final user = prov.user;
+    final remindersOn =
+        user != null &&
+        !user.remindersOff &&
+        (prov.company?.shiftReminders ?? true);
+    final end = AttendanceClock.parseMinutes(user?.shiftEnd ?? '');
+    final reminderAt = checkedOut || !remindersOn || end == null
+        ? null
+        : AttendanceClock.formatMinutes(end + 30);
 
     return Scaffold(
       appBar: AppBar(
@@ -113,8 +130,32 @@ class PunchSuccessScreen extends StatelessWidget {
                 title: 'Time source',
                 trailing: Text('Server clock'),
               ),
+              if (reminderAt != null)
+                EntityTile(
+                  inGroup: true,
+                  title: 'Check-out reminder',
+                  trailing: _value(reminderAt),
+                ),
             ],
           ),
+          if (!checkedOut && !record.isLate)
+            StreamBuilder<List<AttendanceModel>>(
+              stream: sl<AttendanceRepository>().watchEmployeeHistory(
+                record.companyId,
+                record.employeeId,
+              ),
+              builder: (context, snap) {
+                final n = _streak(snap.data ?? const [], prov);
+                if (n < 2) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.lg),
+                  child: AppBanner(
+                    icon: Icons.star_outline_rounded,
+                    child: Text('$n on-time days in a row. Nice streak.'),
+                  ),
+                );
+              },
+            ),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -125,6 +166,29 @@ class PunchSuccessScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// On-time check-ins in a row, counting back from the latest working day
+  /// and skipping days off, holidays and leave.
+  static int _streak(List<AttendanceModel> history, UserProvider prov) {
+    final byDate = {for (final h in history) h.date: h};
+    final workingDays = prov.company?.workingDays ?? const [1, 2, 3, 4, 5, 6];
+    final fmt = DateFormat('yyyy-MM-dd');
+    var day = DateTime.parse(AttendanceClock.today());
+    var n = 0;
+    for (var i = 0; i < 120; i++, day = day.subtract(const Duration(days: 1))) {
+      final key = fmt.format(day);
+      final rec = byDate[key];
+      if (rec?.checkIn != null) {
+        if (rec!.isLate) break;
+        n++;
+      } else if (workingDays.contains(day.weekday) &&
+          holidayOn(prov.company, key) == null &&
+          i > 0) {
+        break;
+      }
+    }
+    return n;
   }
 
   Widget _value(String text) => Text(

@@ -15,6 +15,8 @@ class LeaveModel {
   final DateTime createdAt;
   final DateTime? updatedAt;
   final String? adminNote;
+  // 'full' | 'first_half' | 'second_half' (half days are single-day only).
+  final String dayPart;
 
   LeaveModel({
     required this.id,
@@ -29,9 +31,12 @@ class LeaveModel {
     required this.createdAt,
     this.updatedAt,
     this.adminNote,
+    this.dayPart = 'full',
   });
 
   int get durationDays => endDate.difference(startDate).inDays + 1;
+
+  bool get isHalfDay => dayPart != 'full';
 
   factory LeaveModel.fromMap(Map<String, dynamic> map, String id) {
     return LeaveModel(
@@ -51,6 +56,7 @@ class LeaveModel {
           ? (map['updatedAt'] as Timestamp).toDate()
           : null,
       adminNote: map['adminNote'],
+      dayPart: map['dayPart'] as String? ?? 'full',
     );
   }
 
@@ -66,6 +72,7 @@ class LeaveModel {
     'createdAt': Timestamp.fromDate(createdAt),
     'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
     'adminNote': adminNote,
+    if (dayPart != 'full') 'dayPart': dayPart,
   };
 
   LeaveModel copyWith({String? status, String? adminNote}) {
@@ -82,6 +89,7 @@ class LeaveModel {
       createdAt: createdAt,
       updatedAt: updatedAt,
       adminNote: adminNote ?? this.adminNote,
+      dayPart: dayPart,
     );
   }
 }
