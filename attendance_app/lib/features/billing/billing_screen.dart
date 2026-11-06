@@ -126,6 +126,9 @@ class _BillingScreenState extends State<BillingScreen> {
     final String? note = switch (ent.tier) {
       Tier.trial when company?.billingStatus == 'authenticated' =>
         'AutoPay is set up. First charge on ${date.format(company!.trialEndsAt!)}.',
+      Tier.trial when !canBuyInApp =>
+        'Your Pro trial runs until ${date.format(company!.trialEndsAt!)}, '
+            'then you move to Free.',
       Tier.trial =>
         'Choose a plan before ${date.format(company!.trialEndsAt!)} to keep '
             'Pro features. Otherwise you move to Free.',
@@ -139,6 +142,8 @@ class _BillingScreenState extends State<BillingScreen> {
             '${date.format(company!.trialEndsAt!)}, then the first charge.',
       _ when company?.billingStatus == 'authenticated' =>
         'AutoPay is set up. The first charge is on its way.',
+      _ when ent.paymentDue && !canBuyInApp =>
+        'There’s a problem with your plan’s last payment.',
       _ when ent.paymentDue =>
         'Your last payment failed. Razorpay will retry — update your UPI or '
             'card in the Razorpay email to avoid losing access.',
@@ -191,7 +196,7 @@ class _BillingScreenState extends State<BillingScreen> {
                     child: Text(note, style: text.bodySmall),
                   ),
                 ],
-                if (ent.tier != Tier.legacy) ...[
+                if (canBuyInApp && ent.tier != Tier.legacy) ...[
                   const SizedBox(height: AppSpacing.md),
                   Row(
                     children: [
@@ -332,7 +337,9 @@ class _Usage extends StatelessWidget {
           ent.isPaid
               ? 'Adding people adds seats automatically from your next bill.'
               : ent.isFree
-              ? 'Upgrade to add more than ${Pricing.freeEmployeeLimit} people.'
+              ? (canBuyInApp
+                    ? 'Upgrade to add more than ${Pricing.freeEmployeeLimit} people.'
+                    : 'Free includes up to ${Pricing.freeEmployeeLimit} people.')
               : ent.isTrial
               ? 'No limit during your trial.'
               : 'No limit on your plan.',

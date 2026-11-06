@@ -1,6 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
 
 import 'package:attendance_app/data/models/company_model.dart';
+
+/// Plans are bought only in the web app. Store builds show plan status but
+/// never prices, upgrade buttons or checkout (Google Play's payments policy).
+const bool canBuyInApp = kIsWeb;
 
 /// What a company may use right now. Mirrors `effectiveTier` in the Cloud
 /// Functions and `onFreeTier` in the Security Rules, which enforce the same
