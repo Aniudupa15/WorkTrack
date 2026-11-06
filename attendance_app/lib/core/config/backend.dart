@@ -8,7 +8,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 /// to go back to Cloud Functions once billing works.
 const backendUrl = String.fromEnvironment(
   'BACKEND_URL',
-  defaultValue: 'https://punchin-api.onrender.com',
+  defaultValue: 'https://punchin-api-bybr.onrender.com',
 );
 
 const _emulators = bool.fromEnvironment('USE_FIREBASE_EMULATORS');
