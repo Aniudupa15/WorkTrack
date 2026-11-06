@@ -52,7 +52,7 @@ class _Paywall extends StatelessWidget {
       PaywallReason.history => (
         'See your full history',
         'The Free plan keeps the last ${Pricing.freeHistoryDays} days on '
-            'screen. Older records are kept and come back when you upgrade.',
+            'screen. Older records are kept, not deleted.',
       ),
       PaywallReason.payroll => (
         'Send hours straight to payroll',
@@ -142,44 +142,53 @@ class _Paywall extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: AppSpacing.md),
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: colors.surfaceMuted,
-                borderRadius: BorderRadius.circular(AppRadius.md),
+            if (!canBuyInApp) ...[
+              const SizedBox(height: AppSpacing.lg),
+              AppButton(
+                label: 'Got it',
+                variant: AppButtonVariant.secondary,
+                onPressed: () => Navigator.pop(context),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '$people × ${Pricing.format(Pricing.perSeatMonthly(tier, BillingCycle.yearly), whole: true)} / month, billed yearly',
-                      style: text.bodySmall,
+            ] else ...[
+              const SizedBox(height: AppSpacing.md),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: colors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '$people × ${Pricing.format(Pricing.perSeatMonthly(tier, BillingCycle.yearly), whole: true)} / month, billed yearly',
+                        style: text.bodySmall,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${Pricing.format(monthly, whole: true)}/mo',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
+                    Text(
+                      '${Pricing.format(monthly, whole: true)}/mo',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            AppButton(
-              label: 'Upgrade to ${business ? 'Business' : 'Pro'}',
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ChoosePlanScreen(initial: tier),
-                  ),
-                );
-              },
-            ),
+              const SizedBox(height: AppSpacing.lg),
+              AppButton(
+                label: 'Upgrade to ${business ? 'Business' : 'Pro'}',
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChoosePlanScreen(initial: tier),
+                    ),
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),
@@ -201,18 +210,22 @@ class PlanBanner extends StatelessWidget {
     final colors = context.colors;
     final String? message;
     var urgent = false;
+    final choose = canBuyInApp ? ' Choose a plan.' : '';
     if (ent.isTrial && company?.billingStatus == null) {
       final days = ent.trialDaysLeft ?? 0;
       message = days <= 0
-          ? 'Your Pro trial ends today. Choose a plan.'
-          : 'Pro trial · $days ${days == 1 ? 'day' : 'days'} left. Choose a plan.';
+          ? 'Your Pro trial ends today.$choose'
+          : 'Pro trial · $days ${days == 1 ? 'day' : 'days'} left.$choose';
       urgent = days <= 3;
     } else if (ent.trialEnded) {
-      message =
-          'Your trial ended — you’re on Free. Upgrade to keep Pro features.';
+      message = canBuyInApp
+          ? 'Your trial ended — you’re on Free. Upgrade to keep Pro features.'
+          : 'Your trial ended — you’re on the Free plan.';
       urgent = true;
     } else if (ent.paymentDue) {
-      message = 'Your last payment failed. Update your payment method.';
+      message = canBuyInApp
+          ? 'Your last payment failed. Update your payment method.'
+          : 'There’s a problem with your plan’s last payment.';
       urgent = true;
     } else {
       message = null;

@@ -218,7 +218,7 @@ class _AttendanceLogsScreenState extends State<AttendanceLogsScreen> {
                     onTap: () => showPaywall(context, PaywallReason.history),
                     child: Text(
                       'Showing the last ${Pricing.freeHistoryDays} days on the '
-                      'Free plan · Upgrade for full history',
+                      '${canBuyInApp ? 'Free plan · Upgrade for full history' : 'Free plan'}',
                       style: TextStyle(
                         color: context.colors.brandStrong,
                         fontWeight: FontWeight.w600,
