@@ -2,7 +2,7 @@ const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https")
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { defineSecret } = require("firebase-functions/params");
-const { initializeApp } = require("firebase-admin/app");
+const { initializeApp, cert } = require("firebase-admin/app");
 const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getAuth } = require("firebase-admin/auth");
@@ -10,7 +10,19 @@ const { getStorage } = require("firebase-admin/storage");
 const { randomBytes, createHmac, timingSafeEqual } = require("crypto");
 const { reminderFor, inReminderWindow, leaveCovers } = require("./reminders");
 
-initializeApp();
+// On Google's runtime the default credentials apply. Elsewhere (the Render
+// server, server.js) a service account comes from the environment.
+initializeApp({
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "trackin-df4d8.firebasestorage.app",
+  ...(process.env.FIREBASE_PRIVATE_KEY ? {
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID || "trackin-df4d8",
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      // Env vars often hold the key with literal "\n" escapes.
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    }),
+  } : {}),
+});
 const db = getFirestore();
 const TIME_ZONE = process.env.ATTENDANCE_TIME_ZONE || "Asia/Kolkata";
 const CALLABLE_OPTIONS = { region: process.env.FUNCTION_REGION || "asia-south1" };

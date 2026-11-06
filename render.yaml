@@ -1,0 +1,34 @@
+# PunchIn backend on Render (free). Stands in for Cloud Functions while the
+# Firebase project has no Blaze billing. See attendance_app/cloud_functions/server.js.
+#
+# Set in the Render dashboard (never in this file):
+#   FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY  — from a Firebase service account key
+#   RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET — when billing goes live
+# CRON_KEY is generated; give it to the pinger that POSTs /tick every 5 minutes.
+services:
+  - type: web
+    name: punchin-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: attendance_app/cloud_functions
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - attendance_app/cloud_functions/**
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: FIREBASE_PROJECT_ID
+        value: trackin-df4d8
+      - key: FIREBASE_STORAGE_BUCKET
+        value: trackin-df4d8.firebasestorage.app
+      - key: CRON_KEY
+        generateValue: true
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false

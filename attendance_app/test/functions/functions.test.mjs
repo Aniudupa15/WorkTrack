@@ -10,7 +10,7 @@ import { createHmac } from 'node:crypto';
 const PROJECT = process.env.GCLOUD_PROJECT || 'trackin-df4d8';
 const AUTH = 'http://127.0.0.1:9099';
 const FS = `http://127.0.0.1:8085/v1/projects/${PROJECT}/databases/(default)/documents`;
-const FN = `http://127.0.0.1:5001/${PROJECT}/asia-south1`;
+const FN = process.env.FUNCTIONS_URL || `http://127.0.0.1:5001/${PROJECT}/asia-south1`;
 const RUN = Date.now().toString().slice(-6);
 let pass = 0, failN = 0;
 

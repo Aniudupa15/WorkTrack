@@ -1,5 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
+import 'package:attendance_app/core/config/backend.dart';
+
 /// Calls the onboarding Cloud Functions. Companies, joins and invites are
 /// created only server-side; Security Rules give clients no way to write them.
 class OnboardingService {
@@ -13,7 +15,7 @@ class OnboardingService {
     String name,
     Map<String, dynamic> data,
   ) async {
-    final result = await _functions.httpsCallable(name).call(data);
+    final result = await backendCallable(_functions, name).call(data);
     return Map<String, dynamic>.from(result.data as Map);
   }
 
