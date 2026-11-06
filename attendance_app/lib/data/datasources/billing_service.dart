@@ -1,5 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
+import 'package:attendance_app/core/config/backend.dart';
+
 /// Calls the billing Cloud Functions. Plan, seats and status are written only
 /// server-side (after Razorpay verifies the payment).
 class BillingService {
@@ -13,7 +15,7 @@ class BillingService {
     String name,
     Map<String, dynamic> data,
   ) async {
-    final result = await _functions.httpsCallable(name).call(data);
+    final result = await backendCallable(_functions, name).call(data);
     return Map<String, dynamic>.from(result.data as Map);
   }
 }
