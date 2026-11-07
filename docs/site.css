@@ -38,3 +38,4 @@ footer.site{border-top:1px solid var(--line);background:var(--card);margin-top:4
 footer.site .cols{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
 footer.site a{color:var(--ink-2);text-decoration:none;margin-right:14px;display:inline-block}
 @media (max-width:600px){.hero{padding:40px 0 24px}.doc{padding:20px}nav.main{gap:12px}}
+video.ad{display:block;width:100%;max-width:960px;aspect-ratio:16/9;border-radius:16px;background:#0F172A;border:1px solid var(--line);box-shadow:0 20px 50px rgba(15,23,42,.12)}
