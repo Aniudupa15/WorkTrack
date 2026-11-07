@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:attendance_app/core/constants/app_constants.dart';
 import 'package:attendance_app/core/theme/app_colors.dart';
@@ -108,12 +110,52 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                  // The web app's own address also shows the business and
+                  // policy pages (payment providers check for them).
+                  if (kIsWeb) const _PolicyLinks(),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// About, pricing and policy pages, served next to the web app
+/// (attendance_app/web/*.html).
+class _PolicyLinks extends StatelessWidget {
+  const _PolicyLinks();
+
+  static const _links = [
+    ('About', 'about.html'),
+    ('Pricing', 'pricing.html'),
+    ('Contact', 'contact.html'),
+    ('Terms', 'terms.html'),
+    ('Privacy', 'privacy-policy.html'),
+    ('Refunds', 'refund-policy.html'),
+    ('Delivery', 'shipping-policy.html'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(fontSize: 12, color: context.colors.textTertiary);
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 4,
+      children: [
+        for (final (label, page) in _links)
+          TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: () => launchUrl(Uri.base.resolve(page)),
+            child: Text(label, style: style),
+          ),
+      ],
     );
   }
 }
