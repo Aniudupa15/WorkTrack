@@ -211,10 +211,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   '$_seats × ${Pricing.format(perSeat, whole: true)}${yearly ? ' × 1 year' : ' × 1 month'}',
                   Pricing.format(subtotal),
                 ),
-                line(
-                  'GST (${(Pricing.gstRate * 100).round()}%)',
-                  Pricing.format(gst),
-                ),
+                if (Pricing.gstRate > 0)
+                  line(
+                    'GST (${(Pricing.gstRate * 100).round()}%)',
+                    Pricing.format(gst),
+                  ),
                 Divider(color: colors.border, height: AppSpacing.lg),
                 line('Total $chargeDay', Pricing.format(total), strong: true),
                 if (trialEnd != null)

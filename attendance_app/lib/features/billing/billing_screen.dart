@@ -246,7 +246,7 @@ class _BillingScreenState extends State<BillingScreen> {
                         title: snap.connectionState == ConnectionState.waiting
                             ? 'Loading…'
                             : 'No invoices yet',
-                        subtitle: 'GST invoices appear here after each payment',
+                        subtitle: 'Invoices appear here after each payment',
                       ),
                     for (final i in list)
                       EntityTile(

@@ -28,7 +28,9 @@ class Pricing {
 
   static const freeEmployeeLimit = 5;
   static const freeHistoryDays = 30;
-  static const gstRate = 0.18;
+  /// 0 while the business isn't GST-registered (the Razorpay plans charge the
+  /// plain prices). Set to 0.18 and re-create the plans once registered.
+  static const gstRate = 0.0;
   static const yearlyDiscountPercent = 20;
 
   static int perSeat(Tier tier, BillingCycle cycle) => switch ((tier, cycle)) {

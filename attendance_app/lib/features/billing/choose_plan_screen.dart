@@ -107,7 +107,7 @@ class _ChoosePlanScreenState extends State<ChoosePlanScreen> {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'All plans include unlimited work locations. Prices exclude 18% GST.',
+            'All plans include unlimited work locations. Prices are in INR.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.labelSmall,
           ),
