@@ -73,16 +73,19 @@ async function admin(request, companyId) {
 //
 // Secrets (set by the account owner, never in code):
 //   firebase functions:secrets:set RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET
-// Plan ids (create the four plans in the Razorpay dashboard — amounts are the
-// per-seat prices below incl. 18% GST — then put the ids in cloud_functions/.env):
-//   RAZORPAY_PLAN_PRO_MONTHLY, RAZORPAY_PLAN_PRO_YEARLY,
-//   RAZORPAY_PLAN_BUSINESS_MONTHLY, RAZORPAY_PLAN_BUSINESS_YEARLY
+// Plan ids: the four live plans in the Razorpay dashboard, one per tier × cycle,
+// priced per person at PRICES below (no GST: the business isn't GST-registered).
+// Plan ids aren't secret. RAZORPAY_PLAN_<TIER>_<CYCLE> env vars override them.
 
 const RAZORPAY_KEY_ID = defineSecret("RAZORPAY_KEY_ID");
 const RAZORPAY_KEY_SECRET = defineSecret("RAZORPAY_KEY_SECRET");
 const RAZORPAY_WEBHOOK_SECRET = defineSecret("RAZORPAY_WEBHOOK_SECRET");
-// Read at call time from cloud_functions/.env (loaded into process.env).
-const planId = (plan, cycle) => process.env[`RAZORPAY_PLAN_${plan.toUpperCase()}_${cycle.toUpperCase()}`] || "";
+const PLAN_IDS = {
+  pro: { monthly: "plan_Tx6yohztXdAKEz", yearly: "plan_Tx6zVJJZkHaj3l" },
+  business: { monthly: "plan_Tx6zxLmGkVJPWc", yearly: "plan_Tx70YK1vQJR62I" },
+};
+const planId = (plan, cycle) =>
+  process.env[`RAZORPAY_PLAN_${plan.toUpperCase()}_${cycle.toUpperCase()}`] || PLAN_IDS[plan]?.[cycle] || "";
 
 // Per-seat prices in rupees, before GST. Keep in sync with lib/core/billing/pricing.dart.
 const PRICES = { pro: { monthly: 49, yearly: 468 }, business: { monthly: 99, yearly: 948 } };

@@ -81,15 +81,15 @@ void main() {
     expect(ended.trialEnded, isTrue);
   });
 
-  test('pricing: yearly is 20% off; GST is 18%', () {
+  test('pricing: yearly is 20% off; no GST until registered', () {
     expect(
       Pricing.perSeatMonthly(Tier.pro, BillingCycle.yearly),
       closeTo(39, 0.01),
     );
     expect(Pricing.subtotal(Tier.pro, BillingCycle.monthly, 12), 588);
-    expect(Pricing.gst(Tier.pro, BillingCycle.monthly, 12), 105.84);
-    // Matches the Checkout mockup: 12 × ₹39 × 12 months + GST.
-    expect(Pricing.total(Tier.pro, BillingCycle.yearly, 12), 6626.88);
-    expect(Pricing.format(6626.88), '₹6,626.88');
+    // The Razorpay plans charge the plain prices: no GST is added.
+    expect(Pricing.gst(Tier.pro, BillingCycle.monthly, 12), 0);
+    expect(Pricing.total(Tier.pro, BillingCycle.yearly, 12), 5616);
+    expect(Pricing.format(5616), '₹5,616.00');
   });
 }
